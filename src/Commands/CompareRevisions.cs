@@ -18,7 +18,7 @@ namespace SourceGit.Commands
             Context = repo;
 
             var based = string.IsNullOrEmpty(start) ? "-R" : start;
-            Args = $"diff --name-status {based} {end}";
+            Args = ["diff", "--name-status", based, end];
         }
 
         public CompareRevisions(string repo, string start, string end, string path)
@@ -27,17 +27,20 @@ namespace SourceGit.Commands
             Context = repo;
 
             var based = string.IsNullOrEmpty(start) ? "-R" : start;
-            Args = $"diff --name-status {based} {end} -- {path.Quoted()}";
+            Args = ["diff", "--name-status", based, end, "--", path];
         }
 
         public async Task<List<Models.Change>> ReadAsync()
         {
             var changes = new List<Models.Change>();
+            Process proc = null;
             try
             {
-                using var proc = new Process();
+                proc = new Process();
                 proc.StartInfo = CreateGitStartInfo(true);
                 proc.Start();
+
+_ = proc.StandardError.ReadToEndAsync();
 
                 while (await proc.StandardOutput.ReadLineAsync().ConfigureAwait(false) is { } line)
                 {
@@ -80,14 +83,16 @@ namespace SourceGit.Commands
                     }
                 }
 
+                if (!proc.HasExited) proc.Kill();
                 await proc.WaitForExitAsync().ConfigureAwait(false);
 
                 changes.Sort((l, r) => Models.NumericSort.Compare(l.Path, r.Path));
             }
             catch
             {
-                //ignore changes;
+                if (proc != null && !proc.HasExited) proc.Kill();
             }
+            finally { proc?.Dispose(); }
 
             return changes;
         }

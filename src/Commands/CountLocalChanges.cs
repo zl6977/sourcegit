@@ -10,7 +10,7 @@ namespace SourceGit.Commands
             var option = includeUntracked ? "-uall" : "-uno";
             WorkingDirectory = repo;
             Context = repo;
-            Args = $"--no-optional-locks status {option} --ignore-submodules=all --porcelain";
+            Args = ["--no-optional-locks", "status", option, "--ignore-submodules=all", "--porcelain"];
         }
 
         public async Task<int> GetResultAsync()

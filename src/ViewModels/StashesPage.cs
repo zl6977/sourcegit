@@ -247,7 +247,7 @@ namespace SourceGit.ViewModels
                 return;
 
             var log = _repo.CreateLog($"Apply changes from '{_selectedStash.Name}'");
-            await new Commands.Apply(_repo.FullPath, saveTo, true, string.Empty, string.Empty)
+            await new Commands.Apply(_repo.FullPath, saveTo, true, string.Empty)
                 .Use(log)
                 .ExecAsync();
 

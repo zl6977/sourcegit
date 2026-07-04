@@ -8,7 +8,7 @@ namespace SourceGit.Commands
         public QueryGitCommonDir(string workDir)
         {
             WorkingDirectory = workDir;
-            Args = "rev-parse --git-common-dir";
+            Args = ["rev-parse", "--git-common-dir"];
             RaiseError = false;
         }
 

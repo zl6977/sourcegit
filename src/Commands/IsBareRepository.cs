@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -8,14 +8,12 @@ namespace SourceGit.Commands
         public IsBareRepository(string path)
         {
             WorkingDirectory = path;
-            Args = "rev-parse --is-bare-repository";
+            Args = ["rev-parse", "--is-bare-repository"];
         }
 
         public bool GetResult()
         {
-            if (!Directory.Exists(Path.Combine(WorkingDirectory, "refs")) ||
-                !Directory.Exists(Path.Combine(WorkingDirectory, "objects")) ||
-                !File.Exists(Path.Combine(WorkingDirectory, "HEAD")))
+            if (!HasBareRepositoryLayout())
                 return false;
 
             var rs = ReadToEnd();
@@ -24,13 +22,21 @@ namespace SourceGit.Commands
 
         public async Task<bool> GetResultAsync()
         {
-            if (!Directory.Exists(Path.Combine(WorkingDirectory, "refs")) ||
-                !Directory.Exists(Path.Combine(WorkingDirectory, "objects")) ||
-                !File.Exists(Path.Combine(WorkingDirectory, "HEAD")))
+            if (!HasBareRepositoryLayout())
                 return false;
 
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             return rs.IsSuccess && rs.StdOut.Trim() == "true";
+        }
+
+        private bool HasBareRepositoryLayout()
+        {
+            if (GitService.RequiresGitBareRepositoryProbe(WorkingDirectory))
+                return true;
+
+            return GitService.DirectoryExists(Path.Combine(WorkingDirectory, "refs")) &&
+                GitService.DirectoryExists(Path.Combine(WorkingDirectory, "objects")) &&
+                GitService.FileExists(Path.Combine(WorkingDirectory, "HEAD"));
         }
     }
 }

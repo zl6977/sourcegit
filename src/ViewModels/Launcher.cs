@@ -74,7 +74,7 @@ namespace SourceGit.ViewModels
 
         public bool TryOpenRepositoryFromPath(string repo)
         {
-            if (!string.IsNullOrEmpty(repo) && Directory.Exists(repo))
+            if (!string.IsNullOrEmpty(repo) && Commands.GitService.DirectoryExists(repo))
             {
                 var isBare = new Commands.IsBareRepository(repo).GetResult();
                 if (isBare)
@@ -88,7 +88,10 @@ namespace SourceGit.ViewModels
                 var test = new Commands.QueryRepositoryRootPath(repo).GetResult();
                 if (test.IsSuccess && !string.IsNullOrEmpty(test.StdOut))
                 {
-                    var node = Preferences.Instance.FindOrAddNodeByRepositoryPath(test.StdOut.Trim(), null, false);
+                    var root = test.StdOut.Trim();
+                    root = Commands.GitService.NormalizeRepositoryPath(root, repo);
+
+                    var node = Preferences.Instance.FindOrAddNodeByRepositoryPath(root, null, false);
                     Welcome.Instance.Refresh();
                     OpenRepositoryInTab(node, null);
                     return true;
@@ -304,7 +307,7 @@ namespace SourceGit.ViewModels
                 }
             }
 
-            if (!Directory.Exists(node.Id))
+            if (!Commands.GitService.DirectoryExists(node.Id))
             {
                 ActivePage.Notifications.Add(new Models.Notification
                 {
@@ -397,26 +400,28 @@ namespace SourceGit.ViewModels
         private string GetRepositoryGitDir(string repo)
         {
             var fullpath = Path.Combine(repo, ".git");
-            if (Directory.Exists(fullpath))
+            if (Commands.GitService.DirectoryExists(fullpath))
             {
-                if (Directory.Exists(Path.Combine(fullpath, "refs")) &&
-                    Directory.Exists(Path.Combine(fullpath, "objects")) &&
-                    File.Exists(Path.Combine(fullpath, "HEAD")))
+                if (Commands.GitService.DirectoryExists(Path.Combine(fullpath, "refs")) &&
+                    Commands.GitService.DirectoryExists(Path.Combine(fullpath, "objects")) &&
+                    Commands.GitService.FileExists(Path.Combine(fullpath, "HEAD")))
                     return fullpath;
 
                 return null;
             }
 
-            if (File.Exists(fullpath))
+            if (Commands.GitService.FileExists(fullpath))
             {
-                var redirect = File.ReadAllText(fullpath).Trim();
+                var redirect = Commands.GitService.ReadFile(fullpath).Trim();
                 if (redirect.StartsWith("gitdir: ", StringComparison.Ordinal))
                     redirect = redirect.Substring(8);
 
-                if (!Path.IsPathRooted(redirect))
+                if (Commands.GitService.RequiresGitBareRepositoryProbe(repo))
+                    redirect = Commands.GitService.NormalizeRepositoryPath(redirect, repo);
+                else if (!Path.IsPathRooted(redirect))
                     redirect = Path.GetFullPath(Path.Combine(repo, redirect));
 
-                if (Directory.Exists(redirect))
+                if (Commands.GitService.DirectoryExists(redirect))
                     return redirect;
 
                 return null;

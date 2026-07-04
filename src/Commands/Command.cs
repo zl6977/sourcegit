@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,7 +29,8 @@ namespace SourceGit.Commands
         public string WorkingDirectory { get; set; } = null;
         public EditorType Editor { get; set; } = EditorType.CoreEditor;
         public string SSHKey { get; set; } = string.Empty;
-        public string Args { get; set; } = string.Empty;
+        public string Operation { get; set; } = string.Empty;
+        public List<string> Args { get; set; } = null;
 
         // Only used in `ExecAsync` mode.
         public CancellationToken CancellationToken { get; set; } = CancellationToken.None;
@@ -39,7 +39,7 @@ namespace SourceGit.Commands
 
         public async Task<bool> ExecAsync()
         {
-            Log?.AppendLine($"$ git {Args}\n");
+            Log?.AppendLine($"$ git {GetLogArgs()}\n");
 
             var errs = new List<string>();
 
@@ -85,6 +85,13 @@ namespace SourceGit.Commands
             }
             catch (Exception e)
             {
+                // After cancellation (Kill() was called), wait for the process to actually
+                // exit so the async reader threads (BeginOutputReadLine/BeginErrorReadLine)
+                // can drain and terminate cleanly before the Process is disposed.
+                if (!proc.HasExited)
+                {
+                    try { proc.WaitForExit(5000); } catch { /* ignore */ }
+                }
                 HandleOutput(e.Message, errs);
             }
 
@@ -112,7 +119,7 @@ namespace SourceGit.Commands
 
         protected Result ReadToEnd()
         {
-            using var proc = new Process();
+            var proc = new Process();
             proc.StartInfo = CreateGitStartInfo(true);
 
             try
@@ -124,18 +131,31 @@ namespace SourceGit.Commands
                 return Result.Failed(e.Message);
             }
 
-            var rs = new Result() { IsSuccess = true };
-            rs.StdOut = proc.StandardOutput.ReadToEnd();
-            rs.StdErr = proc.StandardError.ReadToEnd();
-            proc.WaitForExit();
+            try
+            {
+                var rs = new Result() { IsSuccess = true };
+                var stdOutTask = proc.StandardOutput.ReadToEndAsync();
+                var stdErrTask = proc.StandardError.ReadToEndAsync();
+                Task.WaitAll(stdOutTask, stdErrTask);
+                proc.WaitForExit();
+                rs.StdOut = stdOutTask.Result;
+                rs.StdErr = stdErrTask.Result;
 
-            rs.IsSuccess = proc.ExitCode == 0;
-            return rs;
+                rs.IsSuccess = proc.ExitCode == 0;
+                return rs;
+            }
+            catch
+            {
+                if (!proc.HasExited) proc.Kill();
+                proc.WaitForExit();
+                return Result.Failed("Process error");
+            }
+            finally { proc.Dispose(); }
         }
 
         protected async Task<Result> ReadToEndAsync()
         {
-            using var proc = new Process();
+            var proc = new Process();
             proc.StartInfo = CreateGitStartInfo(true);
 
             try
@@ -147,76 +167,52 @@ namespace SourceGit.Commands
                 return Result.Failed(e.Message);
             }
 
-            var rs = new Result() { IsSuccess = true };
-            rs.StdOut = await proc.StandardOutput.ReadToEndAsync(CancellationToken).ConfigureAwait(false);
-            rs.StdErr = await proc.StandardError.ReadToEndAsync(CancellationToken).ConfigureAwait(false);
-            await proc.WaitForExitAsync(CancellationToken).ConfigureAwait(false);
+            try
+            {
+                var rs = new Result() { IsSuccess = true };
+                var stdOutTask = proc.StandardOutput.ReadToEndAsync(CancellationToken).ConfigureAwait(false);
+                var stdErrTask = proc.StandardError.ReadToEndAsync(CancellationToken).ConfigureAwait(false);
+                rs.StdOut = await stdOutTask;
+                rs.StdErr = await stdErrTask;
+                await proc.WaitForExitAsync(CancellationToken).ConfigureAwait(false);
 
-            rs.IsSuccess = proc.ExitCode == 0;
-            return rs;
+                rs.IsSuccess = proc.ExitCode == 0;
+                return rs;
+            }
+            catch (OperationCanceledException)
+            {
+                if (!proc.HasExited)
+                {
+                    proc.Kill();
+                    try { proc.WaitForExit(5000); } catch { /* ignore */ }
+                }
+                return Result.Failed("Cancelled");
+            }
+            catch
+            {
+                if (!proc.HasExited) proc.Kill();
+                proc.WaitForExit();
+                return Result.Failed("Process error");
+            }
+            finally { proc.Dispose(); }
         }
 
         protected ProcessStartInfo CreateGitStartInfo(bool redirect)
         {
-            var start = new ProcessStartInfo();
-            start.FileName = Native.OS.GitExecutable;
-            start.UseShellExecute = false;
-            start.CreateNoWindow = true;
+            return GitService.CreateStartInfo(this, redirect);
+        }
 
-            if (redirect)
+        private string GetLogArgs()
+        {
+            if (Args is { Count: > 0 })
             {
-                start.RedirectStandardOutput = true;
-                start.RedirectStandardError = true;
-                start.StandardOutputEncoding = Encoding.UTF8;
-                start.StandardErrorEncoding = Encoding.UTF8;
+                var parts = new List<string>();
+                foreach (var arg in Args)
+                    parts.Add(arg.Quoted());
+                return string.Join(" ", parts);
             }
 
-            // Force using this app as SSH askpass program
-            var selfExecFile = Environment.ProcessPath;
-            start.Environment.Add("SSH_ASKPASS", selfExecFile); // Can not use parameter here, because it invoked by SSH with `exec`
-            start.Environment.Add("SSH_ASKPASS_REQUIRE", "prefer");
-            start.Environment.Add("SOURCEGIT_LAUNCH_AS_ASKPASS", "TRUE");
-            if (!OperatingSystem.IsLinux())
-                start.Environment.Add("DISPLAY", "required");
-
-            // If an SSH private key was provided, sets the environment.
-            if (!start.Environment.ContainsKey("GIT_SSH_COMMAND") && !string.IsNullOrEmpty(SSHKey))
-                start.Environment.Add("GIT_SSH_COMMAND", $"ssh -i '{SSHKey}' -F '/dev/null'");
-
-            // Force using en_US.UTF-8 locale
-            if (OperatingSystem.IsLinux())
-            {
-                start.Environment.Add("LANG", "C");
-                start.Environment.Add("LC_ALL", "C");
-            }
-
-            var builder = new StringBuilder(2048);
-            builder
-                .Append("--no-pager -c core.quotepath=off -c credential.helper=")
-                .Append(Native.OS.CredentialHelper)
-                .Append(' ');
-
-            switch (Editor)
-            {
-                case EditorType.CoreEditor:
-                    builder.Append($"""-c core.editor="\"{selfExecFile}\" --core-editor" """);
-                    break;
-                case EditorType.RebaseEditor:
-                    builder.Append($"""-c core.editor="\"{selfExecFile}\" --rebase-message-editor" -c sequence.editor="\"{selfExecFile}\" --rebase-todo-editor" -c rebase.abbreviateCommands=true """);
-                    break;
-                default:
-                    builder.Append("-c core.editor=true ");
-                    break;
-            }
-
-            builder.Append(Args);
-            start.Arguments = builder.ToString();
-
-            // Working directory
-            if (!string.IsNullOrEmpty(WorkingDirectory))
-                start.WorkingDirectory = WorkingDirectory;
-
-            return start;
+            return string.Empty;
         }
 
         protected void RaiseException(string error)

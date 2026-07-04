@@ -13,7 +13,7 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
             RaiseError = false;
-            Args = $"merge-base {rev1} {rev2}";
+            Args = ["merge-base", rev1, rev2];
         }
 
         public async Task<string> GetResultAsync()

@@ -574,8 +574,8 @@ namespace SourceGit.Views
                         gitTemplateItem.Icon = icon;
                         gitTemplateItem.Click += (_, ev) =>
                         {
-                            if (File.Exists(gitTemplate))
-                                vm.CommitMessage = File.ReadAllText(gitTemplate);
+                            if (Commands.GitService.FileExists(gitTemplate))
+                                vm.CommitMessage = Commands.GitService.ReadFile(gitTemplate);
                             ev.Handled = true;
                         };
                         menu.Items.Add(gitTemplateItem);

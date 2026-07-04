@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -53,14 +52,13 @@ namespace SourceGit.ViewModels
 
             Task.Run(async () =>
             {
-                var argsBuilder = new StringBuilder();
-                argsBuilder
-                    .Append("--date-order -n 10000 ")
-                    .Append(revision ?? string.Empty)
-                    .Append(" -- ")
-                    .Append(dir.Quoted());
+                var args = new List<string> { "--date-order", "-n", "10000" };
+                if (!string.IsNullOrEmpty(revision))
+                    args.Add(revision);
+                args.Add("--");
+                args.Add(dir);
 
-                var commits = await new Commands.QueryCommits(_repo.FullPath, argsBuilder.ToString(), false)
+                var commits = await new Commands.QueryCommits(_repo.FullPath, args, false)
                     .GetResultAsync()
                     .ConfigureAwait(false);
 
@@ -88,12 +86,9 @@ namespace SourceGit.ViewModels
 
             Task.Run(async () =>
             {
-                var argsBuilder = new StringBuilder();
-                argsBuilder
-                    .Append("--date-order -n 10000 -- ")
-                    .Append(dir.Quoted());
+                var args = new List<string> { "--date-order", "-n", "10000", "--", dir };
 
-                var commits = await new Commands.QueryCommits(_repo.FullPath, argsBuilder.ToString(), false)
+                var commits = await new Commands.QueryCommits(_repo.FullPath, args, false)
                     .GetResultAsync()
                     .ConfigureAwait(false);
 

@@ -1,5 +1,3 @@
-﻿using System.Text;
-
 namespace SourceGit.Commands
 {
     public class InteractiveRebase : Command
@@ -10,14 +8,12 @@ namespace SourceGit.Commands
             Context = repo;
             Editor = EditorType.RebaseEditor;
 
-            var builder = new StringBuilder(512);
-            builder.Append("-c core.commentChar=± rebase -i --autosquash ");
+            Args = ["-c", "core.commentChar=±", "rebase", "-i", "--autosquash"];
             if (autoStash)
-                builder.Append("--autostash ");
+                Args.Add("--autostash");
             if (noVerify)
-                builder.Append("--no-verify ");
-
-            Args = builder.Append(basedOn).ToString();
+                Args.Add("--no-verify");
+            Args.Add(basedOn);
         }
     }
 }

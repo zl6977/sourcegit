@@ -1,4 +1,3 @@
-﻿using System.Text;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -14,43 +13,40 @@ namespace SourceGit.Commands
 
         public async Task<bool> CreateAsync(string basedOn, bool force)
         {
-            var builder = new StringBuilder();
-            builder.Append("branch ");
+            Args = ["branch"];
             if (force)
-                builder.Append("-f ");
-            builder.Append(_name);
-            builder.Append(" ");
-            builder.Append(basedOn);
+                Args.Add("-f");
+            Args.Add(_name);
+            Args.Add(basedOn);
 
-            Args = builder.ToString();
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> RenameAsync(string to)
         {
-            Args = $"branch -M {_name} {to}";
+            Args = ["branch", "-M", _name, to];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> SetUpstreamAsync(Models.Branch tracking)
         {
             if (tracking == null)
-                Args = $"branch {_name} --unset-upstream";
+                Args = ["branch", _name, "--unset-upstream"];
             else
-                Args = $"branch {_name} -u {tracking.FriendlyName}";
+                Args = ["branch", _name, "-u", tracking.FriendlyName];
 
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> DeleteLocalAsync(bool force)
         {
-            Args = $"branch {(force ? "-D" : "-d")} {_name}";
+            Args = ["branch", force ? "-D" : "-d", _name];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> DeleteRemoteAsync(string remote)
         {
-            Args = $"branch -D -r {remote}/{_name}";
+            Args = ["branch", "-D", "-r", $"{remote}/{_name}"];
             return await ExecAsync().ConfigureAwait(false);
         }
 

@@ -204,9 +204,9 @@ namespace SourceGit.ViewModels
                             }
 
                             var fullPath = Path.Combine(_repo, _option.Path);
-                            if (File.Exists(fullPath))
+                            if (Commands.GitService.FileExists(fullPath, _repo))
                             {
-                                var newImage = await ImageSource.FromFileAsync(fullPath, imgDecoder).ConfigureAwait(false);
+                                var newImage = await ImageSource.FromFileAsync(fullPath, imgDecoder, _repo).ConfigureAwait(false);
                                 imgDiff.New = newImage.Bitmap;
                                 imgDiff.NewFileSize = newImage.Size;
                             }
@@ -226,7 +226,7 @@ namespace SourceGit.ViewModels
                         {
                             var fullPath = Path.Combine(_repo, _option.Path);
                             binaryDiff.OldSize = await new Commands.QueryFileSize(_repo, oldPath, "HEAD").GetResultAsync().ConfigureAwait(false);
-                            binaryDiff.NewSize = File.Exists(fullPath) ? new FileInfo(fullPath).Length : 0;
+                            binaryDiff.NewSize = Commands.GitService.FileExists(fullPath, _repo) ? Commands.GitService.GetFileSize(fullPath, _repo) : 0;
                         }
                         rs = binaryDiff;
                     }
@@ -275,7 +275,7 @@ namespace SourceGit.ViewModels
 
         private async Task<Models.RevisionSubmodule> QuerySubmoduleRevisionAsync(string repo, string sha)
         {
-            if (!File.Exists(Path.Combine(repo, ".git")))
+            if (!Commands.GitService.FileExists(Path.Combine(repo, ".git"), repo))
                 return new Models.RevisionSubmodule() { Commit = new Models.Commit() { SHA = sha } };
 
             var uncommittedChangesCount = 0;

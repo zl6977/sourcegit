@@ -326,6 +326,7 @@ namespace SourceGit.ViewModels
             }
             catch (Exception e)
             {
+                if (!proc.HasExited) proc.Kill();
                 _repo.SendNotification(e.Message, true);
             }
         }

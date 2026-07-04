@@ -26,8 +26,8 @@ namespace SourceGit.Commands
                             c.Index == Models.ChangeState.Renamed)
                         {
                             var fullPath = Path.Combine(repo, c.Path);
-                            if (Directory.Exists(fullPath))
-                                Directory.Delete(fullPath, true);
+                            if (GitService.DirectoryExists(fullPath, repo))
+                                GitService.DeleteDirectory(fullPath, repo);
                         }
                     }
                 }
@@ -67,10 +67,10 @@ namespace SourceGit.Commands
                     if (c.WorkTree == Models.ChangeState.Untracked || c.WorkTree == Models.ChangeState.Added)
                     {
                         var fullPath = Path.Combine(repo, c.Path);
-                        if (Directory.Exists(fullPath))
-                            Directory.Delete(fullPath, true);
+                        if (GitService.PathExists(fullPath, repo) && GitService.DirectoryExists(fullPath, repo))
+                            GitService.DeleteDirectory(fullPath, repo);
                         else
-                            File.Delete(fullPath);
+                            GitService.DeleteFile(fullPath, repo);
                     }
                     else
                     {
@@ -85,10 +85,7 @@ namespace SourceGit.Commands
 
             if (restores.Count > 0)
             {
-                var pathSpecFile = Path.GetTempFileName();
-                await File.WriteAllLinesAsync(pathSpecFile, restores).ConfigureAwait(false);
-                await new Restore(repo, pathSpecFile).Use(log).ExecAsync().ConfigureAwait(false);
-                File.Delete(pathSpecFile);
+                await new Restore(repo, restores).Use(log).ExecAsync().ConfigureAwait(false);
             }
         }
     }

@@ -11,7 +11,7 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
             _commit = commit;
-            Args = $"rev-list -{max} --parents --branches --remotes --ancestry-path ^{commit}";
+            Args = ["rev-list", $"-{max}", "--parents", "--branches", "--remotes", "--ancestry-path", $"^{commit}"];
         }
 
         public async Task<List<string>> GetResultAsync()

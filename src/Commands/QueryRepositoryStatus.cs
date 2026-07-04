@@ -17,7 +17,7 @@ namespace SourceGit.Commands
 
         public async Task<Models.RepositoryStatus> GetResultAsync()
         {
-            Args = "status --porcelain=v2 -b";
+            Args = ["status", "--porcelain=v2", "-b"];
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             if (!rs.IsSuccess)
                 return null;

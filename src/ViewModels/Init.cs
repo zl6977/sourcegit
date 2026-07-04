@@ -47,6 +47,7 @@ namespace SourceGit.ViewModels
                 await node.UpdateStatusAsync(false, null);
 
                 Welcome.Instance.Refresh();
+                node.Open();
             }
             return succ;
         }

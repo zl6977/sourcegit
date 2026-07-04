@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 
 using Avalonia.Collections;
 
+using SourceGit.Commands;
+
 namespace SourceGit.Models
 {
     public class RepositorySettings
@@ -66,14 +68,18 @@ namespace SourceGit.Models
             set;
         } = [];
 
-        public static RepositorySettings Get(string gitCommonDir)
+        public static RepositorySettings Get(string gitCommonDir, Commands.RepositoryController controller = null)
         {
-            var fileInfo = new FileInfo(Path.Combine(gitCommonDir, "sourcegit.settings"));
-            var fullpath = fileInfo.FullName;
+            var fileName = "sourcegit.settings";
+            var fullpath = GetSettingsFilePath(gitCommonDir, controller);
             if (_cache.TryGetValue(fullpath, out var setting))
                 return setting;
 
-            if (!File.Exists(fullpath))
+            var exists = controller != null
+                ? controller.GitCommonDirFileExists(fileName)
+                : GitService.FileExists(Path.Combine(gitCommonDir, fileName));
+
+            if (!exists)
             {
                 setting = new();
             }
@@ -81,7 +87,9 @@ namespace SourceGit.Models
             {
                 try
                 {
-                    using var stream = File.OpenRead(fullpath);
+                    using var stream = controller != null
+                        ? controller.OpenReadGitDirFile(fileName)
+                        : (Stream)GitService.OpenRead(Path.Combine(gitCommonDir, fileName));
                     setting = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.RepositorySettings);
                 }
                 catch
@@ -98,6 +106,7 @@ namespace SourceGit.Models
             });
 
             setting._file = fullpath;
+            setting._controller = controller;
             _cache.Add(fullpath, setting);
             return setting;
         }
@@ -110,9 +119,14 @@ namespace SourceGit.Models
                 var hash = HashContent(content);
                 if (!hash.Equals(_orgHash, StringComparison.Ordinal))
                 {
-                    var tmpfile = $"{_file}.tmp";
-                    File.WriteAllText(tmpfile, content);
-                    File.Move(tmpfile, _file, true);
+                    if (_controller != null)
+                    {
+                        _controller.WriteGitCommonDirFileAndReplace(Path.GetFileName(_file), content);
+                    }
+                    else
+                    {
+                        GitService.WriteFileAndReplace(_file, content);
+                    }
                     _orgHash = hash;
                 }
             }
@@ -120,6 +134,15 @@ namespace SourceGit.Models
             {
                 // Ignore save errors
             }
+        }
+
+        private static string GetSettingsFilePath(string gitCommonDir, Commands.RepositoryController controller)
+        {
+            var fileName = "sourcegit.settings";
+            // For WSL paths, use a hash-based key for the cache since WSL paths don't map to real Windows paths
+            if (controller != null)
+                return $"{gitCommonDir}/{fileName}";
+            return Path.Combine(gitCommonDir, fileName);
         }
 
         public void PushCommitMessage(string message)
@@ -177,5 +200,6 @@ namespace SourceGit.Models
         private static Dictionary<string, RepositorySettings> _cache = new();
         private string _file = string.Empty;
         private string _orgHash = string.Empty;
+        private Commands.RepositoryController _controller = null;
     }
 }

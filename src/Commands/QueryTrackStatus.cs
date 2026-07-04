@@ -13,7 +13,7 @@ namespace SourceGit.Commands
 
         public async Task GetResultAsync(Models.Branch local, Models.Branch remote)
         {
-            Args = $"rev-list --left-right {local.Head}...{remote.Head}";
+            Args = ["rev-list", "--left-right", $"{local.Head}...{remote.Head}"];
 
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             if (!rs.IsSuccess)

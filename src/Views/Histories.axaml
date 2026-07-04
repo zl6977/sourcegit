@@ -242,6 +242,18 @@
               PointerReleased="OnCommitListHeaderPointerReleased"
               ContextRequested="OnCommitListHeaderContextRequested"/>              
 
+      <Button Classes="icon_button"
+              Width="24" Height="24"
+              Padding="0"
+              Margin="0,0,8,0"
+              HorizontalAlignment="Right" VerticalAlignment="Top"
+              Command="{Binding Refresh}"
+              ToolTip.Tip="{DynamicResource Text.PageTabBar.Tab.Refresh}">
+        <Path Width="14" Height="14"
+              Data="{StaticResource Icons.AutoFetch}"
+              Fill="{DynamicResource Brush.FG1}"/>
+      </Button>
+
       <v:CommitGraph x:Name="CommitGraph"
                      Margin="0,24,0,0"
                      Graph="{Binding Graph}"

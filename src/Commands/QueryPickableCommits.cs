@@ -11,17 +11,20 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = $"log --topo-order --cherry-pick --right-only --no-merges --no-show-signature --decorate=full --format=%H%x00%P%x00%D%x00%aN±%aE%x00%at%x00%cN±%cE%x00%ct%x00%s {based}...{target}";
+            Args = ["log", "--topo-order", "--cherry-pick", "--right-only", "--no-merges", "--no-show-signature", "--decorate=full", "--format=%H%x00%P%x00%D%x00%aN±%aE%x00%at%x00%cN±%cE%x00%ct%x00%s", $"{based}...{target}"];
         }
 
         public async Task<List<Models.Commit>> GetResultAsync()
         {
             var commits = new List<Models.Commit>();
+            Process proc = null;
             try
             {
-                using var proc = new Process();
+                proc = new Process();
                 proc.StartInfo = CreateGitStartInfo(true);
                 proc.Start();
+
+_ = proc.StandardError.ReadToEndAsync();
 
                 while (await proc.StandardOutput.ReadLineAsync().ConfigureAwait(false) is { } line)
                 {
@@ -40,11 +43,17 @@ namespace SourceGit.Commands
                     commits.Add(commit);
                 }
 
+                if (!proc.HasExited) proc.Kill();
                 await proc.WaitForExitAsync().ConfigureAwait(false);
             }
             catch (Exception e)
             {
+                if (proc != null && !proc.HasExited) proc.Kill();
                 RaiseException($"Failed to query commits. Reason: {e.Message}");
+            }
+            finally
+            {
+                proc?.Dispose();
             }
 
             return commits;

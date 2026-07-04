@@ -1,5 +1,3 @@
-﻿using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -10,47 +8,36 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
+            Operation = "tag";
             _name = name;
         }
 
         public async Task<bool> AddAsync(string basedOn)
         {
-            Args = $"tag --no-sign {_name} {basedOn}";
+            Args = ["tag", "--no-sign", _name, basedOn];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> AddAsync(string basedOn, string message, bool sign)
         {
-            var builder = new StringBuilder();
-            builder
-                .Append("tag ")
-                .Append(sign ? "--sign -a " : "--no-sign -a ")
-                .Append(_name)
-                .Append(' ')
-                .Append(basedOn);
+            Args = ["tag", sign ? "--sign" : "--no-sign", "-a", _name, basedOn];
 
             if (!string.IsNullOrEmpty(message))
             {
-                string tmp = Path.GetTempFileName();
-                await File.WriteAllTextAsync(tmp, message);
-                builder.Append(" -F ").Append(tmp.Quoted());
-
-                Args = builder.ToString();
-                var succ = await ExecAsync().ConfigureAwait(false);
-                File.Delete(tmp);
-                return succ;
+                using var messageFile = await BackendTempFile.CreateAsync(WorkingDirectory, message, "sourcegit_tag_message").ConfigureAwait(false);
+                Args.Add("-F");
+                Args.Add(messageFile.File);
+                return await ExecAsync().ConfigureAwait(false);
             }
 
-            builder.Append(" -m ");
-            builder.Append(_name);
-
-            Args = builder.ToString();
+            Args.Add("-m");
+            Args.Add(_name);
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> DeleteAsync()
         {
-            Args = $"tag --delete {_name}";
+            Args = ["tag", "--delete", _name];
             return await ExecAsync().ConfigureAwait(false);
         }
 

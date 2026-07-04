@@ -29,6 +29,11 @@ namespace SourceGit.ViewModels
             get;
         }
 
+        public Commands.RepositoryController Controller
+        {
+            get => _controller;
+        }
+
         public Models.RepositorySettings Settings
         {
             get => _settings;
@@ -434,27 +439,11 @@ namespace SourceGit.ViewModels
             FullPath = path.Replace('\\', '/').TrimEnd('/');
             GitDir = gitDir.Replace('\\', '/').TrimEnd('/');
 
-            var commonDirFile = Path.Combine(GitDir, "commondir");
-            var isWorktree = GitDir.IndexOf("/worktrees/", StringComparison.Ordinal) > 0 &&
-                          File.Exists(commonDirFile);
+            _controller = new Commands.RepositoryController(FullPath, GitDir);
+            _gitCommonDir = _controller.GitCommonDir;
 
-            if (isWorktree)
-            {
-                var commonDir = File.ReadAllText(commonDirFile).Trim();
-                if (Path.IsPathRooted(commonDir))
-                    commonDir = new DirectoryInfo(commonDir).FullName;
-                else
-                    commonDir = new DirectoryInfo(Path.Combine(GitDir, commonDir)).FullName;
-
-                _gitCommonDir = commonDir.Replace('\\', '/').TrimEnd('/');
-            }
-            else
-            {
-                _gitCommonDir = GitDir;
-            }
-
-            _settings = Models.RepositorySettings.Get(_gitCommonDir);
-            _uiStates = Models.RepositoryUIStates.Load(GitDir);
+            _settings = _controller.LoadSettings();
+            _uiStates = _controller.LoadUIStates();
         }
 
         public void Open()
@@ -483,7 +472,7 @@ namespace SourceGit.ViewModels
         {
             var commitMessage = _workingCopy.CommitMessage;
             if (!string.IsNullOrEmpty(commitMessage) && _workingCopy.InProgressContext != null)
-                File.WriteAllText(Path.Combine(GitDir, "MERGE_MSG"), commitMessage);
+                _controller.WriteGitDirFile("MERGE_MSG", commitMessage);
 
             _uiStates.LastCommitMessage = commitMessage;
             _uiStates.Save();
@@ -492,6 +481,10 @@ namespace SourceGit.ViewModels
                 _cancellationRefreshBranches.Cancel();
             if (_cancellationRefreshTags is { IsCancellationRequested: false })
                 _cancellationRefreshTags.Cancel();
+            if (_cancellationRefreshWorktrees is { IsCancellationRequested: false })
+                _cancellationRefreshWorktrees.Cancel();
+            if (_cancellationRefreshSubmodules is { IsCancellationRequested: false })
+                _cancellationRefreshSubmodules.Cancel();
             if (_cancellationRefreshWorkingCopyChanges is { IsCancellationRequested: false })
                 _cancellationRefreshWorkingCopyChanges.Cancel();
             if (_cancellationRefreshCommits is { IsCancellationRequested: false })
@@ -557,19 +550,7 @@ namespace SourceGit.ViewModels
 
         public bool IsLFSEnabled()
         {
-            var path = Path.Combine(FullPath, ".git", "hooks", "pre-push");
-            if (!File.Exists(path))
-                return false;
-
-            try
-            {
-                var content = File.ReadAllText(path);
-                return content.Contains("git lfs pre-push");
-            }
-            catch
-            {
-                return false;
-            }
+            return _controller.IsLFSEnabled();
         }
 
         public async Task InstallLFSAsync()
@@ -759,7 +740,6 @@ namespace SourceGit.ViewModels
         public void RefreshAfterCreateBranch(Models.Branch created, bool checkout)
         {
             _watcher?.MarkBranchUpdated();
-            _watcher?.MarkWorkingCopyUpdated();
 
             _branches.RemoveAll(b => b.IsLocal && b.Name.Equals(created.Name, StringComparison.Ordinal));
             _branches.Add(created);
@@ -813,7 +793,6 @@ namespace SourceGit.ViewModels
         public void RefreshAfterCheckoutBranch(Models.Branch checkouted)
         {
             _watcher?.MarkBranchUpdated();
-            _watcher?.MarkWorkingCopyUpdated();
 
             if (_currentBranch.IsDetachedHead)
             {
@@ -901,20 +880,17 @@ namespace SourceGit.ViewModels
 
         public void MarkTagsDirtyManually()
         {
-            _watcher?.MarkTagUpdated();
             RefreshTags();
             RefreshCommits();
         }
 
         public void MarkWorkingCopyDirtyManually()
         {
-            _watcher?.MarkWorkingCopyUpdated();
             RefreshWorkingCopyChanges();
         }
 
         public void MarkStashesDirtyManually()
         {
-            _watcher?.MarkStashUpdated();
             RefreshStashes();
         }
 
@@ -1126,9 +1102,7 @@ namespace SourceGit.ViewModels
 
         public bool MayHaveSubmodules()
         {
-            var modulesFile = Path.Combine(FullPath, ".gitmodules");
-            var info = new FileInfo(modulesFile);
-            return info.Exists && info.Length > 20;
+            return _controller.MayHaveSubmodules();
         }
 
         public void RefreshBranches()
@@ -1175,12 +1149,24 @@ namespace SourceGit.ViewModels
 
         public void RefreshWorktrees()
         {
+            if (_cancellationRefreshWorktrees is { IsCancellationRequested: false })
+                _cancellationRefreshWorktrees.Cancel();
+
+            _cancellationRefreshWorktrees = new CancellationTokenSource();
+            var token = _cancellationRefreshWorktrees.Token;
+
             Task.Run(async () =>
             {
                 var worktrees = await new Commands.Worktree(FullPath).ReadAllAsync().ConfigureAwait(false);
-                var cleaned = Worktree.Build(FullPath, worktrees);
-                Dispatcher.UIThread.Invoke(() => Worktrees = cleaned);
-            });
+                Dispatcher.UIThread.Invoke(() =>
+                {
+                    if (token.IsCancellationRequested)
+                        return;
+
+                    var cleaned = Worktree.Build(FullPath, worktrees);
+                    Worktrees = cleaned;
+                });
+            }, token);
         }
 
         public void RefreshTags()
@@ -1217,12 +1203,10 @@ namespace SourceGit.ViewModels
             {
                 await Dispatcher.UIThread.InvokeAsync(() => _histories.IsLoading = true);
 
-                var builder = new StringBuilder();
-                builder
-                    .Append('-').Append(Preferences.Instance.MaxHistoryCommits).Append(' ')
-                    .Append(_uiStates.BuildHistoryParams(GitDir));
+                var args = new List<string> { $"-{Preferences.Instance.MaxHistoryCommits}" };
+                args.AddRange(_uiStates.BuildHistoryParams(GitDir));
 
-                var commits = await new Commands.QueryCommits(FullPath, builder.ToString())
+                var commits = await new Commands.QueryCommits(FullPath, args)
                     .GetResultAsync()
                     .ConfigureAwait(false);
 
@@ -1262,12 +1246,21 @@ namespace SourceGit.ViewModels
                 return;
             }
 
+            if (_cancellationRefreshSubmodules is { IsCancellationRequested: false })
+                _cancellationRefreshSubmodules.Cancel();
+
+            _cancellationRefreshSubmodules = new CancellationTokenSource();
+            var token = _cancellationRefreshSubmodules.Token;
+
             Task.Run(async () =>
             {
                 var submodules = await new Commands.QuerySubmodules(FullPath).GetResultAsync().ConfigureAwait(false);
 
                 Dispatcher.UIThread.Invoke(() =>
                 {
+                    if (token.IsCancellationRequested)
+                        return;
+
                     bool hasChanged = _submodules.Count != submodules.Count;
                     if (!hasChanged)
                     {
@@ -1299,7 +1292,7 @@ namespace SourceGit.ViewModels
                         VisibleSubmodules = BuildVisibleSubmodules();
                     }
                 });
-            });
+            }, token);
         }
 
         public void RefreshWorkingCopyChanges()
@@ -1875,8 +1868,7 @@ namespace SourceGit.ViewModels
                     return;
                 }
 
-                var lockFile = Path.Combine(GitDir, "index.lock");
-                if (File.Exists(lockFile))
+                if (_controller.HasIndexLock())
                     return;
 
                 var now = DateTime.Now;
@@ -1911,6 +1903,7 @@ namespace SourceGit.ViewModels
             log?.Complete();
         }
 
+        private readonly Commands.RepositoryController _controller = null;
         private readonly string _gitCommonDir = null;
         private Models.RepositorySettings _settings = null;
         private Models.RepositoryUIStates _uiStates = null;
@@ -1952,7 +1945,9 @@ namespace SourceGit.ViewModels
         private bool _isBisectCommandRunning = false;
 
         private CancellationTokenSource _cancellationRefreshBranches = null;
+        private CancellationTokenSource _cancellationRefreshWorktrees = null;
         private CancellationTokenSource _cancellationRefreshTags = null;
+        private CancellationTokenSource _cancellationRefreshSubmodules = null;
         private CancellationTokenSource _cancellationRefreshWorkingCopyChanges = null;
         private CancellationTokenSource _cancellationRefreshCommits = null;
         private CancellationTokenSource _cancellationRefreshStashes = null;

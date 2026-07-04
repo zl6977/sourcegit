@@ -1,5 +1,8 @@
-﻿using System;
+using System;
+using System.Diagnostics;
 using System.IO;
+using System.Text;
+using System.Threading.Tasks;
 
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -26,7 +29,7 @@ namespace SourceGit.Views
             var preference = ViewModels.Preferences.Instance;
             var workspace = preference.GetActiveWorkspace();
             var initDir = workspace.DefaultCloneDir;
-            if (string.IsNullOrEmpty(initDir) || !Directory.Exists(initDir))
+            if (string.IsNullOrEmpty(initDir) || !Commands.GitService.DirectoryExists(initDir))
                 initDir = preference.GitDefaultCloneDir;
 
             var options = new FolderPickerOpenOptions() { AllowMultiple = false };
@@ -51,6 +54,95 @@ namespace SourceGit.Views
             }
 
             e.Handled = true;
+        }
+
+        private async void OnUseWslHome(object _, RoutedEventArgs e)
+        {
+            if (DataContext is not ViewModels.OpenLocalRepository vm)
+                return;
+
+            if (!OperatingSystem.IsWindows())
+            {
+                Models.Notification.Send(null, "WSL paths are only available on Windows.", true);
+                return;
+            }
+
+            try
+            {
+                var distro = await QueryDefaultWslDistroAsync();
+                if (string.IsNullOrWhiteSpace(distro))
+                {
+                    Models.Notification.Send(null, "No WSL distribution was found.", true);
+                    return;
+                }
+
+                var home = await QueryWslHomeAsync(distro);
+                if (string.IsNullOrWhiteSpace(home))
+                    home = "/home/";
+
+                vm.RepoPath = $@"\\wsl$\{distro}{home.Replace('/', '\\')}";
+            }
+            catch (Exception ex)
+            {
+                Models.Notification.Send(null, $"Failed to detect WSL path: {ex.Message}", true);
+            }
+
+            e.Handled = true;
+        }
+
+        private static async Task<string> QueryDefaultWslDistroAsync()
+        {
+            var output = await ReadWslOutputAsync(["-l", "-q"]);
+            var lines = output.Replace("\0", string.Empty).Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            return lines.Length > 0 ? lines[0].Trim() : string.Empty;
+        }
+
+        private static async Task<string> QueryWslHomeAsync(string distro)
+        {
+            var output = await ReadWslOutputAsync(["-d", distro, "--cd", "~", "--exec", "pwd"]);
+            return output.Replace("\0", string.Empty).Trim();
+        }
+
+        private static async Task<string> ReadWslOutputAsync(string[] args)
+        {
+            var start = new ProcessStartInfo()
+            {
+                FileName = "wsl.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+            };
+
+            foreach (var arg in args)
+                start.ArgumentList.Add(arg);
+
+            Process proc = null;
+            try
+            {
+                proc = Process.Start(start);
+                if (proc == null)
+                    return string.Empty;
+
+                var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+                var stderrTask = proc.StandardError.ReadToEndAsync();
+                var stdout = await stdoutTask;
+                await stderrTask;
+                await proc.WaitForExitAsync();
+
+                return proc.ExitCode == 0 ? stdout : string.Empty;
+            }
+            catch
+            {
+                if (proc != null && !proc.HasExited) proc.Kill();
+                return string.Empty;
+            }
+            finally
+            {
+                proc?.Dispose();
+            }
         }
     }
 }

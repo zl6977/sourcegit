@@ -111,6 +111,8 @@ namespace SourceGit.ViewModels
             }
 
             log.Complete();
+            if (succ)
+                _repo.RefreshAll();
             return succ;
         }
 

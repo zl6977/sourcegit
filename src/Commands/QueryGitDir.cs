@@ -1,5 +1,3 @@
-﻿using System.IO;
-
 namespace SourceGit.Commands
 {
     public class QueryGitDir : Command
@@ -7,7 +5,7 @@ namespace SourceGit.Commands
         public QueryGitDir(string workDir)
         {
             WorkingDirectory = workDir;
-            Args = "rev-parse --git-dir";
+            Args = ["rev-parse", "--absolute-git-dir"];
         }
 
         public string GetResult()
@@ -24,7 +22,7 @@ namespace SourceGit.Commands
             if (string.IsNullOrEmpty(stdout))
                 return null;
 
-            return Path.IsPathRooted(stdout) ? stdout : Path.GetFullPath(Path.Combine(WorkingDirectory, stdout));
+            return GitService.NormalizeRepositoryPath(stdout, WorkingDirectory);
         }
     }
 }

@@ -1,24 +1,25 @@
-﻿using System.Text;
+using System.Collections.Generic;
 
 namespace SourceGit.Commands
 {
     public class CherryPick : Command
     {
-        public CherryPick(string repo, string commits, bool noCommit, bool appendSourceToMessage, string extraParams)
+        public CherryPick(string repo, List<string> commits, bool noCommit, bool appendSourceToMessage, int mainline)
         {
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder(1024);
-            builder.Append("cherry-pick ");
+            Args = ["cherry-pick"];
             if (noCommit)
-                builder.Append("-n ");
+                Args.Add("-n");
             if (appendSourceToMessage)
-                builder.Append("-x ");
-            if (!string.IsNullOrEmpty(extraParams))
-                builder.Append(extraParams).Append(' ');
-
-            Args = builder.Append(commits).ToString();
+                Args.Add("-x");
+            if (mainline > 0)
+            {
+                Args.Add("-m");
+                Args.Add(mainline.ToString());
+            }
+            Args.AddRange(commits);
         }
     }
 }

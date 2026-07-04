@@ -105,10 +105,9 @@ namespace SourceGit.ViewModels
 
             if (succ)
             {
-                var squashMsgFile = Path.Combine(_repo.GitDir, "SQUASH_MSG");
-                if (Mode == Models.MergeMode.Squash && File.Exists(squashMsgFile))
+                if (Mode == Models.MergeMode.Squash && _repo.Controller.GitDirFileExists("SQUASH_MSG"))
                 {
-                    var msg = await File.ReadAllTextAsync(squashMsgFile);
+                    var msg = _repo.Controller.ReadGitDirFile("SQUASH_MSG");
                     _repo.SetCommitMessage(msg);
                 }
 

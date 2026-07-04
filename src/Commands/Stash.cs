@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Text;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -14,89 +13,82 @@ namespace SourceGit.Commands
 
         public async Task<bool> PushAsync(string message, bool includeUntracked = true, bool keepIndex = false)
         {
-            var builder = new StringBuilder();
-            builder.Append("stash push ");
+            Args = ["stash", "push"];
             if (includeUntracked)
-                builder.Append("--include-untracked ");
+                Args.Add("--include-untracked");
             if (keepIndex)
-                builder.Append("--keep-index ");
+                Args.Add("--keep-index");
             if (!string.IsNullOrEmpty(message))
-                builder.Append("-m ").Append(message.Quoted());
+            {
+                Args.Add("-m");
+                Args.Add(message);
+            }
 
-            Args = builder.ToString();
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> PushAsync(string message, List<Models.Change> changes, bool keepIndex)
         {
-            var builder = new StringBuilder();
-            builder.Append("stash push --include-untracked ");
+            Args = ["stash", "push", "--include-untracked"];
             if (keepIndex)
-                builder.Append("--keep-index ");
+                Args.Add("--keep-index");
             if (!string.IsNullOrEmpty(message))
-                builder.Append("-m ").Append(message.Quoted()).Append(' ');
+            {
+                Args.Add("-m");
+                Args.Add(message);
+            }
 
-            builder.Append("-- ");
+            Args.Add("--");
             foreach (var c in changes)
-                builder.Append(c.Path.Quoted()).Append(' ');
+                Args.Add(c.Path);
 
-            Args = builder.ToString();
             return await ExecAsync().ConfigureAwait(false);
         }
 
-        public async Task<bool> PushAsync(string message, string pathspecFromFile, bool keepIndex)
-        {
-            var builder = new StringBuilder();
-            builder.Append("stash push --include-untracked --pathspec-from-file=").Append(pathspecFromFile.Quoted()).Append(" ");
-            if (keepIndex)
-                builder.Append("--keep-index ");
-            if (!string.IsNullOrEmpty(message))
-                builder.Append("-m ").Append(message.Quoted());
-
-            Args = builder.ToString();
-            return await ExecAsync().ConfigureAwait(false);
-        }
 
         public async Task<bool> PushOnlyStagedAsync(string message, bool keepIndex)
         {
-            var builder = new StringBuilder();
-            builder.Append("stash push --staged ");
+            Args = ["stash", "push", "--staged"];
             if (keepIndex)
-                builder.Append("--keep-index ");
+                Args.Add("--keep-index");
             if (!string.IsNullOrEmpty(message))
-                builder.Append("-m ").Append(message.Quoted());
-            Args = builder.ToString();
+            {
+                Args.Add("-m");
+                Args.Add(message);
+            }
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> ApplyAsync(string name, bool restoreIndex)
         {
-            var opts = restoreIndex ? "--index" : string.Empty;
-            Args = $"stash apply -q {opts} {name.Quoted()}";
+            Args = ["stash", "apply", "-q"];
+            if (restoreIndex)
+                Args.Add("--index");
+            Args.Add(name);
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> CheckoutBranchAsync(string name, string branch)
         {
-            Args = $"stash branch {branch.Quoted()} {name.Quoted()}";
+            Args = ["stash", "branch", branch, name];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> PopAsync(string name)
         {
-            Args = $"stash pop -q --index {name.Quoted()}";
+            Args = ["stash", "pop", "-q", "--index", name];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> DropAsync(string name)
         {
-            Args = $"stash drop -q {name.Quoted()}";
+            Args = ["stash", "drop", "-q", name];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> ClearAsync()
         {
-            Args = "stash clear";
+            Args = ["stash", "clear"];
             return await ExecAsync().ConfigureAwait(false);
         }
     }

@@ -16,13 +16,12 @@ namespace SourceGit.Commands
             Context = repo;
             RaiseError = false;
 
-            var builder = new StringBuilder();
-            builder.Append("blame -f -t ");
+            Args = ["blame", "-f", "-t"];
             if (ignoreWhitespace)
-                builder.Append("-w ");
-            builder.Append(revision).Append(" -- ").Append(file.Quoted());
-
-            Args = builder.ToString();
+                Args.Add("-w");
+            Args.Add(revision);
+            Args.Add("--");
+            Args.Add(file);
         }
 
         public async Task<Models.BlameData> ReadAsync()

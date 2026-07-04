@@ -9,7 +9,7 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = $"log --date-order --branches --remotes -{max} --format=%ct$%aN±%aE";
+            Args = ["log", "--date-order", "--branches", "--remotes", $"-{max}", "--format=%ct$%aN±%aE"];
         }
 
         public async Task<Models.Statistics> ReadAsync()

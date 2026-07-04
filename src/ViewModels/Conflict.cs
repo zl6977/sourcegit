@@ -1,5 +1,4 @@
-﻿using System.IO;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
@@ -47,7 +46,7 @@ namespace SourceGit.ViewModels
 
             CanMerge = _change.ConflictReason is Models.ConflictReason.BothAdded or Models.ConflictReason.BothModified;
             if (CanMerge)
-                CanMerge = !Directory.Exists(Path.Combine(repo.FullPath, change.Path)); // Cannot merge directories (submodules)
+                CanMerge = !repo.Controller.DirectoryExists(change.Path); // Cannot merge directories (submodules)
 
             if (CanMerge)
                 IsResolved = new Commands.IsConflictResolved(repo.FullPath, change).GetResult();

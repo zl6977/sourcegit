@@ -1,4 +1,4 @@
-ï»¿using System.IO;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
@@ -61,24 +61,24 @@ namespace SourceGit.ViewModels
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
                 Editor = Commands.Command.EditorType.None,
-                Args = "-c core.commentChar=Â± cherry-pick --continue",
+                Args = ["-c", "core.commentChar=±", "cherry-pick", "--continue"],
             };
 
             _skipCmd = new Commands.Command
             {
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
-                Args = "cherry-pick --skip",
+                Args = ["cherry-pick", "--skip"],
             };
 
             _abortCmd = new Commands.Command
             {
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
-                Args = "cherry-pick --abort",
+                Args = ["cherry-pick", "--abort"],
             };
 
-            var headSHA = File.ReadAllText(Path.Combine(repo.GitDir, "CHERRY_PICK_HEAD")).Trim();
+            var headSHA = repo.Controller.ReadGitDirFile("CHERRY_PICK_HEAD").Trim();
             Head = new Commands.QuerySingleCommit(repo.FullPath, headSHA).GetResult() ?? new Models.Commit() { SHA = headSHA };
             HeadName = Head.GetFriendlyName();
         }
@@ -108,7 +108,7 @@ namespace SourceGit.ViewModels
 
         public RebaseInProgress(Repository repo)
         {
-            _gitDir = repo.GitDir;
+            _repo = repo;
             Name = "Rebase";
 
             _continueCmd = new Commands.Command
@@ -116,59 +116,56 @@ namespace SourceGit.ViewModels
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
                 Editor = Commands.Command.EditorType.RebaseEditor,
-                Args = "-c core.commentChar=Â± rebase --continue",
+                Args = ["-c", "core.commentChar=±", "rebase", "--continue"],
             };
 
             _skipCmd = new Commands.Command
             {
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
-                Args = "rebase --skip",
+                Args = ["rebase", "--skip"],
             };
 
             _abortCmd = new Commands.Command
             {
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
-                Args = "rebase --abort",
+                Args = ["rebase", "--abort"],
                 RaiseError = false,
             };
 
-            HeadName = File.ReadAllText(Path.Combine(repo.GitDir, "rebase-merge", "head-name")).Trim();
+            HeadName = repo.Controller.ReadGitDirFile(System.IO.Path.Combine("rebase-merge", "head-name")).Trim();
             if (HeadName.StartsWith("refs/heads/"))
                 HeadName = HeadName.Substring(11);
             else if (HeadName.StartsWith("refs/tags/"))
                 HeadName = HeadName.Substring(10);
 
-            var stoppedSHAPath = Path.Combine(repo.GitDir, "rebase-merge", "stopped-sha");
-            var stoppedSHA = File.Exists(stoppedSHAPath)
-                ? File.ReadAllText(stoppedSHAPath).Trim()
+            var stoppedSHAPath = System.IO.Path.Combine("rebase-merge", "stopped-sha");
+            var stoppedSHA = repo.Controller.GitDirFileExists(stoppedSHAPath)
+                ? repo.Controller.ReadGitDirFile(stoppedSHAPath).Trim()
                 : new Commands.QueryRevisionByRefName(repo.FullPath, HeadName).GetResult();
 
             if (!string.IsNullOrEmpty(stoppedSHA))
                 StoppedAt = new Commands.QuerySingleCommit(repo.FullPath, stoppedSHA).GetResult() ?? new Models.Commit() { SHA = stoppedSHA };
 
-            var ontoSHA = File.ReadAllText(Path.Combine(repo.GitDir, "rebase-merge", "onto")).Trim();
+            var ontoSHA = repo.Controller.ReadGitDirFile(System.IO.Path.Combine("rebase-merge", "onto")).Trim();
             Onto = new Commands.QuerySingleCommit(repo.FullPath, ontoSHA).GetResult() ?? new Models.Commit() { SHA = ontoSHA };
             BaseName = Onto.GetFriendlyName();
         }
 
         protected override void OnAborted()
         {
-            var rebaseMergeDir = Path.Combine(_gitDir, "rebase-merge");
-            if (Directory.Exists(rebaseMergeDir))
-                Directory.Delete(rebaseMergeDir, true);
+            if (_repo.Controller.GitDirDirectoryExists("rebase-merge"))
+                _repo.Controller.DeleteGitDirDirectory("rebase-merge");
 
-            var rebaseApplyDir = Path.Combine(_gitDir, "rebase-apply");
-            if (Directory.Exists(rebaseApplyDir))
-                Directory.Delete(rebaseApplyDir, true);
+            if (_repo.Controller.GitDirDirectoryExists("rebase-apply"))
+                _repo.Controller.DeleteGitDirDirectory("rebase-apply");
 
-            var jobFile = Path.Combine(_gitDir, "sourcegit.interactive_rebase");
-            if (File.Exists(jobFile))
-                File.Delete(jobFile);
+            if (_repo.Controller.GitDirFileExists("sourcegit.interactive_rebase"))
+                _repo.Controller.DeleteGitDirFile("sourcegit.interactive_rebase");
         }
 
-        private readonly string _gitDir;
+        private readonly Repository _repo;
     }
 
     public class RevertInProgress : InProgressContext
@@ -187,24 +184,24 @@ namespace SourceGit.ViewModels
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
                 Editor = Commands.Command.EditorType.None,
-                Args = "-c core.commentChar=Â± revert --continue",
+                Args = ["-c", "core.commentChar=±", "revert", "--continue"],
             };
 
             _skipCmd = new Commands.Command
             {
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
-                Args = "revert --skip",
+                Args = ["revert", "--skip"],
             };
 
             _abortCmd = new Commands.Command
             {
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
-                Args = "revert --abort",
+                Args = ["revert", "--abort"],
             };
 
-            var headSHA = File.ReadAllText(Path.Combine(repo.GitDir, "REVERT_HEAD")).Trim();
+            var headSHA = repo.Controller.ReadGitDirFile("REVERT_HEAD").Trim();
             Head = new Commands.QuerySingleCommit(repo.FullPath, headSHA).GetResult() ?? new Models.Commit() { SHA = headSHA };
         }
     }
@@ -235,19 +232,19 @@ namespace SourceGit.ViewModels
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
                 Editor = Commands.Command.EditorType.None,
-                Args = "-c core.commentChar=Â± merge --continue",
+                Args = ["-c", "core.commentChar=±", "merge", "--continue"],
             };
 
             _abortCmd = new Commands.Command
             {
                 WorkingDirectory = repo.FullPath,
                 Context = repo.FullPath,
-                Args = "merge --abort",
+                Args = ["merge", "--abort"],
             };
 
             Current = new Commands.QueryCurrentBranch(repo.FullPath).GetResult();
 
-            var sourceSHA = File.ReadAllText(Path.Combine(repo.GitDir, "MERGE_HEAD")).Trim();
+            var sourceSHA = repo.Controller.ReadGitDirFile("MERGE_HEAD").Trim();
             Source = new Commands.QuerySingleCommit(repo.FullPath, sourceSHA).GetResult() ?? new Models.Commit() { SHA = sourceSHA };
             SourceName = Source.GetFriendlyName();
         }

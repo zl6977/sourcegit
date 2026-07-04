@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -32,7 +32,6 @@ namespace SourceGit.Commands
                         return false;
                 }
             }
-
             return true;
         }
 
@@ -49,29 +48,31 @@ namespace SourceGit.Commands
             return true;
         }
 
-        private static async Task<bool> ProcessSingleChangeAsync(string repo, Models.DiffOption opt, FileStream writer)
+        private static async Task<bool> ProcessSingleChangeAsync(string repo, Models.DiffOption opt, Stream writer)
         {
-            var starter = new ProcessStartInfo();
-            starter.WorkingDirectory = repo;
-            starter.FileName = Native.OS.GitExecutable;
-            starter.Arguments = $"diff --no-color --no-ext-diff --ignore-cr-at-eol --unified=4 {opt}";
-            starter.UseShellExecute = false;
-            starter.CreateNoWindow = true;
+            var args = new List<string> { "diff", "--no-color", "--no-ext-diff", "--ignore-cr-at-eol", "--unified=4" };
+            args.AddRange(opt.ToArgs());
+            var cmd = new Command { WorkingDirectory = repo, Args = args };
+            var starter = GitService.CreateStartInfo(cmd, true);
             starter.WindowStyle = ProcessWindowStyle.Hidden;
-            starter.RedirectStandardOutput = true;
 
+            Process proc = null;
             try
             {
-                using var proc = Process.Start(starter)!;
+                proc = Process.Start(starter)!;
+                _ = proc.StandardError.ReadToEndAsync();
                 await proc.StandardOutput.BaseStream.CopyToAsync(writer).ConfigureAwait(false);
+                if (!proc.HasExited) proc.Kill();
                 await proc.WaitForExitAsync().ConfigureAwait(false);
                 return proc.ExitCode == 0;
             }
             catch (Exception e)
             {
+                if (proc != null && !proc.HasExited) proc.Kill();
                 Models.Notification.Send(repo, "Save change to patch failed: " + e.Message, true);
                 return false;
             }
+            finally { proc?.Dispose(); }
         }
     }
 }

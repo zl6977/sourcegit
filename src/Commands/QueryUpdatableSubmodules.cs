@@ -14,7 +14,7 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = "submodule status";
+            Args = ["submodule", "status"];
 
             _includeUninited = includeUninited;
         }

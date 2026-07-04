@@ -14,7 +14,7 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = "remote -v";
+            Args = ["remote", "-v"];
         }
 
         public async Task<List<Models.Remote>> GetResultAsync()

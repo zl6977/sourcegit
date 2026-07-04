@@ -45,7 +45,7 @@ namespace SourceGit.ViewModels
 
         public static ValidationResult ValidateRepoPath(string folder, ValidationContext _)
         {
-            if (!Directory.Exists(folder))
+            if (!Commands.GitService.RequiresGitBareRepositoryProbe(folder) && !Commands.GitService.DirectoryExists(folder))
                 return new ValidationResult("Given path can NOT be found");
             return ValidationResult.Success;
         }
@@ -55,12 +55,16 @@ namespace SourceGit.ViewModels
             var isBare = await new Commands.IsBareRepository(_repoPath).GetResultAsync();
             var parent = _group is { Id: not "" } ? _group : null;
             var repoRoot = _repoPath;
-            if (!isBare)
+            var hasGitDir = Commands.GitService.DirectoryExists(Path.Combine(_repoPath, ".git")) ||
+                Commands.GitService.FileExists(Path.Combine(_repoPath, ".git"));
+
+            if (!isBare && !hasGitDir)
             {
                 var test = await new Commands.QueryRepositoryRootPath(_repoPath).GetResultAsync();
                 if (test.IsSuccess && !string.IsNullOrWhiteSpace(test.StdOut))
                 {
                     repoRoot = test.StdOut.Trim();
+                    repoRoot = Commands.GitService.NormalizeRepositoryPath(repoRoot, _repoPath);
                 }
                 else
                 {

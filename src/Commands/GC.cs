@@ -6,7 +6,7 @@
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = "gc --prune=now";
+            Args = ["gc", "--prune=now"];
         }
     }
 }

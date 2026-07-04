@@ -113,7 +113,7 @@ namespace SourceGit.Views
                 {
                     var change = vm.SelectedUnstaged[0];
                     var fullpath = Native.OS.GetAbsPath(vm.Repository.FullPath, change.Path);
-                    if (File.Exists(fullpath))
+                    if (Commands.GitService.FileExists(fullpath))
                         Native.OS.OpenWithDefaultEditor(fullpath);
                     e.Handled = true;
                 }
@@ -152,7 +152,7 @@ namespace SourceGit.Views
                 {
                     var change = vm.SelectedStaged[0];
                     var fullpath = Native.OS.GetAbsPath(vm.Repository.FullPath, change.Path);
-                    if (File.Exists(fullpath))
+                    if (Commands.GitService.FileExists(fullpath))
                         Native.OS.OpenWithDefaultEditor(fullpath);
                     e.Handled = true;
                 }
@@ -297,7 +297,7 @@ namespace SourceGit.Views
                 var explore = new MenuItem();
                 explore.Header = App.Text("RevealFile");
                 explore.Icon = this.CreateMenuIcon("Icons.Explore");
-                explore.IsEnabled = File.Exists(path) || Directory.Exists(path);
+                explore.IsEnabled = Commands.GitService.FileExists(path) || Commands.GitService.DirectoryExists(path);
                 explore.Click += (_, e) =>
                 {
                     var target = hasSelectedFolder ? Native.OS.GetAbsPath(repo.FullPath, selectedSingleFolder) : path;
@@ -352,7 +352,7 @@ namespace SourceGit.Views
                     menu.Items.Add(useTheirs);
                     menu.Items.Add(useMine);
 
-                    if (change.ConflictReason is Models.ConflictReason.BothAdded or Models.ConflictReason.BothModified && !Directory.Exists(path))
+                    if (change.ConflictReason is Models.ConflictReason.BothAdded or Models.ConflictReason.BothModified && !Commands.GitService.DirectoryExists(path))
                     {
                         var mergeBuiltin = new MenuItem();
                         mergeBuiltin.Header = App.Text("ChangeCM.Merge");
@@ -555,7 +555,7 @@ namespace SourceGit.Views
                         hasExtra = true;
                     }
 
-                    if (File.Exists(path) && repo.IsLFSEnabled())
+                    if (Commands.GitService.FileExists(path) && repo.IsLFSEnabled())
                     {
                         var lfs = new MenuItem();
                         lfs.Header = App.Text("GitLFS");
@@ -791,7 +791,7 @@ namespace SourceGit.Views
                     var explore = new MenuItem();
                     explore.Header = App.Text("RevealFile");
                     explore.Icon = this.CreateMenuIcon("Icons.Explore");
-                    explore.IsEnabled = Directory.Exists(dir);
+                    explore.IsEnabled = Commands.GitService.DirectoryExists(dir);
                     explore.Click += (_, e) =>
                     {
                         Native.OS.OpenInFileManager(dir);
@@ -984,7 +984,7 @@ namespace SourceGit.Views
                 };
 
                 var explore = new MenuItem();
-                explore.IsEnabled = File.Exists(path) || Directory.Exists(path);
+                explore.IsEnabled = Commands.GitService.FileExists(path) || Commands.GitService.DirectoryExists(path);
                 explore.Header = App.Text("RevealFile");
                 explore.Icon = this.CreateMenuIcon("Icons.Explore");
                 explore.Click += (_, e) =>
@@ -1053,7 +1053,7 @@ namespace SourceGit.Views
                 menu.Items.Add(patch);
                 menu.Items.Add(new MenuItem() { Header = "-" });
 
-                if (File.Exists(path) && repo.IsLFSEnabled())
+                if (Commands.GitService.FileExists(path) && repo.IsLFSEnabled())
                 {
                     var lfs = new MenuItem();
                     lfs.Header = App.Text("GitLFS");
@@ -1199,7 +1199,7 @@ namespace SourceGit.Views
                 {
                     var dir = Path.Combine(repo.FullPath, selectedSingleFolder);
                     var explore = new MenuItem();
-                    explore.IsEnabled = Directory.Exists(dir);
+                    explore.IsEnabled = Commands.GitService.DirectoryExists(dir);
                     explore.Header = App.Text("RevealFile");
                     explore.Icon = this.CreateMenuIcon("Icons.Explore");
                     explore.Click += (_, e) =>
@@ -1319,7 +1319,7 @@ namespace SourceGit.Views
             var openWith = new MenuItem();
             openWith.Header = App.Text("Open");
             openWith.Icon = this.CreateMenuIcon("Icons.OpenWith");
-            openWith.IsEnabled = File.Exists(fullpath);
+            openWith.IsEnabled = Commands.GitService.FileExists(fullpath);
             if (openWith.IsEnabled)
             {
                 var defaultEditor = new MenuItem();

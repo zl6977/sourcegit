@@ -297,7 +297,7 @@ namespace SourceGit
 
             using var stream = File.OpenRead(jobsFile);
             var collection = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.InteractiveRebaseJobCollection);
-            collection.WriteTodoList(file);
+            File.WriteAllText(file, collection.BuildTodoList());
             exitCode = 0;
             return true;
         }
@@ -328,8 +328,10 @@ namespace SourceGit
             var onto = File.ReadAllText(ontoFile).Trim();
             using var stream = File.OpenRead(jobsFile);
             var collection = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.InteractiveRebaseJobCollection);
-            if (collection.Onto.StartsWith(onto, StringComparison.OrdinalIgnoreCase) && collection.OrigHead.StartsWith(origHead, StringComparison.OrdinalIgnoreCase))
-                collection.WriteCommitMessage(doneFile, file);
+            var doneContent = File.ReadAllText(doneFile);
+            var commitMessage = collection.GetCommitMessage(doneContent);
+            if (!string.IsNullOrEmpty(commitMessage))
+                File.WriteAllText(file, commitMessage);
 
             return true;
         }

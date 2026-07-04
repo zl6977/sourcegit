@@ -10,7 +10,7 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
             RaiseError = false;
-            Args = $"replay --onto {onto} {range}";
+            Args = ["replay", "--onto", onto, range];
         }
 
         public async Task<int> GetExitCodeAsync()
@@ -27,7 +27,7 @@ namespace SourceGit.Commands
             }
             catch
             {
-                // Ignore any exceptions and just return -1
+                if (!proc.HasExited) proc.Kill();
             }
 
             return exitCode;

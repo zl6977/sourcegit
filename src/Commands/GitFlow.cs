@@ -1,4 +1,3 @@
-﻿using System.Text;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -15,21 +14,23 @@ namespace SourceGit.Commands
         {
             if (Native.OS.GitFlowVersion == Models.GitFlowVersion.Next)
             {
-                var builder = new StringBuilder();
-                builder
-                    .Append("flow init --preset=classic ")
-                    .Append("--main=").Append(production.Quoted()).Append(' ')
-                    .Append("--develop=").Append(develop.Quoted()).Append(' ')
-                    .Append("--feature=").Append(feature).Append(' ')
-                    .Append("--bugfix=bugfix/ ")
-                    .Append("--release=").Append(release).Append(' ')
-                    .Append("--hotfix=").Append(hotfix).Append(' ')
-                    .Append("--support=support/");
+                Args =
+                [
+                    "flow",
+                    "init",
+                    "--preset=classic",
+                    $"--main={production}",
+                    $"--develop={develop}",
+                    $"--feature={feature}",
+                    "--bugfix=bugfix/",
+                    $"--release={release}",
+                    $"--hotfix={hotfix}",
+                    "--support=support/",
+                ];
 
                 if (!string.IsNullOrEmpty(tag))
-                    builder.Append(" --tag=").Append(tag);
+                    Args.Add($"--tag={tag}");
 
-                Args = builder.ToString();
                 return await ExecAsync().ConfigureAwait(false);
             }
 
@@ -43,7 +44,7 @@ namespace SourceGit.Commands
             await config.SetAsync("gitflow.prefix.support", "support/").ConfigureAwait(false);
             await config.SetAsync("gitflow.prefix.versiontag", tag, true).ConfigureAwait(false);
 
-            Args = "flow init -d";
+            Args = ["flow", "init", "-d"];
             return await ExecAsync().ConfigureAwait(false);
         }
 
@@ -52,13 +53,13 @@ namespace SourceGit.Commands
             switch (type)
             {
                 case Models.GitFlowBranchType.Feature:
-                    Args = $"flow feature start {name}";
+                    Args = ["flow", "feature", "start", name];
                     break;
                 case Models.GitFlowBranchType.Release:
-                    Args = $"flow release start {name}";
+                    Args = ["flow", "release", "start", name];
                     break;
                 case Models.GitFlowBranchType.Hotfix:
-                    Args = $"flow hotfix start {name}";
+                    Args = ["flow", "hotfix", "start", name];
                     break;
                 default:
                     RaiseException("Bad git-flow branch type!!!");
@@ -70,35 +71,33 @@ namespace SourceGit.Commands
 
         public async Task<bool> FinishAsync(Models.GitFlowBranchType type, string name, bool rebase, bool squash, bool keepBranch)
         {
-            var builder = new StringBuilder();
-            builder.Append("flow ");
+            Args = ["flow"];
 
             switch (type)
             {
                 case Models.GitFlowBranchType.Feature:
-                    builder.Append("feature");
+                    Args.Add("feature");
                     break;
                 case Models.GitFlowBranchType.Release:
-                    builder.Append("release");
+                    Args.Add("release");
                     break;
                 case Models.GitFlowBranchType.Hotfix:
-                    builder.Append("hotfix");
+                    Args.Add("hotfix");
                     break;
                 default:
                     RaiseException("Bad git-flow branch type!!!");
                     return false;
             }
 
-            builder.Append(" finish ");
+            Args.Add("finish");
             if (rebase)
-                builder.Append("--rebase ");
+                Args.Add("--rebase");
             if (squash)
-                builder.Append("--squash ");
+                Args.Add("--squash");
             if (keepBranch)
-                builder.Append("--keep ");
-            builder.Append(name);
+                Args.Add("--keep");
+            Args.Add(name);
 
-            Args = builder.ToString();
             return await ExecAsync().ConfigureAwait(false);
         }
     }

@@ -207,6 +207,10 @@ namespace SourceGit.ViewModels
                 ForcePush).Use(log).RunAsync();
 
             log.Complete();
+
+            if (succ)
+                _repo.RefreshBranches();
+
             return succ;
         }
 

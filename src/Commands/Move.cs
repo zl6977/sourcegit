@@ -1,5 +1,3 @@
-﻿using System.Text;
-
 namespace SourceGit.Commands
 {
     public class Move : Command
@@ -9,15 +7,11 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder();
-            builder.Append("mv -v ");
+            Args = ["mv", "-v"];
             if (force)
-                builder.Append("-f ");
-            builder.Append(oldPath.Quoted());
-            builder.Append(' ');
-            builder.Append(newPath.Quoted());
-
-            Args = builder.ToString();
+                Args.Add("-f");
+            Args.Add(oldPath);
+            Args.Add(newPath);
         }
     }
 }

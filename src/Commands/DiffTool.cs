@@ -26,12 +26,14 @@ namespace SourceGit.Commands
                 if (!CheckGitConfiguration())
                     return;
 
-                Args = $"difftool -g --no-prompt {_option}";
+                Args = ["difftool", "-g", "--no-prompt"];
+                Args.AddRange(_option.ToArgs());
             }
             else
             {
                 var cmd = $"{tool.Exec.Quoted()} {tool.Cmd}";
-                Args = $"-c difftool.sourcegit.cmd={cmd.Quoted()} difftool --tool=sourcegit --no-prompt {_option}";
+                Args = ["-c", $"difftool.sourcegit.cmd={cmd}", "difftool", "--tool=sourcegit", "--no-prompt"];
+                Args.AddRange(_option.ToArgs());
             }
 
             try

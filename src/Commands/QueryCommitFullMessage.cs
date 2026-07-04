@@ -8,7 +8,7 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = $"show --no-show-signature --format=%B -s {sha}";
+            Args = ["show", "--no-show-signature", "--format=%B", "-s", sha];
         }
 
         public string GetResult()

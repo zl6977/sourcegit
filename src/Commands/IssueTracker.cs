@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -16,12 +16,12 @@ namespace SourceGit.Commands
             {
                 var storage = $"{repo}/.issuetracker";
                 _isStorageFileExists = File.Exists(storage);
-                _baseArg = $"config -f {storage.Quoted()}";
+                _baseArgs = ["config", "-f", storage];
             }
             else
             {
                 _isStorageFileExists = true;
-                _baseArg = "config --local";
+                _baseArgs = ["config", "--local"];
             }
         }
 
@@ -30,7 +30,7 @@ namespace SourceGit.Commands
             if (!_isStorageFileExists)
                 return;
 
-            Args = $"{_baseArg} -l";
+            Args = NewArgs("-l");
 
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             if (rs.IsSuccess)
@@ -68,12 +68,12 @@ namespace SourceGit.Commands
 
         public async Task<bool> AddAsync(Models.IssueTracker rule)
         {
-            Args = $"{_baseArg} issuetracker.{rule.Name.Quoted()}.regex {rule.RegexString.Quoted()}";
+            Args = NewArgs($"issuetracker.{rule.Name}.regex", rule.RegexString);
 
             var succ = await ExecAsync().ConfigureAwait(false);
             if (succ)
             {
-                Args = $"{_baseArg} issuetracker.{rule.Name.Quoted()}.url {rule.URLTemplate.Quoted()}";
+                Args = NewArgs($"issuetracker.{rule.Name}.url", rule.URLTemplate);
                 return await ExecAsync().ConfigureAwait(false);
             }
 
@@ -82,13 +82,13 @@ namespace SourceGit.Commands
 
         public async Task<bool> UpdateRegexAsync(Models.IssueTracker rule)
         {
-            Args = $"{_baseArg} issuetracker.{rule.Name.Quoted()}.regex {rule.RegexString.Quoted()}";
+            Args = NewArgs($"issuetracker.{rule.Name}.regex", rule.RegexString);
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> UpdateURLTemplateAsync(Models.IssueTracker rule)
         {
-            Args = $"{_baseArg} issuetracker.{rule.Name.Quoted()}.url {rule.URLTemplate.Quoted()}";
+            Args = NewArgs($"issuetracker.{rule.Name}.url", rule.URLTemplate);
             return await ExecAsync().ConfigureAwait(false);
         }
 
@@ -97,8 +97,15 @@ namespace SourceGit.Commands
             if (!_isStorageFileExists)
                 return true;
 
-            Args = $"{_baseArg} --remove-section issuetracker.{name.Quoted()}";
+            Args = NewArgs("--remove-section", $"issuetracker.{name}");
             return await ExecAsync().ConfigureAwait(false);
+        }
+
+        private List<string> NewArgs(params string[] args)
+        {
+            var rs = new List<string>(_baseArgs);
+            rs.AddRange(args);
+            return rs;
         }
 
         private Models.IssueTracker FindOrAdd(List<Models.IssueTracker> rules, string ruleName, bool isShared)
@@ -113,6 +120,6 @@ namespace SourceGit.Commands
         }
 
         private readonly bool _isStorageFileExists;
-        private readonly string _baseArg;
+        private readonly List<string> _baseArgs;
     }
 }

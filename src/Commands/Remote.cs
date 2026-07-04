@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 
 namespace SourceGit.Commands
 {
@@ -12,31 +12,34 @@ namespace SourceGit.Commands
 
         public async Task<bool> AddAsync(string name, string url)
         {
-            Args = $"remote add {name} {url}";
+            Args = ["remote", "add", name, url];
             return await ExecAsync();
         }
 
         public async Task<bool> DeleteAsync(string name)
         {
-            Args = $"remote remove {name}";
+            Args = ["remote", "remove", name];
             return await ExecAsync();
         }
 
         public async Task<bool> RenameAsync(string name, string to)
         {
-            Args = $"remote rename {name} {to}";
+            Args = ["remote", "rename", name, to];
             return await ExecAsync();
         }
 
         public async Task<bool> PruneAsync(string name)
         {
-            Args = $"remote prune {name}";
+            Args = ["remote", "prune", name];
             return await ExecAsync();
         }
 
         public async Task<string> GetURLAsync(string name, bool isPush)
         {
-            Args = "remote get-url" + (isPush ? " --push " : " ") + name;
+            Args = ["remote", "get-url"];
+            if (isPush)
+                Args.Add("--push");
+            Args.Add(name);
 
             var rs = await ReadToEndAsync();
             return rs.IsSuccess ? rs.StdOut.Trim() : string.Empty;
@@ -44,14 +47,18 @@ namespace SourceGit.Commands
 
         public async Task<bool> SetURLAsync(string name, string url, bool isPush)
         {
-            Args = "remote set-url" + (isPush ? " --push " : " ") + $"{name} {url}";
+            Args = ["remote", "set-url"];
+            if (isPush)
+                Args.Add("--push");
+            Args.Add(name);
+            Args.Add(url);
             return await ExecAsync();
         }
 
         public async Task<bool> HasBranchAsync(string remote, string branch)
         {
             SSHKey = await new Config(WorkingDirectory).GetAsync($"remote.{remote}.sshkey");
-            Args = $"ls-remote {remote} {branch}";
+            Args = ["ls-remote", remote, branch];
 
             var rs = await ReadToEndAsync();
             return rs.IsSuccess && rs.StdOut.Trim().Length > 0;

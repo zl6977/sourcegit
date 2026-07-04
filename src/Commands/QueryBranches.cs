@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -15,13 +15,20 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = "branch -l --all -v --format=\"%(refname)%00%(committerdate:unix)%00%(objectname)%00%(HEAD)%00%(upstream)%00%(upstream:trackshort)%00%(worktreepath)\"";
+            Operation = "branch";
+            SetArgsWithWorktreePath();
         }
 
         public async Task<List<Models.Branch>> GetResultAsync()
         {
             var branches = new List<Models.Branch>();
             var rs = await ReadToEndAsync().ConfigureAwait(false);
+            if (!rs.IsSuccess && rs.StdErr.Contains("unknown field name: worktreepath", StringComparison.Ordinal))
+            {
+                SetArgsWithoutWorktreePath();
+                rs = await ReadToEndAsync().ConfigureAwait(false);
+            }
+
             if (!rs.IsSuccess)
                 return branches;
 
@@ -63,7 +70,7 @@ namespace SourceGit.Commands
         private Models.Branch ParseLine(string line, HashSet<string> mismatched)
         {
             var parts = line.Split('\0');
-            if (parts.Length != 7)
+            if (parts.Length != 6 && parts.Length != 7)
                 return null;
 
             var branch = new Models.Branch();
@@ -111,8 +118,32 @@ namespace SourceGit.Commands
                 !parts[5].Equals("=", StringComparison.Ordinal))
                 mismatched.Add(branch.FullName);
 
-            branch.WorktreePath = parts[6];
+            branch.WorktreePath = parts.Length == 7 ? GitService.NormalizeRepositoryPath(parts[6], WorkingDirectory) : string.Empty;
             return branch;
+        }
+
+        private void SetArgsWithWorktreePath()
+        {
+            Args =
+            [
+                "branch",
+                "-l",
+                "--all",
+                "-v",
+                "--format=%(refname)%00%(committerdate:unix)%00%(objectname)%00%(HEAD)%00%(upstream)%00%(upstream:trackshort)%00%(worktreepath)",
+            ];
+        }
+
+        private void SetArgsWithoutWorktreePath()
+        {
+            Args =
+            [
+                "branch",
+                "-l",
+                "--all",
+                "-v",
+                "--format=%(refname)%00%(committerdate:unix)%00%(objectname)%00%(HEAD)%00%(upstream)%00%(upstream:trackshort)",
+            ];
         }
     }
 }

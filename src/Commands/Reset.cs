@@ -1,4 +1,5 @@
-﻿namespace SourceGit.Commands
+using System.Collections.Generic;
+namespace SourceGit.Commands
 {
     public class Reset : Command
     {
@@ -6,14 +7,21 @@
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = $"reset {mode} {revision}";
+            Operation = "reset";
+            Args = ["reset"];
+            if (!string.IsNullOrWhiteSpace(mode))
+                Args.Add(mode);
+            if (!string.IsNullOrWhiteSpace(revision))
+                Args.Add(revision);
         }
 
-        public Reset(string repo, string pathspec)
+        public Reset(string repo, List<string> paths)
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = $"reset --pathspec-from-file={pathspec.Quoted()}";
+            Operation = "reset";
+            Args = new List<string> { "reset", "--" };
+            Args.AddRange(paths);
         }
     }
 }

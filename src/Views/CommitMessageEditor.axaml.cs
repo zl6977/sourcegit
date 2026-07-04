@@ -25,11 +25,11 @@ namespace SourceGit.Views
             if (!string.IsNullOrEmpty(gitDir))
             {
                 var settingsFile = Path.Combine(gitDir, "sourcegit.settings");
-                if (File.Exists(settingsFile))
+                if (Commands.GitService.FileExists(settingsFile))
                 {
                     try
                     {
-                        using var stream = File.OpenRead(settingsFile);
+                        using var stream = Commands.GitService.OpenRead(settingsFile);
                         var settings = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.RepositorySettings);
                         ConventionalTypesOverride = settings.ConventionalTypesOverride;
                     }
@@ -40,10 +40,10 @@ namespace SourceGit.Views
                 }
             }
 
-            _onSave = msg => File.WriteAllText(file, msg);
+            _onSave = msg => Commands.GitService.WriteFile(file, msg);
             _shouldExitApp = true;
 
-            Editor.CommitMessage = File.ReadAllText(file).ReplaceLineEndings("\n").Trim();
+            Editor.CommitMessage = Commands.GitService.ReadFile(file).ReplaceLineEndings("\n").Trim();
         }
 
         public void AsBuiltin(string conventionalTypesOverride, string msg, Action<string> onSave)

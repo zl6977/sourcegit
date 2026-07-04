@@ -9,9 +9,13 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            const string baseArgs = "show --no-show-signature --format=%G?%n%GS%n%GK -s";
-            const string fakeSignersFileArg = "-c gpg.ssh.allowedSignersFile=/dev/null";
-            Args = $"{(useFakeSignersFile ? fakeSignersFileArg : string.Empty)} {baseArgs} {sha}";
+            Args = [];
+            if (useFakeSignersFile)
+            {
+                Args.Add("-c");
+                Args.Add("gpg.ssh.allowedSignersFile=/dev/null");
+            }
+            Args.AddRange(["show", "--no-show-signature", "--format=%G?%n%GS%n%GK", "-s", sha]);
         }
 
         public async Task<Models.CommitSignInfo> GetResultAsync()

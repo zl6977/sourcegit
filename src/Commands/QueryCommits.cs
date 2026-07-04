@@ -1,64 +1,74 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
 {
     public class QueryCommits : Command
     {
-        public QueryCommits(string repo, string limits, bool markMerged = true)
+        public QueryCommits(string repo, List<string> limits, bool markMerged = true)
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = $"log --no-show-signature --decorate=full --format=%H%x00%P%x00%D%x00%aN±%aE%x00%at%x00%cN±%cE%x00%ct%x00%s {limits}";
+            Args = ["log", "--no-show-signature", "--decorate=full", "--format=%H%x00%P%x00%D%x00%aN±%aE%x00%at%x00%cN±%cE%x00%ct%x00%s"];
+            if (limits is { Count: > 0 })
+                Args.AddRange(limits);
             _markMerged = markMerged;
         }
 
         public QueryCommits(string repo, string filter, Models.CommitSearchMethod method, bool onlyCurrentBranch)
         {
-            var builder = new StringBuilder();
-            builder.Append("log -1000 --date-order --no-show-signature --decorate=full --format=%H%x00%P%x00%D%x00%aN±%aE%x00%at%x00%cN±%cE%x00%ct%x00%s ");
+            Args = ["log", "-1000", "--date-order", "--no-show-signature", "--decorate=full", "--format=%H%x00%P%x00%D%x00%aN±%aE%x00%at%x00%cN±%cE%x00%ct%x00%s"];
 
             if (!onlyCurrentBranch)
-                builder.Append("--branches --remotes ");
+            {
+                Args.Add("--branches");
+                Args.Add("--remotes");
+            }
 
             if (method == Models.CommitSearchMethod.ByAuthor)
             {
-                builder.Append("-i --author=").Append(filter.Quoted());
+                Args.Add("-i");
+                Args.Add($"--author={filter}");
             }
             else if (method == Models.CommitSearchMethod.ByMessage)
             {
                 var words = filter.Split([' ', '\t', '\r'], StringSplitOptions.RemoveEmptyEntries);
                 foreach (var word in words)
-                    builder.Append("--grep=").Append(word.Trim().Quoted()).Append(' ');
-                builder.Append("--all-match -i");
+                    Args.Add($"--grep={word.Trim()}");
+                Args.Add("--all-match");
+                Args.Add("-i");
             }
             else if (method == Models.CommitSearchMethod.ByPath)
             {
-                builder.Append("-- ").Append(filter.Quoted());
+                Args.Add("--");
+                Args.Add(filter);
             }
             else
             {
-                builder.Append("-G").Append(filter.Quoted());
+                Args.Add("-G");
+                Args.Add(filter);
             }
 
             WorkingDirectory = repo;
             Context = repo;
-            Args = builder.ToString();
             _markMerged = false;
         }
 
         public async Task<List<Models.Commit>> GetResultAsync()
         {
             var commits = new List<Models.Commit>();
+            var stderr = string.Empty;
+            var exitCode = 0;
+            Process proc = null;
             try
             {
-                using var proc = new Process();
+                proc = new Process();
                 proc.StartInfo = CreateGitStartInfo(true);
                 proc.Start();
 
+                var stderrTask = proc.StandardError.ReadToEndAsync();
                 var findHead = false;
                 while (await proc.StandardOutput.ReadLineAsync().ConfigureAwait(false) is { } line)
                 {
@@ -80,7 +90,25 @@ namespace SourceGit.Commands
                         findHead = true;
                 }
 
+                stderr = await stderrTask.ConfigureAwait(false);
+                if (!proc.HasExited) proc.Kill();
                 await proc.WaitForExitAsync().ConfigureAwait(false);
+                exitCode = proc.ExitCode;
+
+                if (exitCode != 0)
+                {
+                    // Empty repo: HEAD doesn't exist. Retry without HEAD.
+                    if (Args.Contains("HEAD") && stderr.Contains("HEAD"))
+                    {
+                        Args.Remove("HEAD");
+                        proc.Dispose();
+                        return await GetResultAsync();
+                    }
+
+                    var reason = string.IsNullOrWhiteSpace(stderr) ? $"git exited with code {exitCode}" : stderr.Trim();
+                    RaiseException($"Failed to query commits. Reason: {reason}");
+                    return commits;
+                }
 
                 if (_markMerged && !findHead && commits.Count > 0)
                 {
@@ -100,7 +128,12 @@ namespace SourceGit.Commands
             }
             catch (Exception e)
             {
+                if (proc != null && !proc.HasExited) proc.Kill();
                 RaiseException($"Failed to query commits. Reason: {e.Message}");
+            }
+            finally
+            {
+                proc?.Dispose();
             }
 
             return commits;

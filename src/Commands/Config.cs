@@ -23,7 +23,7 @@ namespace SourceGit.Commands
 
         public Dictionary<string, string> ReadAll()
         {
-            Args = "config -l";
+            Args = ["config", "-l"];
 
             var output = ReadToEnd();
             var rs = new Dictionary<string, string>();
@@ -43,7 +43,7 @@ namespace SourceGit.Commands
 
         public async Task<Dictionary<string, string>> ReadAllAsync()
         {
-            Args = "config -l";
+            Args = ["config", "-l"];
 
             var output = await ReadToEndAsync().ConfigureAwait(false);
             var rs = new Dictionary<string, string>();
@@ -67,13 +67,13 @@ namespace SourceGit.Commands
 
         public string Get(string key)
         {
-            Args = $"config {key}";
+            Args = ["config", key];
             return ReadToEnd().StdOut.Trim();
         }
 
         public async Task<string> GetAsync(string key)
         {
-            Args = $"config {key}";
+            Args = ["config", key];
 
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             return rs.StdOut.Trim();
@@ -84,9 +84,9 @@ namespace SourceGit.Commands
             var scope = _isLocal ? "--local" : "--global";
 
             if (!allowEmpty && string.IsNullOrWhiteSpace(value))
-                Args = $"config {scope} --unset {key}";
+                Args = ["config", scope, "--unset", key];
             else
-                Args = $"config {scope} {key} {value.Quoted()}";
+                Args = ["config", scope, key, value];
 
             return await ExecAsync().ConfigureAwait(false);
         }

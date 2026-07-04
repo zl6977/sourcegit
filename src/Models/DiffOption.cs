@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace SourceGit.Models
 {
@@ -29,7 +28,7 @@ namespace SourceGit.Models
                 {
                     case ChangeState.Added:
                     case ChangeState.Untracked:
-                        _extra = "--no-index";
+                    _extra = ["--no-index"];
                         _orgPath = "/dev/null";
                         break;
                 }
@@ -37,9 +36,9 @@ namespace SourceGit.Models
             else
             {
                 if (change.DataForAmend != null)
-                    _extra = $"--cached {change.DataForAmend.ParentSHA}";
+                    _extra = ["--cached", change.DataForAmend.ParentSHA];
                 else
-                    _extra = "--cached";
+                    _extra = ["--cached"];
             }
         }
 
@@ -70,8 +69,8 @@ namespace SourceGit.Models
             }
             else
             {
-                _revisions.Add($"{ver.SHA}^:{ver.OriginalPath.Quoted()}");
-                _revisions.Add($"{ver.SHA}:{ver.Path.Quoted()}");
+                _revisions.Add($"{ver.SHA}^:{ver.OriginalPath}");
+                _revisions.Add($"{ver.SHA}:{ver.Path}");
                 _path = ver.Path;
                 _orgPath = ver.Change.OriginalPath;
                 _ignorePaths = true;
@@ -99,8 +98,8 @@ namespace SourceGit.Models
             }
             else if (!end.Path.Equals(start.Path, StringComparison.Ordinal))
             {
-                _revisions.Add($"{start.SHA}:{start.Path.Quoted()}");
-                _revisions.Add($"{end.SHA}:{end.Path.Quoted()}");
+                _revisions.Add($"{start.SHA}:{start.Path}");
+                _revisions.Add($"{end.SHA}:{end.Path}");
                 _path = end.Path;
                 _orgPath = start.Path;
                 _ignorePaths = true;
@@ -127,32 +126,27 @@ namespace SourceGit.Models
             _orgPath = change.OriginalPath;
         }
 
-        /// <summary>
-        ///     Converts to diff command arguments.
-        /// </summary>
-        public override string ToString()
+        public List<string> ToArgs()
         {
-            var builder = new StringBuilder();
-            if (!string.IsNullOrEmpty(_extra))
-                builder.Append($"{_extra} ");
-            foreach (var r in _revisions)
-                builder.Append($"{r} ");
+            var args = new List<string>();
+            args.AddRange(_extra);
+            args.AddRange(_revisions);
 
             if (_ignorePaths)
-                return builder.ToString();
+                return args;
 
-            builder.Append("-- ");
+            args.Add("--");
             if (!string.IsNullOrEmpty(_orgPath))
-                builder.Append($"{_orgPath.Quoted()} ");
-            builder.Append(_path.Quoted());
+                args.Add(_orgPath);
+            args.Add(_path);
 
-            return builder.ToString();
+            return args;
         }
 
         private readonly bool _isUnstaged = false;
         private readonly string _path;
         private readonly string _orgPath = string.Empty;
-        private readonly string _extra = string.Empty;
+        private readonly List<string> _extra = [];
         private readonly List<string> _revisions = [];
         private readonly bool _ignorePaths = false;
     }

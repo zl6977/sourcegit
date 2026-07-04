@@ -1,4 +1,3 @@
-﻿using System.Text;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -12,19 +11,18 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder(1024);
-            builder.Append("push --progress --verbose ");
+            Args = ["push", "--progress", "--verbose"];
             if (withTags)
-                builder.Append("--tags ");
+                Args.Add("--tags");
             if (checkSubmodules)
-                builder.Append("--recurse-submodules=check ");
+                Args.Add("--recurse-submodules=check");
             if (track)
-                builder.Append("-u ");
+                Args.Add("-u");
             if (force)
-                builder.Append("--force-with-lease ");
+                Args.Add("--force-with-lease");
 
-            builder.Append(remote).Append(' ').Append(local).Append(':').Append(remoteBranch);
-            Args = builder.ToString();
+            Args.Add(remote);
+            Args.Add($"{local}:{remoteBranch}");
         }
 
         public Push(string repo, string remote, string refname, bool isDelete)
@@ -34,13 +32,11 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder(512);
-            builder.Append("push ");
+            Args = ["push"];
             if (isDelete)
-                builder.Append("--delete ");
-            builder.Append(remote).Append(' ').Append(refname);
-
-            Args = builder.ToString();
+                Args.Add("--delete");
+            Args.Add(remote);
+            Args.Add(refname);
         }
 
         public async Task<bool> RunAsync()

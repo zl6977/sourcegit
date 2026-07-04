@@ -50,22 +50,15 @@ namespace SourceGit.Commands
 
         public async Task<bool> ExecAsync()
         {
-            var starter = new ProcessStartInfo();
-            starter.WorkingDirectory = _repo;
-            starter.FileName = Native.OS.GitExecutable;
-            starter.Arguments = "-c core.editor=true update-index --index-info";
-            starter.UseShellExecute = false;
-            starter.CreateNoWindow = true;
-            starter.WindowStyle = ProcessWindowStyle.Hidden;
+            var cmd = new Command { WorkingDirectory = _repo, Args = ["-c", "core.editor=true", "update-index", "--index-info"] };
+            var starter = GitService.CreateStartInfo(cmd, true);
             starter.RedirectStandardInput = true;
-            starter.RedirectStandardOutput = false;
-            starter.RedirectStandardError = true;
-            starter.StandardInputEncoding = new UTF8Encoding(false);
-            starter.StandardErrorEncoding = Encoding.UTF8;
+            starter.WindowStyle = ProcessWindowStyle.Hidden;
 
+            Process proc = null;
             try
             {
-                using var proc = Process.Start(starter)!;
+                proc = Process.Start(starter)!;
                 await proc.StandardInput.WriteAsync(_patchBuilder.ToString());
                 proc.StandardInput.Close();
 
@@ -80,8 +73,13 @@ namespace SourceGit.Commands
             }
             catch (Exception e)
             {
+                if (proc != null && !proc.HasExited) proc.Kill();
                 Models.Notification.Send(_repo, "Failed to update index: " + e.Message, true);
                 return false;
+            }
+            finally
+            {
+                proc?.Dispose();
             }
         }
 

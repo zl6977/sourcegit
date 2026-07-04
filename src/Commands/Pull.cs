@@ -1,4 +1,3 @@
-﻿using System.Text;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -12,13 +11,11 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder(512);
-            builder.Append("pull --verbose --progress ");
+            Args = ["pull", "--verbose", "--progress"];
             if (useRebase)
-                builder.Append("--rebase=true ");
-            builder.Append(remote).Append(' ').Append(branch);
-
-            Args = builder.ToString();
+                Args.Add("--rebase=true");
+            Args.Add(remote);
+            Args.Add(branch);
         }
 
         public async Task<bool> RunAsync()

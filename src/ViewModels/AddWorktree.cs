@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.IO;
 using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
@@ -95,15 +94,10 @@ namespace SourceGit.ViewModels
                 return new ValidationResult("Worktree path is required!");
 
             var fullPath = System.IO.Path.IsPathRooted(path) ? path : System.IO.Path.Combine(creator._repo.FullPath, path);
-            var info = new DirectoryInfo(fullPath);
-            if (info.Exists)
+            if (Commands.GitService.DirectoryExists(fullPath))
             {
-                var files = info.GetFiles();
+                var files = Commands.GitService.GetFiles(fullPath);
                 if (files.Length > 0)
-                    return new ValidationResult("Given path is not empty!!!");
-
-                var folders = info.GetDirectories();
-                if (folders.Length > 0)
                     return new ValidationResult("Given path is not empty!!!");
             }
 

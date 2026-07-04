@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Text.RegularExpressions;
 
 namespace SourceGit.Models
@@ -43,9 +42,9 @@ namespace SourceGit.Models
         public string Onto { get; set; } = string.Empty;
         public List<InteractiveRebaseJob> Jobs { get; set; } = new List<InteractiveRebaseJob>();
 
-        public void WriteTodoList(string todoFile)
+        public string BuildTodoList()
         {
-            using var writer = new StreamWriter(todoFile);
+            var lines = new List<string>(Jobs.Count);
             foreach (var job in Jobs)
             {
                 var code = job.Action switch
@@ -57,32 +56,33 @@ namespace SourceGit.Models
                     InteractiveRebaseAction.Fixup => 'f',
                     _ => 'd'
                 };
-                writer.WriteLine($"{code} {job.SHA}");
+                lines.Add($"{code} {job.SHA}");
             }
 
-            writer.Flush();
+            return string.Join("\n", lines) + "\n";
         }
 
-        public void WriteCommitMessage(string doneFile, string msgFile)
+        public string GetCommitMessage(string doneContent)
         {
-            var done = File.ReadAllText(doneFile).Trim().Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            var done = doneContent.Trim().Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
             if (done.Length == 0)
-                return;
+                return string.Empty;
 
             var current = done[^1].Trim();
             var match = REG_REBASE_TODO().Match(current);
             if (!match.Success)
-                return;
+                return string.Empty;
 
             var sha = match.Groups[1].Value;
             foreach (var job in Jobs)
             {
                 if (job.SHA.StartsWith(sha))
                 {
-                    File.WriteAllText(msgFile, job.Message);
-                    return;
+                    return job.Message;
                 }
             }
+
+            return string.Empty;
         }
 
         [GeneratedRegex(@"^[a-z]+\s+([a-fA-F0-9]{4,64})(\s+.*)?$")]

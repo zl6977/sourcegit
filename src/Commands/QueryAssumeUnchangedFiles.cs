@@ -13,7 +13,7 @@ namespace SourceGit.Commands
         public QueryAssumeUnchangedFiles(string repo)
         {
             WorkingDirectory = repo;
-            Args = "ls-files -v";
+            Args = ["ls-files", "-v"];
             RaiseError = false;
         }
 

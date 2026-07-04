@@ -168,14 +168,9 @@ namespace SourceGit.ViewModels
 
             Task.Run(async () =>
             {
-                var argsBuilder = new StringBuilder();
-                argsBuilder
-                    .Append("--date-order -n 2 ")
-                    .Append(rev.SHA)
-                    .Append(" -- ")
-                    .Append(rev.File.Quoted());
+                var args = new List<string> { "--date-order", "-n", "2", rev.SHA, "--", rev.File };
 
-                var commits = await new Commands.QueryCommits(_repo, argsBuilder.ToString(), false)
+                var commits = await new Commands.QueryCommits(_repo, args, false)
                     .GetResultAsync()
                     .ConfigureAwait(false);
 

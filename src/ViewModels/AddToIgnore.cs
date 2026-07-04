@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.IO;
 using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
@@ -45,17 +44,17 @@ namespace SourceGit.ViewModels
             ProgressDescription = "Adding Ignored File(s) ...";
 
             var file = _selectedStorageFile.FullPath;
-            if (!File.Exists(file))
+            if (!Commands.GitService.FileExists(file, _repo.FullPath))
             {
-                await File.WriteAllLinesAsync(file!, [_pattern]);
+                Commands.GitService.WriteFile(file, _pattern + "\n", _repo.FullPath);
             }
             else
             {
-                var org = await File.ReadAllTextAsync(file);
+                var org = Commands.GitService.ReadFile(file, _repo.FullPath);
                 if (!org.EndsWith('\n'))
-                    await File.AppendAllLinesAsync(file, ["", _pattern]);
+                    Commands.GitService.WriteFile(file, org + "\n" + _pattern + "\n", _repo.FullPath);
                 else
-                    await File.AppendAllLinesAsync(file, [_pattern]);
+                    Commands.GitService.WriteFile(file, org + _pattern + "\n", _repo.FullPath);
             }
 
             _repo.MarkWorkingCopyDirtyManually();

@@ -40,7 +40,7 @@ namespace SourceGit.Views
             var explore = new MenuItem();
             explore.Header = App.Text("RevealFile");
             explore.Icon = this.CreateMenuIcon("Icons.Explore");
-            explore.IsEnabled = Directory.Exists(fullPath);
+            explore.IsEnabled = Commands.GitService.DirectoryExists(fullPath);
             explore.Click += (_, ev) =>
             {
                 Native.OS.OpenInFileManager(fullPath);
@@ -275,7 +275,7 @@ namespace SourceGit.Views
             var explore = new MenuItem();
             explore.Header = App.Text("RevealFile");
             explore.Icon = this.CreateMenuIcon("Icons.Explore");
-            explore.IsEnabled = File.Exists(fullPath);
+            explore.IsEnabled = Commands.GitService.FileExists(fullPath);
             explore.Click += (_, ev) =>
             {
                 Native.OS.OpenInFileManager(fullPath);
@@ -367,7 +367,7 @@ namespace SourceGit.Views
                 menu.Items.Add(resetToFirstParent);
                 menu.Items.Add(new MenuItem { Header = "-" });
 
-                if (repo.Remotes.Count > 0 && File.Exists(fullPath) && repo.IsLFSEnabled())
+                if (repo.Remotes.Count > 0 && Commands.GitService.FileExists(fullPath) && repo.IsLFSEnabled())
                 {
                     var lfs = new MenuItem();
                     lfs.Header = App.Text("GitLFS");

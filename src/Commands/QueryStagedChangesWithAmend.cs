@@ -19,7 +19,7 @@ namespace SourceGit.Commands
 
         public List<Models.Change> GetResult()
         {
-            Args = "show --no-show-signature --format=\"%H %P\" -s HEAD";
+            Args = ["show", "--no-show-signature", "--format=%H %P", "-s", "HEAD"];
             var rs = ReadToEnd();
             if (!rs.IsSuccess)
                 return [];
@@ -29,7 +29,7 @@ namespace SourceGit.Commands
                 return [];
 
             var parent = shas.Length > 1 ? shas[1] : Models.EmptyTreeHash.Guess(shas[0]);
-            Args = $"diff-index --cached -M {parent}";
+            Args = ["diff-index", "--cached", "-M", parent];
             rs = ReadToEnd();
             if (!rs.IsSuccess)
                 return [];

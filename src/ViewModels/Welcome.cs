@@ -109,9 +109,9 @@ namespace SourceGit.ViewModels
             }
 
             var root = path;
-            if (!Directory.Exists(root))
+            if (!Commands.GitService.DirectoryExists(root))
             {
-                if (File.Exists(root))
+                if (Commands.GitService.FileExists(root))
                     root = Path.GetDirectoryName(root);
                 else
                     return null;

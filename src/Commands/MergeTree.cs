@@ -8,7 +8,7 @@ namespace SourceGit.Commands
         public MergeTree(string repo, string source, string dest)
         {
             WorkingDirectory = repo;
-            Args = $"merge-tree --write-tree {source} {dest}";
+            Args = ["merge-tree", "--write-tree", source, dest];
         }
 
         public async Task<int> GetExitCodeAsync()
@@ -25,7 +25,7 @@ namespace SourceGit.Commands
             }
             catch
             {
-                // Ignore any exceptions and just return -1
+                if (!proc.HasExited) proc.Kill();
             }
 
             return exitCode;

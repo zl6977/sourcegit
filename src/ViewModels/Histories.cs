@@ -200,10 +200,14 @@ namespace SourceGit.ViewModels
             OnPropertyChanged(nameof(CurrentBranch));
         }
 
+        public void Refresh()
+        {
+            _repo.RefreshAll();
+        }
+
         public Models.BisectState UpdateBisectInfo()
         {
-            var test = Path.Combine(_repo.GitDir, "BISECT_START");
-            if (!File.Exists(test))
+            if (!_repo.Controller.HasBisectStart())
             {
                 Bisect = null;
                 return Models.BisectState.None;
@@ -212,13 +216,13 @@ namespace SourceGit.ViewModels
             var head = new Commands.QueryRevisionByRefName(_repo.FullPath, "HEAD").GetResult();
             var info = new Models.Bisect();
             var markedHead = false;
-            var dir = Path.Combine(_repo.GitDir, "refs", "bisect");
-            if (Directory.Exists(dir))
+
+            if (_repo.Controller.GitDirDirectoryExists("refs/bisect"))
             {
-                var files = new DirectoryInfo(dir).GetFiles();
+                var files = _repo.Controller.GetGitDirFiles("refs/bisect");
                 foreach (var file in files)
                 {
-                    var sha = File.ReadAllText(file.FullName).Trim();
+                    var sha = _repo.Controller.ReadGitDirFile(Path.Combine("refs/bisect", file.Name)).Trim();
                     if (!markedHead)
                         markedHead = head.Equals(sha, StringComparison.Ordinal);
 

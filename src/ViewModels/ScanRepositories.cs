@@ -74,7 +74,7 @@ namespace SourceGit.ViewModels
                 selectedDir = _selected.Path;
             }
 
-            if (!Directory.Exists(selectedDir))
+            if (!Commands.GitService.DirectoryExists(selectedDir))
                 return true;
 
             ProgressDescription = $"Scan repositories under '{selectedDir}' ...";
@@ -143,7 +143,7 @@ namespace SourceGit.ViewModels
                     continue;
 
                 var gitDir = Path.Combine(subdir.FullName, ".git");
-                if (Directory.Exists(gitDir) || File.Exists(gitDir))
+                if (Commands.GitService.DirectoryExists(gitDir) || Commands.GitService.FileExists(gitDir))
                 {
                     var test = await new Commands.QueryRepositoryRootPath(subdir.FullName).GetResultAsync();
                     if (test.IsSuccess && !string.IsNullOrEmpty(test.StdOut))

@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -16,23 +15,27 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder(1024);
-            builder.Append("ls-tree ").Append(sha);
+            Args = ["ls-tree", sha];
             if (!string.IsNullOrEmpty(parentFolder))
-                builder.Append(" -- ").Append(parentFolder.Quoted());
-
-            Args = builder.ToString();
+            {
+                Args.Add("--");
+                Args.Add(parentFolder);
+            }
         }
 
         public async Task<List<Models.Object>> GetResultAsync()
         {
             var outs = new List<Models.Object>();
 
+            Process proc = null;
+
             try
             {
-                using var proc = new Process();
+                proc = new Process();
                 proc.StartInfo = CreateGitStartInfo(true);
                 proc.Start();
+
+_ = proc.StandardError.ReadToEndAsync();
 
                 while (await proc.StandardOutput.ReadLineAsync().ConfigureAwait(false) is { } line)
                 {
@@ -57,11 +60,16 @@ namespace SourceGit.Commands
                     outs.Add(obj);
                 }
 
+                if (!proc.HasExited) proc.Kill();
                 await proc.WaitForExitAsync().ConfigureAwait(false);
             }
             catch
             {
-                // Ignore exceptions.
+                if (proc != null && !proc.HasExited) proc.Kill();
+            }
+            finally
+            {
+                proc?.Dispose();
             }
 
             return outs;

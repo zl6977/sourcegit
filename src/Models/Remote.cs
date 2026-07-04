@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Text.RegularExpressions;
 using System.Web;
 
@@ -58,7 +57,7 @@ namespace SourceGit.Models
             return url.StartsWith("file://", StringComparison.Ordinal) ||
                 url.StartsWith("./", StringComparison.Ordinal) ||
                 url.StartsWith("../", StringComparison.Ordinal) ||
-                Directory.Exists(url);
+                Commands.GitService.DirectoryExists(url);
         }
 
         public bool TryGetVisitURL(out string url)

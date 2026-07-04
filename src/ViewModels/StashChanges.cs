@@ -116,33 +116,16 @@ namespace SourceGit.ViewModels
                 return true;
 
             var succ = false;
-            if (Native.OS.GitVersion >= Models.GitVersions.STASH_PUSH_WITH_PATHSPECFILE)
+            for (int i = 0; i < changes.Count; i += 32)
             {
-                var paths = new List<string>();
-                foreach (var c in changes)
-                    paths.Add(c.Path);
-
-                var pathSpecFile = Path.GetTempFileName();
-                await File.WriteAllLinesAsync(pathSpecFile, paths);
+                var count = Math.Min(32, changes.Count - i);
+                var step = changes.GetRange(i, count);
                 succ = await new Commands.Stash(_repo.FullPath)
                     .Use(log)
-                    .PushAsync(Message, pathSpecFile, keepIndex)
+                    .PushAsync(Message, step, keepIndex)
                     .ConfigureAwait(false);
-                File.Delete(pathSpecFile);
-            }
-            else
-            {
-                for (int i = 0; i < changes.Count; i += 32)
-                {
-                    var count = Math.Min(32, changes.Count - i);
-                    var step = changes.GetRange(i, count);
-                    succ = await new Commands.Stash(_repo.FullPath)
-                        .Use(log)
-                        .PushAsync(Message, step, keepIndex)
-                        .ConfigureAwait(false);
-                    if (!succ)
-                        break;
-                }
+                if (!succ)
+                    break;
             }
 
             return succ;

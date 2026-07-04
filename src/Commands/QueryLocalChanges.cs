@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -16,26 +15,40 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder();
+            Args = [];
             if (noOptionalLocks)
-                builder.Append("--no-optional-locks ");
+                Args.Add("--no-optional-locks");
             if (includeUntracked)
-                builder.Append("-c core.untrackedCache=true -c status.showUntrackedFiles=all status -uall --ignore-submodules=dirty --porcelain");
+            {
+                Args.Add("-c");
+                Args.Add("core.untrackedCache=true");
+                Args.Add("-c");
+                Args.Add("status.showUntrackedFiles=all");
+                Args.Add("status");
+                Args.Add("-uall");
+                Args.Add("--ignore-submodules=dirty");
+                Args.Add("--porcelain");
+            }
             else
-                builder.Append("status -uno --ignore-submodules=dirty --porcelain");
-
-            Args = builder.ToString();
+            {
+                Args.Add("status");
+                Args.Add("-uno");
+                Args.Add("--ignore-submodules=dirty");
+                Args.Add("--porcelain");
+            }
         }
 
         public async Task<List<Models.Change>> GetResultAsync()
         {
             var outs = new List<Models.Change>();
 
+            Process proc = null;
             try
             {
-                using var proc = new Process();
+                proc = new Process();
                 proc.StartInfo = CreateGitStartInfo(true);
                 proc.Start();
+_ = proc.StandardError.ReadToEndAsync();
 
                 while (await proc.StandardOutput.ReadLineAsync().ConfigureAwait(false) is { } line)
                 {
@@ -165,11 +178,15 @@ namespace SourceGit.Commands
                     if (change.Index != Models.ChangeState.None || change.WorkTree != Models.ChangeState.None)
                         outs.Add(change);
                 }
+
+                if (!proc.HasExited) proc.Kill();
+                await proc.WaitForExitAsync().ConfigureAwait(false);
             }
             catch
             {
-                // Ignore exceptions.
+                if (proc != null && !proc.HasExited) proc.Kill();
             }
+            finally { proc?.Dispose(); }
 
             return outs;
         }

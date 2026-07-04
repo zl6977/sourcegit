@@ -330,25 +330,31 @@ namespace SourceGit.Native
 
             try
             {
-                using var proc = Process.Start(startInfo)!;
-                var output = proc.StandardOutput.ReadToEnd();
-                proc.WaitForExit();
-
-                if (proc.ExitCode == 0)
+                Process proc = null;
+                try
                 {
-                    var instances = JsonSerializer.Deserialize(output, JsonCodeGen.Default.ListVisualStudioInstance);
-                    foreach (var instance in instances)
+                    proc = Process.Start(startInfo)!;
+                    var output = proc.StandardOutput.ReadToEnd();
+                    proc.WaitForExit();
+
+                    if (proc.ExitCode == 0)
                     {
-                        var exec = instance.ProductPath;
-                        var icon = instance.IsPrerelease ? "vs-preview" : "vs";
-                        finder.TryAdd(instance.DisplayName, icon, () => exec, GenerateVSProjectLaunchOptions, false);
+                        var instances = JsonSerializer.Deserialize(output, JsonCodeGen.Default.ListVisualStudioInstance);
+                        foreach (var instance in instances)
+                        {
+                            var exec = instance.ProductPath;
+                            var icon = instance.IsPrerelease ? "vs-preview" : "vs";
+                            finder.TryAdd(instance.DisplayName, icon, () => exec, GenerateVSProjectLaunchOptions, false);
+                        }
                     }
                 }
+                catch
+                {
+                    if (proc != null && !proc.HasExited) proc.Kill();
+                }
+                finally { proc?.Dispose(); }
             }
-            catch
-            {
-                // Just ignore.
-            }
+            catch { }
         }
 
         private string FindZed()

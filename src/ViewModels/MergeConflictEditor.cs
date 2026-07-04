@@ -93,10 +93,9 @@ namespace SourceGit.ViewModels
                 _ => (head, (object)"Stash or Patch"),
             };
 
-            var workingCopyPath = Path.Combine(_repo.FullPath, _filePath);
             var workingCopyContent = string.Empty;
-            if (File.Exists(workingCopyPath))
-                workingCopyContent = File.ReadAllText(workingCopyPath);
+            if (_repo.Controller.FileExists(_filePath))
+                workingCopyContent = _repo.Controller.ReadFile(_filePath);
 
             if (workingCopyContent.IndexOf('\0', StringComparison.Ordinal) >= 0)
             {
@@ -196,14 +195,10 @@ namespace SourceGit.ViewModels
             try
             {
                 // Write merged content to file
-                var fullPath = Path.Combine(_repo.FullPath, _filePath);
-                await File.WriteAllTextAsync(fullPath, builder.ToString());
+                _repo.Controller.WriteFile(_filePath, builder.ToString());
 
                 // Stage the file
-                var pathSpecFile = Path.GetTempFileName();
-                await File.WriteAllTextAsync(pathSpecFile, _filePath);
-                await new Commands.Add(_repo.FullPath, pathSpecFile).ExecAsync();
-                File.Delete(pathSpecFile);
+                await Commands.Add.ProcessAsync(_repo.FullPath, [_filePath]);
 
                 _repo.MarkWorkingCopyDirtyManually();
                 return true;

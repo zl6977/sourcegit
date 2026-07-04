@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Text;
+using System.Collections.Generic;
 
 namespace SourceGit.Commands
 {
@@ -10,12 +9,8 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder();
-            builder.Append("rm -f --");
-            foreach (var file in files)
-                builder.Append(' ').Append(file.Quoted());
-
-            Args = builder.ToString();
+            Args = ["rm", "-f", "--"];
+            Args.AddRange(files);
         }
     }
 }

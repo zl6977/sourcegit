@@ -1625,13 +1625,15 @@ namespace SourceGit.Views
 
             var tmpFile = Path.GetTempFileName();
             patch.Generate(tmpFile, false);
+            var patchText = await File.ReadAllTextAsync(tmpFile);
+            File.Delete(tmpFile);
 
             using var lockWatcher = repo.LockWatcher();
-            await new Commands.Apply(repo.FullPath, tmpFile, true, "nowarn", "--cache --index").ExecAsync();
+            using var patchFile = await Commands.BackendTempFile.CreateAsync(repo.FullPath, patchText, "sourcegit_chunk_patch");
+            await new Commands.Apply(repo.FullPath, patchFile.File, true, "nowarn", ["--cache", "--index"]).ExecAsync();
 
             vm.BlockNavigation.UpdateByChunk(chunk);
             repo.MarkWorkingCopyDirtyManually();
-            File.Delete(tmpFile);
         }
 
         private async void OnUnstageChunk(object _1, RoutedEventArgs _2)
@@ -1651,13 +1653,15 @@ namespace SourceGit.Views
 
             var tmpFile = Path.GetTempFileName();
             patch.Generate(tmpFile, true);
+            var patchText = await File.ReadAllTextAsync(tmpFile);
+            File.Delete(tmpFile);
 
             using var lockWatcher = repo.LockWatcher();
-            await new Commands.Apply(repo.FullPath, tmpFile, true, "nowarn", "--cache --index --reverse").ExecAsync();
+            using var patchFile = await Commands.BackendTempFile.CreateAsync(repo.FullPath, patchText, "sourcegit_chunk_patch");
+            await new Commands.Apply(repo.FullPath, patchFile.File, true, "nowarn", ["--cache", "--index", "--reverse"]).ExecAsync();
 
             vm.BlockNavigation.UpdateByChunk(chunk);
             repo.MarkWorkingCopyDirtyManually();
-            File.Delete(tmpFile);
         }
 
         private async void OnDiscardChunk(object _1, RoutedEventArgs _2)
@@ -1677,13 +1681,15 @@ namespace SourceGit.Views
 
             var tmpFile = Path.GetTempFileName();
             patch.Generate(tmpFile, true);
+            var patchText = await File.ReadAllTextAsync(tmpFile);
+            File.Delete(tmpFile);
 
             using var lockWatcher = repo.LockWatcher();
-            await new Commands.Apply(repo.FullPath, tmpFile, true, "nowarn", "--reverse").ExecAsync();
+            using var patchFile = await Commands.BackendTempFile.CreateAsync(repo.FullPath, patchText, "sourcegit_chunk_patch");
+            await new Commands.Apply(repo.FullPath, patchFile.File, true, "nowarn", ["--reverse"]).ExecAsync();
 
             vm.BlockNavigation.UpdateByChunk(chunk);
             repo.MarkWorkingCopyDirtyManually();
-            File.Delete(tmpFile);
         }
 
         private ViewModels.TextDiffSelectedChunk _selectedChunk = null;

@@ -19,7 +19,7 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = "submodule status";
+            Args = ["submodule", "status"];
         }
 
         public async Task<List<Models.Submodule>> GetResultAsync()
@@ -64,7 +64,7 @@ namespace SourceGit.Commands
 
             if (submodules.Count > 0)
             {
-                Args = "config --file .gitmodules --list";
+                Args = ["config", "--file", ".gitmodules", "--list"];
                 rs = await ReadToEndAsync().ConfigureAwait(false);
                 if (rs.IsSuccess)
                 {
@@ -121,14 +121,13 @@ namespace SourceGit.Commands
 
             if (needCheckLocalChanges)
             {
-                var builder = new StringBuilder();
+                Args = ["--no-optional-locks", "status", "--porcelain", "--"];
                 foreach (var kv in map)
                 {
                     if (kv.Value.Status == Models.SubmoduleStatus.Normal)
-                        builder.Append(kv.Key.Quoted()).Append(' ');
+                        Args.Add(kv.Key);
                 }
 
-                Args = $"--no-optional-locks status --porcelain -- {builder}";
                 rs = await ReadToEndAsync().ConfigureAwait(false);
                 if (!rs.IsSuccess)
                     return submodules;

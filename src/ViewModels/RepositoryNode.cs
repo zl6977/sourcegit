@@ -61,7 +61,7 @@ namespace SourceGit.ViewModels
         [JsonIgnore]
         public bool IsInvalid
         {
-            get => _isRepository && !Directory.Exists(_id);
+            get => _isRepository && !Commands.GitService.DirectoryExists(_id);
         }
 
         [JsonIgnore]
@@ -166,7 +166,7 @@ namespace SourceGit.ViewModels
                 return;
             }
 
-            if (!Directory.Exists(_id))
+            if (!Commands.GitService.DirectoryExists(_id))
             {
                 _lastUpdateStatus = DateTime.Now;
                 Status = null;
@@ -187,12 +187,12 @@ namespace SourceGit.ViewModels
         public void LoadMinimalInfo(string gitDir)
         {
             var savedTo = Path.Combine(gitDir, "sourcegit.node");
-            if (!File.Exists(savedTo))
+            if (!Commands.GitService.FileExists(savedTo))
                 return;
 
             try
             {
-                var minimalInfo = JsonSerializer.Deserialize(File.ReadAllText(savedTo), JsonCodeGen.Default.RepositoryNodeMinimalInfo);
+                var minimalInfo = JsonSerializer.Deserialize(Commands.GitService.ReadFile(savedTo), JsonCodeGen.Default.RepositoryNodeMinimalInfo);
                 if (!string.IsNullOrEmpty(minimalInfo.FriendlyName))
                     Name = minimalInfo.FriendlyName;
                 Bookmark = minimalInfo.Bookmark;
@@ -205,7 +205,7 @@ namespace SourceGit.ViewModels
 
         public void SaveMinimalInfo(string gitDir)
         {
-            if (!Directory.Exists(gitDir))
+            if (!Commands.GitService.DirectoryExists(gitDir))
                 return;
 
             var savedTo = Path.Combine(gitDir, "sourcegit.node");
@@ -217,7 +217,7 @@ namespace SourceGit.ViewModels
 
             try
             {
-                File.WriteAllText(savedTo, JsonSerializer.Serialize(minimalInfo, JsonCodeGen.Default.RepositoryNodeMinimalInfo));
+                Commands.GitService.WriteFile(savedTo, JsonSerializer.Serialize(minimalInfo, JsonCodeGen.Default.RepositoryNodeMinimalInfo));
             }
             catch
             {

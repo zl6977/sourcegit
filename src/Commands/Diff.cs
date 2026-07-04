@@ -41,25 +41,28 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder(256);
-            builder.Append("diff --no-color --no-ext-diff --full-index --patch ");
+            Args = ["diff", "--no-color", "--no-ext-diff", "--full-index", "--patch"];
             if (ignoreWhitespace)
-                builder.Append("--ignore-space-change --ignore-blank-lines ");
+            {
+                Args.Add("--ignore-space-change");
+                Args.Add("--ignore-blank-lines");
+            }
             if (ignoreCRAtEOL)
-                builder.Append("--ignore-cr-at-eol ");
-            builder.Append("--unified=").Append(numContextLines).Append(' ');
-            builder.Append(opt.ToString());
-
-            Args = builder.ToString();
+                Args.Add("--ignore-cr-at-eol");
+            Args.Add($"--unified={numContextLines}");
+            Args.AddRange(opt.ToArgs());
         }
 
         public async Task<Models.DiffResult> ReadAsync()
         {
+            Process proc = null;
             try
             {
-                using var proc = new Process();
+                proc = new Process();
                 proc.StartInfo = CreateGitStartInfo(true);
                 proc.Start();
+
+_ = proc.StandardError.ReadToEndAsync();
 
                 using var ms = new MemoryStream();
                 await proc.StandardOutput.BaseStream.CopyToAsync(ms, CancellationToken).ConfigureAwait(false);
@@ -85,12 +88,14 @@ namespace SourceGit.Commands
                     }
                 }
 
+                if (!proc.HasExited) proc.Kill();
                 await proc.WaitForExitAsync(CancellationToken).ConfigureAwait(false);
             }
             catch
             {
-                // Ignore exceptions.
+                if (proc != null && !proc.HasExited) proc.Kill();
             }
+            finally { proc?.Dispose(); }
 
             if (_result.IsBinary || _result.IsLFS || _result.TextDiff.Lines.Count == 0)
             {

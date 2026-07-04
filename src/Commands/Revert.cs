@@ -1,5 +1,3 @@
-﻿using System.Text;
-
 namespace SourceGit.Commands
 {
     public class Revert : Command
@@ -9,15 +7,9 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder(512);
-            builder
-                .Append("revert -m 1 ")
-                .Append(commit)
-                .Append(" --no-edit");
+            Args = ["revert", "-m", "1", commit, "--no-edit"];
             if (!autoCommit)
-                builder.Append(" --no-commit");
-
-            Args = builder.ToString();
+                Args.Add("--no-commit");
         }
     }
 }

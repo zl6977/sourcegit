@@ -9,9 +9,9 @@
 
             Args = mode switch
             {
-                Models.CleanMode.OnlyUntrackedFiles => "clean -qfd",
-                Models.CleanMode.OnlyIgnoredFiles => "clean -qfdX",
-                _ => "clean -qfdx",
+                Models.CleanMode.OnlyUntrackedFiles => ["clean", "-qfd"],
+                Models.CleanMode.OnlyIgnoredFiles => ["clean", "-qfdX"],
+                _ => ["clean", "-qfdx"],
             };
         }
     }

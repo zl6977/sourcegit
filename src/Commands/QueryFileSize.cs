@@ -12,7 +12,7 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = $"ls-tree {revision} -l -- {file.Quoted()}";
+            Args = ["ls-tree", revision, "-l", "--", file];
         }
 
         public async Task<long> GetResultAsync()

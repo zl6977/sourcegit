@@ -144,15 +144,14 @@ namespace SourceGit.Native
 
         public void OpenWithDefaultEditor(string file)
         {
-            var proc = Process.Start("xdg-open", file.Quoted());
+            using var proc = Process.Start("xdg-open", file.Quoted());
             if (proc != null)
             {
-                proc.WaitForExit();
+                try { proc.WaitForExit(); }
+                catch { if (!proc.HasExited) proc.Kill(); }
 
                 if (proc.ExitCode != 0)
                     Models.Notification.Send("", $"Failed to open: {file}", true);
-
-                proc.Close();
             }
         }
 

@@ -99,7 +99,7 @@ namespace SourceGit.ViewModels
 
         public static ValidationResult ValidateParentFolder(string folder, ValidationContext _)
         {
-            if (!Directory.Exists(folder))
+            if (!Commands.GitService.DirectoryExists(folder))
                 return new ValidationResult("Given path can NOT be found");
             return ValidationResult.Success;
         }
@@ -133,7 +133,7 @@ namespace SourceGit.ViewModels
                 path = Path.GetFullPath(Path.Combine(path, name));
             }
 
-            if (!Directory.Exists(path))
+            if (!Commands.GitService.DirectoryExists(path))
             {
                 Models.Notification.Send(_pageId, $"Folder '{path}' can NOT be found", true);
                 return false;

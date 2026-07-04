@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Text;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -15,48 +14,46 @@ namespace SourceGit.Commands
 
         public async Task<bool> InstallAsync()
         {
-            Args = "lfs install --local";
+            Args = ["lfs", "install", "--local"];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> TrackAsync(string pattern, bool isFilenameMode)
         {
-            var builder = new StringBuilder();
-            builder.Append("lfs track ");
-            builder.Append(isFilenameMode ? "--filename " : string.Empty);
-            builder.Append(pattern.Quoted());
-
-            Args = builder.ToString();
+            Args = ["lfs", "track"];
+            if (isFilenameMode)
+                Args.Add("--filename");
+            Args.Add(pattern);
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task FetchAsync(string remote)
         {
-            Args = $"lfs fetch {remote}";
+            Args = ["lfs", "fetch", remote];
             await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task PullAsync(string remote)
         {
-            Args = $"lfs pull {remote}";
+            Args = ["lfs", "pull", remote];
             await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task PushAsync(string remote)
         {
-            Args = $"lfs push {remote}";
+            Args = ["lfs", "push", remote];
             await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task PruneAsync()
         {
-            Args = "lfs prune";
+            Args = ["lfs", "prune"];
             await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<List<Models.LFSLock>> GetLocksAsync(string remote)
         {
-            Args = $"lfs locks --json --remote={remote}";
+            Args = ["lfs", "locks", "--json", $"--remote={remote}"];
 
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             if (rs.IsSuccess)
@@ -77,35 +74,25 @@ namespace SourceGit.Commands
 
         public async Task<bool> LockAsync(string remote, string file)
         {
-            Args = $"lfs lock --remote={remote} {file.Quoted()}";
+            Args = ["lfs", "lock", $"--remote={remote}", file];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> UnlockAsync(string remote, string file, bool force)
         {
-            var builder = new StringBuilder();
-            builder
-                .Append("lfs unlock --remote=")
-                .Append(remote)
-                .Append(force ? " -f " : " ")
-                .Append(file.Quoted());
-
-            Args = builder.ToString();
+            Args = ["lfs", "unlock", $"--remote={remote}"];
+            if (force)
+                Args.Add("-f");
+            Args.Add(file);
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> UnlockMultipleAsync(string remote, List<string> files, bool force)
         {
-            var builder = new StringBuilder();
-            builder
-                .Append("lfs unlock --remote=")
-                .Append(remote)
-                .Append(force ? " -f" : " ");
-
-            foreach (string file in files)
-                builder.Append(' ').Append(file.Quoted());
-
-            Args = builder.ToString();
+            Args = ["lfs", "unlock", $"--remote={remote}"];
+            if (force)
+                Args.Add("-f");
+            Args.AddRange(files);
             return await ExecAsync().ConfigureAwait(false);
         }
     }

@@ -1,5 +1,3 @@
-﻿using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -8,42 +6,36 @@ namespace SourceGit.Commands
     {
         public Commit(string repo, string message, bool signOff, bool noVerify, bool amend, bool resetAuthor)
         {
-            _tmpFile = Path.GetTempFileName();
+            _repo = repo;
             _message = message;
 
             WorkingDirectory = repo;
             Context = repo;
-
-            var builder = new StringBuilder();
-            builder.Append("commit --allow-empty --file=");
-            builder.Append(_tmpFile.Quoted());
-            builder.Append(' ');
+            Operation = "commit";
+            Args = ["commit", "--allow-empty"];
 
             if (signOff)
-                builder.Append("--signoff ");
+                Args.Add("--signoff");
 
             if (noVerify)
-                builder.Append("--no-verify ");
+                Args.Add("--no-verify");
 
             if (amend)
             {
-                builder.Append("--amend ");
+                Args.Add("--amend");
                 if (resetAuthor)
-                    builder.Append("--reset-author ");
-                builder.Append("--no-edit");
+                    Args.Add("--reset-author");
+                Args.Add("--no-edit");
             }
-
-            Args = builder.ToString();
         }
 
         public async Task<bool> RunAsync()
         {
             try
             {
-                await File.WriteAllTextAsync(_tmpFile, _message).ConfigureAwait(false);
-                var succ = await ExecAsync().ConfigureAwait(false);
-                File.Delete(_tmpFile);
-                return succ;
+                using var messageFile = await BackendTempFile.CreateAsync(_repo, _message, "sourcegit_commit_message").ConfigureAwait(false);
+                Args.Add($"--file={messageFile.File}");
+                return await ExecAsync().ConfigureAwait(false);
             }
             catch
             {
@@ -51,7 +43,7 @@ namespace SourceGit.Commands
             }
         }
 
-        private readonly string _tmpFile;
+        private readonly string _repo;
         private readonly string _message;
     }
 }

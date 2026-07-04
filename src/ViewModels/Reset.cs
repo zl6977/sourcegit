@@ -43,6 +43,8 @@ namespace SourceGit.ViewModels
             await _repo.AutoUpdateSubmodulesAsync(log);
 
             log.Complete();
+            if (succ)
+                _repo.RefreshAll();
             return succ;
         }
 

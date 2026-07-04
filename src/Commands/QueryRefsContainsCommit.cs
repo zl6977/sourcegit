@@ -10,7 +10,7 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             RaiseError = false;
-            Args = $"for-each-ref --format=\"%(refname)\" --contains {commit}";
+            Args = ["for-each-ref", "--format=%(refname)", "--contains", commit];
         }
 
         public async Task<List<Models.Decorator>> GetResultAsync()

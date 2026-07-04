@@ -1,26 +1,25 @@
-﻿using System.Text;
+using System.Collections.Generic;
 
 namespace SourceGit.Commands
 {
     public class Apply : Command
     {
-        public Apply(string repo, string file, bool ignoreWhitespace, string whitespaceMode, string extra)
+        public Apply(string repo, string file, bool ignoreWhitespace, string whitespaceMode, List<string> extra = null)
         {
             WorkingDirectory = repo;
             Context = repo;
-
-            var builder = new StringBuilder(1024);
-            builder.Append("apply ");
+            Operation = "apply";
+            Args = ["apply"];
 
             if (ignoreWhitespace)
-                builder.Append("--ignore-whitespace ");
+                Args.Add("--ignore-whitespace");
             else
-                builder.Append("--whitespace=").Append(whitespaceMode).Append(' ');
+                Args.Add($"--whitespace={whitespaceMode}");
 
-            if (!string.IsNullOrEmpty(extra))
-                builder.Append(extra).Append(' ');
+            if (extra is { Count: > 0 })
+                Args.AddRange(extra);
 
-            Args = builder.Append(file.Quoted()).ToString();
+            Args.Add(file);
         }
     }
 }

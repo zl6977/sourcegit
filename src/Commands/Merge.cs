@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Text;
+using System.Collections.Generic;
 
 namespace SourceGit.Commands
 {
@@ -10,14 +9,7 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder();
-            builder.Append("merge --progress ");
-            builder.Append(edit ? "--edit " : "--no-edit ");
-            builder.Append(source);
-            builder.Append(' ');
-            builder.Append(mode);
-
-            Args = builder.ToString();
+            Args = ["merge", "--progress", edit ? "--edit" : "--no-edit", source, mode];
         }
 
         public Merge(string repo, List<string> targets, bool autoCommit, string strategy)
@@ -25,20 +17,12 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder();
-            builder.Append("merge --progress ");
+            Args = ["merge", "--progress"];
             if (!string.IsNullOrEmpty(strategy))
-                builder.Append("--strategy=").Append(strategy).Append(' ');
+                Args.Add($"--strategy={strategy}");
             if (!autoCommit)
-                builder.Append("--no-commit ");
-
-            foreach (var t in targets)
-            {
-                builder.Append(t);
-                builder.Append(' ');
-            }
-
-            Args = builder.ToString();
+                Args.Add("--no-commit");
+            Args.AddRange(targets);
         }
     }
 }

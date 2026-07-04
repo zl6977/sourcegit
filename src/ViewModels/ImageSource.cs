@@ -38,9 +38,11 @@ namespace SourceGit.ViewModels
             };
         }
 
-        public static async Task<ImageSource> FromFileAsync(string fullpath, Models.ImageDecoder decoder)
+        public static async Task<ImageSource> FromFileAsync(string fullpath, Models.ImageDecoder decoder, string repoPath = null)
         {
-            await using var stream = File.OpenRead(fullpath);
+            await using var stream = repoPath != null
+                ? Commands.GitService.OpenRead(fullpath, repoPath)
+                : File.OpenRead(fullpath);
             return await Task.Run(() => LoadFromStream(stream, decoder)).ConfigureAwait(false);
         }
 
@@ -57,8 +59,8 @@ namespace SourceGit.ViewModels
 
             var commonDir = await new Commands.QueryGitCommonDir(repo).GetResultAsync().ConfigureAwait(false);
             var localFile = Path.Combine(commonDir, "lfs", "objects", lfs.Oid.Substring(0, 2), lfs.Oid.Substring(2, 2), lfs.Oid);
-            if (File.Exists(localFile))
-                return await FromFileAsync(localFile, decoder).ConfigureAwait(false);
+            if (Commands.GitService.FileExists(localFile, repo))
+                return await FromFileAsync(localFile, decoder, repo).ConfigureAwait(false);
 
             await using var stream = await Commands.QueryFileContent.FromLFSAsync(repo, lfs.Oid, lfs.Size).ConfigureAwait(false);
             return await Task.Run(() => LoadFromStream(stream, decoder)).ConfigureAwait(false);

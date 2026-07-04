@@ -1,5 +1,3 @@
-﻿using System.Text;
-
 namespace SourceGit.Commands
 {
     public class Rebase : Command
@@ -9,14 +7,12 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            var builder = new StringBuilder(512);
-            builder.Append("-c core.commentChar=± rebase ");
+            Args = ["-c", "core.commentChar=±", "rebase"];
             if (autoStash)
-                builder.Append("--autostash ");
+                Args.Add("--autostash");
             if (noVerify)
-                builder.Append("--no-verify ");
-
-            Args = builder.Append(basedOn).ToString();
+                Args.Add("--no-verify");
+            Args.Add(basedOn);
         }
     }
 }

@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -15,7 +14,7 @@ namespace SourceGit.Commands
 
         public async Task<List<Models.Worktree>> ReadAllAsync()
         {
-            Args = "worktree list --porcelain";
+            Args = ["worktree", "list", "--porcelain"];
 
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             var worktrees = new List<Models.Worktree>();
@@ -27,7 +26,8 @@ namespace SourceGit.Commands
                 {
                     if (line.StartsWith("worktree ", StringComparison.Ordinal))
                     {
-                        last = new Models.Worktree() { FullPath = line.Substring(9).Trim() };
+                        var fullPath = GitService.NormalizeRepositoryPath(line.Substring(9).Trim(), WorkingDirectory);
+                        last = new Models.Worktree() { FullPath = fullPath };
                         worktrees.Add(last);
                         continue;
                     }
@@ -36,25 +36,15 @@ namespace SourceGit.Commands
                         continue;
 
                     if (line.StartsWith("bare", StringComparison.Ordinal))
-                    {
                         last.IsBare = true;
-                    }
                     else if (line.StartsWith("HEAD ", StringComparison.Ordinal))
-                    {
                         last.Head = line.Substring(5).Trim();
-                    }
                     else if (line.StartsWith("branch ", StringComparison.Ordinal))
-                    {
                         last.Branch = line.Substring(7).Trim();
-                    }
                     else if (line.StartsWith("detached", StringComparison.Ordinal))
-                    {
                         last.IsDetached = true;
-                    }
                     else if (line.StartsWith("locked", StringComparison.Ordinal))
-                    {
                         last.IsLocked = true;
-                    }
                 }
             }
 
@@ -63,48 +53,48 @@ namespace SourceGit.Commands
 
         public async Task<bool> AddAsync(string fullpath, string name, bool createNew, string tracking)
         {
-            var builder = new StringBuilder(1024);
-            builder.Append("worktree add ");
+            Args = ["worktree", "add"];
             if (!string.IsNullOrEmpty(tracking))
-                builder.Append("--track ");
+                Args.Add("--track");
             if (!string.IsNullOrEmpty(name))
-                builder.Append(createNew ? "-b " : "-B ").Append(name).Append(' ');
-            builder.Append(fullpath.Quoted()).Append(' ');
+            {
+                Args.Add(createNew ? "-b" : "-B");
+                Args.Add(name);
+            }
+            Args.Add(fullpath);
 
             if (!string.IsNullOrEmpty(tracking))
-                builder.Append(tracking);
+                Args.Add(tracking);
             else if (!string.IsNullOrEmpty(name) && !createNew)
-                builder.Append(name);
+                Args.Add(name);
 
-            Args = builder.ToString();
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> PruneAsync()
         {
-            Args = "worktree prune -v";
+            Args = ["worktree", "prune", "-v"];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> LockAsync(string fullpath)
         {
-            Args = $"worktree lock {fullpath.Quoted()}";
+            Args = ["worktree", "lock", fullpath];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> UnlockAsync(string fullpath)
         {
-            Args = $"worktree unlock {fullpath.Quoted()}";
+            Args = ["worktree", "unlock", fullpath];
             return await ExecAsync().ConfigureAwait(false);
         }
 
         public async Task<bool> RemoveAsync(string fullpath, bool force)
         {
+            Args = ["worktree", "remove"];
             if (force)
-                Args = $"worktree remove -f {fullpath.Quoted()}";
-            else
-                Args = $"worktree remove {fullpath.Quoted()}";
-
+                Args.Add("-f");
+            Args.Add(fullpath);
             return await ExecAsync().ConfigureAwait(false);
         }
     }

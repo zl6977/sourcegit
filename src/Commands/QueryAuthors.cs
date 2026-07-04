@@ -10,7 +10,7 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
             RaiseError = false;
-            Args = "log -100000 --all --format=%aN±%aE";
+            Args = ["log", "-100000", "--all", "--format=%aN±%aE"];
         }
 
         public async Task<List<Models.User>> GetResultAsync()

@@ -9,7 +9,7 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
-            _file = string.IsNullOrEmpty(file) ? string.Empty : file.Quoted();
+            _file = file;
         }
 
         public async Task<bool> OpenAsync()
@@ -27,12 +27,16 @@ namespace SourceGit.Commands
                 if (!ok)
                     return false;
 
-                Args = $"mergetool -g --no-prompt {_file}";
+                Args = ["mergetool", "-g", "--no-prompt"];
+                if (!string.IsNullOrEmpty(_file))
+                    Args.Add(_file);
             }
             else
             {
                 var cmd = $"{tool.Exec.Quoted()} {tool.Cmd}";
-                Args = $"-c mergetool.sourcegit.cmd={cmd.Quoted()} -c mergetool.writeToTemp=true -c mergetool.keepBackup=false -c mergetool.trustExitCode=true mergetool --tool=sourcegit {_file}";
+                Args = ["-c", $"mergetool.sourcegit.cmd={cmd}", "-c", "mergetool.writeToTemp=true", "-c", "mergetool.keepBackup=false", "-c", "mergetool.trustExitCode=true", "mergetool", "--tool=sourcegit"];
+                if (!string.IsNullOrEmpty(_file))
+                    Args.Add(_file);
             }
 
             return await ExecAsync().ConfigureAwait(false);

@@ -642,7 +642,7 @@ namespace SourceGit.Views
             else if (selected.Count == 1)
             {
                 var menu = CreateContextMenuForSingleCommit(repo, commits[0]);
-                menu.Open(CommitListContainer);
+                menu?.Open(CommitListContainer);
             }
 
             e.Handled = true;
@@ -878,7 +878,7 @@ namespace SourceGit.Views
         {
             var current = repo.CurrentBranch;
             var vm = DataContext as ViewModels.Histories;
-            if (current == null || vm == null)
+            if (vm == null)
                 return null;
 
             var menu = new ContextMenu();
@@ -892,15 +892,18 @@ namespace SourceGit.Views
                     switch (d.Type)
                     {
                         case Models.DecoratorType.CurrentBranchHead:
-                            FillCurrentBranchMenu(menu, repo, current);
+                            if (current != null)
+                                FillCurrentBranchMenu(menu, repo, current);
                             break;
                         case Models.DecoratorType.LocalBranchHead:
                             var lb = repo.Branches.Find(x => x.IsLocal && d.Name.Equals(x.Name, StringComparison.Ordinal));
-                            FillOtherLocalBranchMenu(menu, repo, lb, current, commit.IsMerged);
+                            if (lb != null && current != null)
+                                FillOtherLocalBranchMenu(menu, repo, lb, current, commit.IsMerged);
                             break;
                         case Models.DecoratorType.RemoteBranchHead:
                             var rb = repo.Branches.Find(x => !x.IsLocal && d.Name.Equals(x.FriendlyName, StringComparison.Ordinal));
-                            FillRemoteBranchMenu(menu, repo, rb, current, commit.IsMerged);
+                            if (current != null)
+                                FillRemoteBranchMenu(menu, repo, rb, current, commit.IsMerged);
                             break;
                         case Models.DecoratorType.Tag:
                             var t = repo.Tags.Find(x => d.Name.Equals(x.Name, StringComparison.Ordinal));
@@ -946,7 +949,7 @@ namespace SourceGit.Views
             menu.Items.Add(createTag);
             menu.Items.Add(new MenuItem() { Header = "-" });
 
-            if (!repo.IsBare)
+            if (!repo.IsBare && current != null)
             {
                 var target = commit.GetFriendlyName();
                 if (target.Length > 40)
@@ -1159,20 +1162,23 @@ namespace SourceGit.Views
 
             if (!isHead)
             {
-                if (current.Ahead.Contains(commit.SHA))
+                if (current != null && current.Ahead.Contains(commit.SHA))
                 {
                     var upstream = repo.Branches.Find(x => x.FullName.Equals(current.Upstream, StringComparison.Ordinal));
-                    var pushRevision = new MenuItem();
-                    pushRevision.Header = App.Text("CommitCM.PushRevision", commit.SHA.Substring(0, 10), upstream.FriendlyName);
-                    pushRevision.Icon = this.CreateMenuIcon("Icons.Push");
-                    pushRevision.Click += (_, e) =>
+                    if (upstream != null)
                     {
-                        if (repo.CanCreatePopup())
-                            repo.ShowPopup(new ViewModels.PushRevision(repo, commit, upstream));
-                        e.Handled = true;
-                    };
-                    menu.Items.Add(pushRevision);
-                    menu.Items.Add(new MenuItem() { Header = "-" });
+                        var pushRevision = new MenuItem();
+                        pushRevision.Header = App.Text("CommitCM.PushRevision", commit.SHA.Substring(0, 10), upstream.FriendlyName);
+                        pushRevision.Icon = this.CreateMenuIcon("Icons.Push");
+                        pushRevision.Click += (_, e) =>
+                        {
+                            if (repo.CanCreatePopup())
+                                repo.ShowPopup(new ViewModels.PushRevision(repo, commit, upstream));
+                            e.Handled = true;
+                        };
+                        menu.Items.Add(pushRevision);
+                        menu.Items.Add(new MenuItem() { Header = "-" });
+                    }
                 }
 
                 var compareWithHead = new MenuItem();

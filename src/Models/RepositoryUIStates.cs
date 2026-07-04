@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+
 using Avalonia.Collections;
+
+using SourceGit.Commands;
 
 namespace SourceGit.Models
 {
@@ -231,13 +234,17 @@ namespace SourceGit.Models
             set;
         } = [];
 
-        public static RepositoryUIStates Load(string gitDir)
+        public static RepositoryUIStates Load(string gitDir, Commands.RepositoryController controller = null)
         {
-            var fileInfo = new FileInfo(Path.Combine(gitDir, "sourcegit.uistates"));
-            var fullpath = fileInfo.FullName;
+            var fileName = "sourcegit.uistates";
+            var fullpath = controller != null ? $"{gitDir}/{fileName}" : Path.Combine(gitDir, fileName);
+
+            var exists = controller != null
+                ? controller.GitDirFileExists(fileName)
+                : GitService.FileExists(Path.Combine(gitDir, fileName));
 
             RepositoryUIStates states;
-            if (!File.Exists(fullpath))
+            if (!exists)
             {
                 states = new RepositoryUIStates();
             }
@@ -245,7 +252,9 @@ namespace SourceGit.Models
             {
                 try
                 {
-                    using var stream = File.OpenRead(fullpath);
+                    using var stream = controller != null
+                        ? controller.OpenReadGitDirFile(fileName)
+                        : (System.IO.Stream)GitService.OpenRead(Path.Combine(gitDir, fileName));
                     states = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.RepositoryUIStates);
                 }
                 catch
@@ -255,6 +264,7 @@ namespace SourceGit.Models
             }
 
             states._file = fullpath;
+            states._controller = controller;
             return states;
         }
 
@@ -263,9 +273,14 @@ namespace SourceGit.Models
             try
             {
                 var content = JsonSerializer.Serialize(this, JsonCodeGen.Default.RepositoryUIStates);
-                var tmpfile = $"{_file}.tmp";
-                File.WriteAllText(tmpfile, content);
-                File.Move(tmpfile, _file, true);
+                if (_controller != null)
+                {
+                    _controller.WriteGitDirFileAndReplace(Path.GetFileName(_file), content);
+                }
+                else
+                {
+                    GitService.WriteFileAndReplace(_file, content);
+                }
             }
             catch
             {
@@ -388,53 +403,53 @@ namespace SourceGit.Models
                 HistoryFilters.Remove(filter);
         }
 
-        public string BuildHistoryParams(string gitDir)
+        public List<string> BuildHistoryParams(string gitDir)
         {
-            var builder = new StringBuilder();
+            var args = new List<string>();
 
             if (EnableTopoOrderInHistory)
-                builder.Append("--topo-order ");
+                args.Add("--topo-order");
             else
-                builder.Append("--date-order ");
+                args.Add("--date-order");
 
             if (HistoryShowFlags.HasFlag(HistoryShowFlags.Reflog))
-                builder.Append("--reflog ");
+                args.Add("--reflog");
 
             if (HistoryShowFlags.HasFlag(HistoryShowFlags.FirstParentOnly))
-                builder.Append("--first-parent ");
+                args.Add("--first-parent");
 
             if (HistoryShowFlags.HasFlag(HistoryShowFlags.SimplifyByDecoration))
-                builder.Append("--simplify-by-decoration ");
+                args.Add("--simplify-by-decoration");
 
             var mode = GetHistoryFilterMode();
             if (mode == FilterMode.None)
-                builder.Append("--branches --remotes --tags HEAD");
+                args.AddRange(["--branches", "--remotes", "--tags", "HEAD"]);
             else if (mode == FilterMode.Included)
-                BuildHistoryParamsForIncluded(builder);
+                BuildHistoryParamsForIncluded(args);
             else
-                BuildHistoryParamsForExcluded(builder, gitDir);
+                BuildHistoryParamsForExcluded(args, gitDir);
 
-            return builder.ToString();
+            return args;
         }
 
-        private void BuildHistoryParamsForIncluded(StringBuilder builder)
+        private void BuildHistoryParamsForIncluded(List<string> args)
         {
             foreach (var filter in HistoryFilters)
             {
                 if (filter.Type == FilterType.LocalBranch)
-                    builder.Append(filter.Pattern).Append(' ');
+                    args.Add(filter.Pattern);
                 else if (filter.Type == FilterType.LocalBranchFolder)
-                    builder.Append($"--branches={filter.Pattern.AsSpan(11)}/* ");
+                    args.Add($"--branches={filter.Pattern.AsSpan(11)}/*");
                 else if (filter.Type == FilterType.RemoteBranch)
-                    builder.Append(filter.Pattern).Append(' ');
+                    args.Add(filter.Pattern);
                 else if (filter.Type == FilterType.RemoteBranchFolder)
-                    builder.Append($"--remotes={filter.Pattern.AsSpan(13)}/* ");
+                    args.Add($"--remotes={filter.Pattern.AsSpan(13)}/*");
                 else if (filter.Type == FilterType.Tag)
-                    builder.Append($"refs/tags/{filter.Pattern} ");
+                    args.Add($"refs/tags/{filter.Pattern}");
             }
         }
 
-        private void BuildHistoryParamsForExcluded(StringBuilder builder, string gitDir)
+        private void BuildHistoryParamsForExcluded(List<string> args, string gitDir)
         {
             var excludedBranches = new List<string>();
             var excludedRemotes = new List<string>();
@@ -442,41 +457,42 @@ namespace SourceGit.Models
             foreach (var filter in HistoryFilters)
             {
                 if (filter.Type == FilterType.LocalBranch)
-                    excludedBranches.Add($"--exclude=\"{filter.Pattern.AsSpan(11)}\" --decorate-refs-exclude=\"{filter.Pattern}\" ");
+                    excludedBranches.AddRange([$"--exclude={filter.Pattern.AsSpan(11)}", $"--decorate-refs-exclude={filter.Pattern}"]);
                 else if (filter.Type == FilterType.LocalBranchFolder)
-                    excludedBranches.Add($"--exclude=\"{filter.Pattern.AsSpan(11)}/*\" --decorate-refs-exclude=\"{filter.Pattern}/*\" ");
+                    excludedBranches.AddRange([$"--exclude={filter.Pattern.AsSpan(11)}/*", $"--decorate-refs-exclude={filter.Pattern}/*"]);
                 else if (filter.Type == FilterType.RemoteBranch)
-                    excludedRemotes.Add($"--exclude=\"{filter.Pattern.AsSpan(13)}\" --decorate-refs-exclude=\"{filter.Pattern}\" ");
+                    excludedRemotes.AddRange([$"--exclude={filter.Pattern.AsSpan(13)}", $"--decorate-refs-exclude={filter.Pattern}"]);
                 else if (filter.Type == FilterType.RemoteBranchFolder)
-                    excludedRemotes.Add($"--exclude=\"{filter.Pattern.AsSpan(13)}/*\" --decorate-refs-exclude=\"{filter.Pattern}/*\" ");
+                    excludedRemotes.AddRange([$"--exclude={filter.Pattern.AsSpan(13)}/*", $"--decorate-refs-exclude={filter.Pattern}/*"]);
                 else if (filter.Type == FilterType.Tag)
-                    excludedTags.Add($"--exclude=\"{filter.Pattern}\" --decorate-refs-exclude=\"refs/tags/{filter.Pattern}\" ");
+                    excludedTags.AddRange([$"--exclude={filter.Pattern}", $"--decorate-refs-exclude=refs/tags/{filter.Pattern}"]);
             }
 
-            foreach (var b in excludedBranches)
-                builder.Append(b);
+            args.AddRange(excludedBranches);
 
-            builder.Append("--branches ");
+            args.Add("--branches");
 
-            var isInProgress = File.Exists(Path.Combine(gitDir, "CHERRY_PICK_HEAD")) ||
-                Directory.Exists(Path.Combine(gitDir, "rebase-merge")) ||
-                Directory.Exists(Path.Combine(gitDir, "rebase-apply")) ||
-                File.Exists(Path.Combine(gitDir, "REVERT_HEAD")) ||
-                File.Exists(Path.Combine(gitDir, "MERGE_HEAD"));
+            var isInProgress = _controller != null
+                ? (_controller.HasCherryPickHead() || _controller.HasRebaseMerge() || _controller.HasRebaseApply() || _controller.HasRevertHead() || _controller.HasMergeHead())
+                : (GitService.FileExists(Path.Combine(gitDir, "CHERRY_PICK_HEAD")) ||
+                    GitService.DirectoryExists(Path.Combine(gitDir, "rebase-merge")) ||
+                    GitService.DirectoryExists(Path.Combine(gitDir, "rebase-apply")) ||
+                    GitService.FileExists(Path.Combine(gitDir, "REVERT_HEAD")) ||
+                    GitService.FileExists(Path.Combine(gitDir, "MERGE_HEAD")));
             if (isInProgress)
-                builder.Append("HEAD ");
+                args.Add("HEAD");
 
-            foreach (var r in excludedRemotes)
-                builder.Append(r);
+            args.AddRange(excludedRemotes);
 
-            builder.Append("--exclude=origin/HEAD --remotes ");
+            args.Add("--exclude=origin/HEAD");
+            args.Add("--remotes");
 
-            foreach (var t in excludedTags)
-                builder.Append(t);
+            args.AddRange(excludedTags);
 
-            builder.Append("--tags ");
+            args.Add("--tags");
         }
 
         private string _file = string.Empty;
+        private Commands.RepositoryController _controller = null;
     }
 }
