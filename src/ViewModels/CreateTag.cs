@@ -102,12 +102,19 @@ namespace SourceGit.ViewModels
             if (succ && remotes != null)
             {
                 foreach (var remote in remotes)
-                    await new Commands.Push(_repo.FullPath, remote.Name, $"refs/tags/{_tagName}", false)
+                {
+                    succ = await new Commands.Push(_repo.FullPath, remote.Name, $"refs/tags/{_tagName}", false)
                         .Use(log)
                         .RunAsync();
+                    if (!succ)
+                        break;
+                }
             }
 
             log.Complete();
+            if (succ)
+                _repo.MarkTagsDirtyManually();
+
             return succ;
         }
 

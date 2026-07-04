@@ -48,6 +48,19 @@ namespace SourceGit.ViewModels
                 Force).Use(log).RunAsync();
 
             log.Complete();
+            if (succ)
+            {
+                var remoteTrackingBranch = $"refs/remotes/{RemoteBranch.Remote}/{RemoteBranch.Name}";
+                await new Commands.UpdateRef(_repo.FullPath, remoteTrackingBranch, Revision.SHA)
+                    .RunAsync()
+                    .ConfigureAwait(false);
+
+                await new Commands.Fetch(_repo.FullPath, RemoteBranch.Remote, true, false)
+                    .RunAsync().ConfigureAwait(false);
+                _repo.MarkFetched();
+                _repo.MarkBranchesDirtyManually();
+            }
+
             return succ;
         }
 

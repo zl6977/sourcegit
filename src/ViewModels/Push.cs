@@ -209,7 +209,24 @@ namespace SourceGit.ViewModels
             log.Complete();
 
             if (succ)
-                _repo.RefreshBranches();
+            {
+                var localHead = await new Commands.QueryRevisionByRefName(_repo.FullPath, $"refs/heads/{_selectedLocalBranch.Name}")
+                    .GetResultAsync()
+                    .ConfigureAwait(false);
+                var remoteTrackingBranch = $"refs/remotes/{_selectedRemote.Name}/{remoteBranchName}";
+                if (!string.IsNullOrEmpty(localHead))
+                {
+                    await new Commands.UpdateRef(_repo.FullPath, remoteTrackingBranch, localHead)
+                        .RunAsync()
+                        .ConfigureAwait(false);
+                }
+
+                // Fetch to update remote-tracking refs, then refresh branches
+                await new Commands.Fetch(_repo.FullPath, _selectedRemote.Name, true, ForcePush)
+                    .RunAsync().ConfigureAwait(false);
+                _repo.MarkFetched();
+                _repo.MarkBranchesDirtyManually();
+            }
 
             return succ;
         }

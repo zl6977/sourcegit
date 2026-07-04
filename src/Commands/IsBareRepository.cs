@@ -32,7 +32,16 @@ namespace SourceGit.Commands
         private bool HasBareRepositoryLayout()
         {
             if (GitService.RequiresGitBareRepositoryProbe(WorkingDirectory))
+            {
+                // For WSL repos, check via UNC path (fast, no git command)
+                if (Models.WslRepositoryPath.TryParse(WorkingDirectory, out var wslPath))
+                {
+                    var wslGitDir = $"{wslPath.LinuxPath.TrimEnd('/')}/.git";
+                    var uncPath = wslPath.ToWindowsPath(wslGitDir);
+                    return !System.IO.Directory.Exists(uncPath);
+                }
                 return true;
+            }
 
             return GitService.DirectoryExists(Path.Combine(WorkingDirectory, "refs")) &&
                 GitService.DirectoryExists(Path.Combine(WorkingDirectory, "objects")) &&

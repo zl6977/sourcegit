@@ -38,11 +38,8 @@ namespace SourceGit.Models
             _repo = repo;
             _repoPath = fullpath;
 
-            // Previous state snapshots for comparison
-            _previousHeadHash = QueryHeadHash();
-            _previousIndexHash = QueryIndexHash();
-            _previousStashHash = QueryStashHash();
-            _previousTagCount = QueryTagCount();
+            // Initialize baseline on first tick to avoid blocking startup
+            _needInit = true;
 
             _timer = new Timer(Tick, null, POLL_INTERVAL_MS, POLL_INTERVAL_MS);
         }
@@ -93,9 +90,19 @@ namespace SourceGit.Models
 
         private void CheckForChanges()
         {
+            // First tick: initialize baseline values
+            if (_needInit)
+            {
+                _previousHeadHash = QueryHeadHash();
+                _previousIndexHash = QueryIndexHash();
+                _previousStashHash = QueryStashHash();
+                _previousTagCount = QueryTagCount();
+                _needInit = false;
+                return;
+            }
+
             var refreshCommits = false;
             var refreshSubmodules = false;
-
             // Check if HEAD changed (branch/commit)
             var currentHeadHash = QueryHeadHash();
             if (!string.Equals(currentHeadHash, _previousHeadHash, StringComparison.Ordinal))
@@ -240,6 +247,7 @@ namespace SourceGit.Models
 
         private readonly IRepository _repo;
         private readonly string _repoPath;
+        private bool _needInit = true;
         private Timer _timer;
 
         private string _previousHeadHash = string.Empty;

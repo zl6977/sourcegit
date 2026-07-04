@@ -45,6 +45,9 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _commandPalette, value);
         }
 
+        string[] _deferredRepos = null;
+        string _deferredStartupRepo = null;
+
         public Launcher(string startupRepo)
         {
             Models.Notification.Raised += DispatchNotification;
@@ -54,13 +57,35 @@ namespace SourceGit.ViewModels
             Pages = new AvaloniaList<LauncherPage>();
             AddNewTab();
 
-            var repos = ActiveWorkspace.Repositories.ToArray();
-            foreach (var repo in repos)
-                OpenRepositoryInTab(repo, null);
+            // Defer repository loading to avoid blocking GUI display.
+            // OpenRepositories() should be called after the MainWindow is shown.
+            _deferredRepos = ActiveWorkspace.Repositories.ToArray();
+            _deferredStartupRepo = startupRepo;
 
             _ignoreIndexChange = false;
+            PostActivePageChanged();
+        }
 
-            if (!TryOpenRepositoryFromPath(startupRepo))
+        /// <summary>
+        /// Opens repositories that were deferred during construction.
+        /// Must be called on the UI thread after the MainWindow is shown.
+        /// </summary>
+        public void OpenRepositories()
+        {
+            if (_deferredRepos == null)
+                return;
+
+            try
+            {
+                foreach (var repo in _deferredRepos)
+                    OpenRepositoryInTab(repo, null);
+            }
+            finally
+            {
+                _deferredRepos = null;
+            }
+
+            if (!TryOpenRepositoryFromPath(_deferredStartupRepo))
             {
                 var activeIdx = ActiveWorkspace.ActiveIdx;
                 if (activeIdx > 0 && activeIdx < Pages.Count)
@@ -68,8 +93,12 @@ namespace SourceGit.ViewModels
                 else
                     ActivePage = Pages[0];
             }
+            else
+            {
+                PostActivePageChanged();
+            }
 
-            PostActivePageChanged();
+            _deferredStartupRepo = null;
         }
 
         public bool TryOpenRepositoryFromPath(string repo)

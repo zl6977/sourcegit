@@ -487,7 +487,11 @@ namespace SourceGit
             pref.UpdateAvailableAIModels();
 
             _launcher = new ViewModels.Launcher(startupRepo);
-            desktop.MainWindow = new Views.Launcher() { DataContext = _launcher };
+            var mainWindow = new Views.Launcher() { DataContext = _launcher };
+            desktop.MainWindow = mainWindow;
+
+            // Open repositories after the window is shown to avoid blocking GUI display
+            mainWindow.Opened += (_, _) => _launcher.OpenRepositories();
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
             // Fix macOS crash when quiting from Dock
