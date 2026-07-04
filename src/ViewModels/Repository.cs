@@ -448,15 +448,6 @@ namespace SourceGit.ViewModels
 
         public void Open()
         {
-            try
-            {
-                _watcher = new Models.Watcher(this, FullPath, _gitCommonDir);
-            }
-            catch (Exception ex)
-            {
-                SendNotification($"Failed to start watcher for repository: '{FullPath}'. You may need to press 'F5' to refresh repository manually!\n\nReason: {ex.Message}", true);
-            }
-
             _historyFilterMode = _uiStates.GetHistoryFilterMode();
             _histories = new Histories(this);
             _workingCopy = new WorkingCopy(this) { CommitMessage = _uiStates.LastCommitMessage };

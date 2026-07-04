@@ -163,6 +163,15 @@ namespace SourceGit.Views
             }
         }
 
+        private void RefreshRepository(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is ViewModels.Repository repo)
+            {
+                repo.RefreshAll();
+                e.Handled = true;
+            }
+        }
+
         private async void Fetch(object sender, TappedEventArgs e)
         {
             if (DataContext is ViewModels.Repository repo)

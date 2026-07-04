@@ -24,6 +24,10 @@
       <Button Classes="icon_button" Width="32" Click="OpenConfigure" ToolTip.Tip="{DynamicResource Text.Repository.Configure}">
         <Path Width="14" Height="14" Data="{StaticResource Icons.Settings}"/>
       </Button>
+
+      <Button Classes="icon_button" Width="32" Click="RefreshRepository" ToolTip.Tip="{DynamicResource Text.PageTabBar.Tab.Refresh}">
+        <Path Width="14" Height="14" Data="{StaticResource Icons.AutoFetch}"/>
+      </Button>
     </StackPanel>
 
     <StackPanel Grid.Column="1" Orientation="Horizontal">
