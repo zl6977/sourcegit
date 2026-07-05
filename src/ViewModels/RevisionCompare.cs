@@ -159,149 +159,25 @@ namespace SourceGit.ViewModels
         public async Task ResetToLeftAsync(Models.Change change)
         {
             var sha = GetSHA(_startPoint);
-            var log = _repo.CreateLog($"Reset File to '{GetDesc(_startPoint)}'");
-
-            if (change.Index == Models.ChangeState.Added)
-            {
-                if (_repo.Controller.FileExists(change.Path))
-                    await new Commands.Remove(_repo.FullPath, [change.Path])
-                        .Use(log)
-                        .ExecAsync();
-            }
-            else if (change.Index == Models.ChangeState.Renamed)
-            {
-                if (_repo.Controller.FileExists(change.Path))
-                    await new Commands.Remove(_repo.FullPath, [change.Path])
-                        .Use(log)
-                        .ExecAsync();
-
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .FileWithRevisionAsync(change.OriginalPath, sha);
-            }
-            else
-            {
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .FileWithRevisionAsync(change.Path, sha);
-            }
-
-            log.Complete();
+            await RevisionFileOperations.ResetChangeToRevisionAsync(_repo, change, sha, GetDesc(_startPoint), RevisionFileOperations.Side.Left);
         }
 
         public async Task ResetToRightAsync(Models.Change change)
         {
             var sha = GetSHA(_endPoint);
-            var log = _repo.CreateLog($"Reset File to '{GetDesc(_endPoint)}'");
-
-            if (change.Index == Models.ChangeState.Deleted)
-            {
-                if (_repo.Controller.FileExists(change.Path))
-                    await new Commands.Remove(_repo.FullPath, [change.Path])
-                        .Use(log)
-                        .ExecAsync();
-            }
-            else if (change.Index == Models.ChangeState.Renamed)
-            {
-                if (_repo.Controller.FileExists(change.OriginalPath))
-                    await new Commands.Remove(_repo.FullPath, [change.OriginalPath])
-                        .Use(log)
-                        .ExecAsync();
-
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .FileWithRevisionAsync(change.Path, sha);
-            }
-            else
-            {
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .FileWithRevisionAsync(change.Path, sha);
-            }
-
-            log.Complete();
+            await RevisionFileOperations.ResetChangeToRevisionAsync(_repo, change, sha, GetDesc(_endPoint), RevisionFileOperations.Side.Right);
         }
 
         public async Task ResetMultipleToLeftAsync(List<Models.Change> changes)
         {
             var sha = GetSHA(_startPoint);
-            var checkouts = new List<string>();
-            var removes = new List<string>();
-
-            foreach (var c in changes)
-            {
-                if (c.Index == Models.ChangeState.Added)
-                {
-                    if (_repo.Controller.FileExists(c.Path))
-                        removes.Add(c.Path);
-                }
-                else if (c.Index == Models.ChangeState.Renamed)
-                {
-                    if (_repo.Controller.FileExists(c.Path))
-                        removes.Add(c.Path);
-
-                    checkouts.Add(c.OriginalPath);
-                }
-                else
-                {
-                    checkouts.Add(c.Path);
-                }
-            }
-
-            var log = _repo.CreateLog($"Reset Files to '{GetDesc(_startPoint)}'");
-
-            if (removes.Count > 0)
-                await new Commands.Remove(_repo.FullPath, removes)
-                    .Use(log)
-                    .ExecAsync();
-
-            if (checkouts.Count > 0)
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .MultipleFilesWithRevisionAsync(checkouts, sha);
-
-            log.Complete();
+            await RevisionFileOperations.ResetChangesToRevisionAsync(_repo, changes, sha, GetDesc(_startPoint), RevisionFileOperations.Side.Left);
         }
 
         public async Task ResetMultipleToRightAsync(List<Models.Change> changes)
         {
             var sha = GetSHA(_endPoint);
-            var checkouts = new List<string>();
-            var removes = new List<string>();
-
-            foreach (var c in changes)
-            {
-                if (c.Index == Models.ChangeState.Deleted)
-                {
-                    if (_repo.Controller.FileExists(c.Path))
-                        removes.Add(c.Path);
-                }
-                else if (c.Index == Models.ChangeState.Renamed)
-                {
-                    if (_repo.Controller.FileExists(c.OriginalPath))
-                        removes.Add(c.OriginalPath);
-
-                    checkouts.Add(c.Path);
-                }
-                else
-                {
-                    checkouts.Add(c.Path);
-                }
-            }
-
-            var log = _repo.CreateLog($"Reset Files to '{GetDesc(_endPoint)}'");
-
-            if (removes.Count > 0)
-                await new Commands.Remove(_repo.FullPath, removes)
-                    .Use(log)
-                    .ExecAsync();
-
-            if (checkouts.Count > 0)
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .MultipleFilesWithRevisionAsync(checkouts, sha);
-
-            log.Complete();
+            await RevisionFileOperations.ResetChangesToRevisionAsync(_repo, changes, sha, GetDesc(_endPoint), RevisionFileOperations.Side.Right);
         }
 
         public async Task SaveChangesAsPatchAsync(List<Models.Change> changes, string saveTo)

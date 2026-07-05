@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -40,7 +40,7 @@ namespace SourceGit.Views
             var explore = new MenuItem();
             explore.Header = App.Text("RevealFile");
             explore.Icon = this.CreateMenuIcon("Icons.Explore");
-            explore.IsEnabled = Commands.GitService.DirectoryExists(fullPath);
+            explore.IsEnabled = ViewModels.RepositoryFileService.DirectoryExists(fullPath);
             explore.Click += (_, ev) =>
             {
                 Native.OS.OpenInFileManager(fullPath);
@@ -90,7 +90,7 @@ namespace SourceGit.Views
             var copyPath = new MenuItem();
             copyPath.Header = App.Text("CopyPath");
             copyPath.Icon = this.CreateMenuIcon("Icons.Copy");
-            copyPath.Tag = OperatingSystem.IsMacOS() ? "⌘+C" : "Ctrl+C";
+            copyPath.Tag = OperatingSystem.IsMacOS() ? "?+C" : "Ctrl+C";
             copyPath.Click += async (_, ev) =>
             {
                 await this.CopyTextAsync(node.FullPath);
@@ -100,7 +100,7 @@ namespace SourceGit.Views
             var copyFullPath = new MenuItem();
             copyFullPath.Header = App.Text("CopyFullPath");
             copyFullPath.Icon = this.CreateMenuIcon("Icons.Copy");
-            copyFullPath.Tag = OperatingSystem.IsMacOS() ? "⌘+⇧+C" : "Ctrl+Shift+C";
+            copyFullPath.Tag = OperatingSystem.IsMacOS() ? "?+?+C" : "Ctrl+Shift+C";
             copyFullPath.Click += async (_, e) =>
             {
                 await this.CopyTextAsync(fullPath);
@@ -188,7 +188,7 @@ namespace SourceGit.Views
             var copyPath = new MenuItem();
             copyPath.Header = App.Text("CopyPath");
             copyPath.Icon = this.CreateMenuIcon("Icons.Copy");
-            copyPath.Tag = OperatingSystem.IsMacOS() ? "⌘+C" : "Ctrl+C";
+            copyPath.Tag = OperatingSystem.IsMacOS() ? "?+C" : "Ctrl+C";
             copyPath.Click += async (_, ev) =>
             {
                 var builder = new StringBuilder();
@@ -202,7 +202,7 @@ namespace SourceGit.Views
             var copyFullPath = new MenuItem();
             copyFullPath.Header = App.Text("CopyFullPath");
             copyFullPath.Icon = this.CreateMenuIcon("Icons.Copy");
-            copyFullPath.Tag = OperatingSystem.IsMacOS() ? "⌘+⇧+C" : "Ctrl+Shift+C";
+            copyFullPath.Tag = OperatingSystem.IsMacOS() ? "?+?+C" : "Ctrl+Shift+C";
             copyFullPath.Click += async (_, e) =>
             {
                 var builder = new StringBuilder();
@@ -264,7 +264,7 @@ namespace SourceGit.Views
             var openWithMerger = new MenuItem();
             openWithMerger.Header = App.Text("OpenInExternalMergeTool");
             openWithMerger.Icon = this.CreateMenuIcon("Icons.OpenWith");
-            openWithMerger.Tag = OperatingSystem.IsMacOS() ? "⌘+⇧+D" : "Ctrl+Shift+D";
+            openWithMerger.Tag = OperatingSystem.IsMacOS() ? "?+?+D" : "Ctrl+Shift+D";
             openWithMerger.Click += (_, ev) =>
             {
                 vm.OpenChangeInMergeTool(change);
@@ -275,7 +275,7 @@ namespace SourceGit.Views
             var explore = new MenuItem();
             explore.Header = App.Text("RevealFile");
             explore.Icon = this.CreateMenuIcon("Icons.Explore");
-            explore.IsEnabled = Commands.GitService.FileExists(fullPath);
+            explore.IsEnabled = ViewModels.RepositoryFileService.FileExists(fullPath);
             explore.Click += (_, ev) =>
             {
                 Native.OS.OpenInFileManager(fullPath);
@@ -367,7 +367,7 @@ namespace SourceGit.Views
                 menu.Items.Add(resetToFirstParent);
                 menu.Items.Add(new MenuItem { Header = "-" });
 
-                if (repo.Remotes.Count > 0 && Commands.GitService.FileExists(fullPath) && repo.IsLFSEnabled())
+                if (repo.Remotes.Count > 0 && ViewModels.RepositoryFileService.FileExists(fullPath) && repo.IsLFSEnabled())
                 {
                     var lfs = new MenuItem();
                     lfs.Header = App.Text("GitLFS");
@@ -464,7 +464,7 @@ namespace SourceGit.Views
             var copyPath = new MenuItem();
             copyPath.Header = App.Text("CopyPath");
             copyPath.Icon = this.CreateMenuIcon("Icons.Copy");
-            copyPath.Tag = OperatingSystem.IsMacOS() ? "⌘+C" : "Ctrl+C";
+            copyPath.Tag = OperatingSystem.IsMacOS() ? "?+C" : "Ctrl+C";
             copyPath.Click += async (_, ev) =>
             {
                 await this.CopyTextAsync(change.Path);
@@ -474,7 +474,7 @@ namespace SourceGit.Views
             var copyFullPath = new MenuItem();
             copyFullPath.Header = App.Text("CopyFullPath");
             copyFullPath.Icon = this.CreateMenuIcon("Icons.Copy");
-            copyFullPath.Tag = OperatingSystem.IsMacOS() ? "⌘+⇧+C" : "Ctrl+Shift+C";
+            copyFullPath.Tag = OperatingSystem.IsMacOS() ? "?+?+C" : "Ctrl+Shift+C";
             copyFullPath.Click += async (_, e) =>
             {
                 await this.CopyTextAsync(fullPath);

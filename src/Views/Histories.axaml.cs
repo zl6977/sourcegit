@@ -1733,7 +1733,7 @@ namespace SourceGit.Views
                 _ => $"{target.SHA}~",
             };
 
-            var on = await new Commands.QuerySingleCommit(repo.FullPath, start).GetResultAsync();
+            var on = await ViewModels.CommitOperations.QuerySingleAsync(repo.FullPath, start);
             if (on == null)
                 repo.SendNotification($"Commit '{start}' is not a valid revision for `git rebase -i`!", true);
             else

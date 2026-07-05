@@ -973,18 +973,13 @@ namespace SourceGit.Views
                 twoSides.GetCombinedRangeForSingleSide(ref startIdx, ref endIdx, IsOld);
             }
 
-            var patch = new Models.PatchGenerator(option, diff, startIdx, endIdx, isCombined, IsOld);
-            if (!patch.IsValid)
+            var patchText = ViewModels.TextDiffOperations.GeneratePatchText(option, diff, startIdx, endIdx, isCombined, IsOld, false);
+            if (string.IsNullOrEmpty(patchText))
             {
                 Models.Notification.Send(null, "You should select at lease one changed line!", true);
                 return;
             }
 
-            var tmpFile = Path.GetTempFileName();
-            patch.Generate(tmpFile, false);
-
-            var patchText = File.ReadAllText(tmpFile);
-            File.Delete(tmpFile);
             await this.CopyTextAsync(patchText);
         }
 
@@ -1610,86 +1605,35 @@ namespace SourceGit.Views
 
         private async void OnStageChunk(object _1, RoutedEventArgs _2)
         {
-            if (DataContext is not ViewModels.TextDiffContext { SelectedChunk: { } chunk, Data: { } diff, Option: { } option } vm)
-                return;
-
-            if (!option.IsLocalChange || !option.IsUnstaged)
-                return;
-
-            var patch = new Models.PatchGenerator(option, diff, chunk.StartIdx, chunk.EndIdx, chunk.Combined, chunk.IsOldSide);
-            if (!patch.IsValid)
+            if (DataContext is not ViewModels.TextDiffContext vm)
                 return;
 
             if (this.FindAncestorOfType<Repository>()?.DataContext is not ViewModels.Repository repo)
                 return;
 
-            var tmpFile = Path.GetTempFileName();
-            patch.Generate(tmpFile, false);
-            var patchText = await File.ReadAllTextAsync(tmpFile);
-            File.Delete(tmpFile);
-
-            using var lockWatcher = repo.LockWatcher();
-            using var patchFile = await Commands.BackendTempFile.CreateAsync(repo.FullPath, patchText, "sourcegit_chunk_patch");
-            await new Commands.Apply(repo.FullPath, patchFile.File, true, "nowarn", ["--cache", "--index"]).ExecAsync();
-
-            vm.BlockNavigation.UpdateByChunk(chunk);
-            repo.MarkWorkingCopyDirtyManually();
+            await ViewModels.TextDiffOperations.ApplyChunkAsync(repo, vm, ViewModels.TextDiffOperations.ChunkAction.Stage);
         }
 
         private async void OnUnstageChunk(object _1, RoutedEventArgs _2)
         {
-            if (DataContext is not ViewModels.TextDiffContext { SelectedChunk: { } chunk, Data: { } diff, Option: { } option } vm)
-                return;
-
-            if (!option.IsLocalChange || option.IsUnstaged)
-                return;
-
-            var patch = new Models.PatchGenerator(option, diff, chunk.StartIdx, chunk.EndIdx, chunk.Combined, chunk.IsOldSide);
-            if (!patch.IsValid)
+            if (DataContext is not ViewModels.TextDiffContext vm)
                 return;
 
             if (this.FindAncestorOfType<Repository>()?.DataContext is not ViewModels.Repository repo)
                 return;
 
-            var tmpFile = Path.GetTempFileName();
-            patch.Generate(tmpFile, true);
-            var patchText = await File.ReadAllTextAsync(tmpFile);
-            File.Delete(tmpFile);
-
-            using var lockWatcher = repo.LockWatcher();
-            using var patchFile = await Commands.BackendTempFile.CreateAsync(repo.FullPath, patchText, "sourcegit_chunk_patch");
-            await new Commands.Apply(repo.FullPath, patchFile.File, true, "nowarn", ["--cache", "--index", "--reverse"]).ExecAsync();
-
-            vm.BlockNavigation.UpdateByChunk(chunk);
-            repo.MarkWorkingCopyDirtyManually();
+            await ViewModels.TextDiffOperations.ApplyChunkAsync(repo, vm, ViewModels.TextDiffOperations.ChunkAction.Unstage);
         }
 
         private async void OnDiscardChunk(object _1, RoutedEventArgs _2)
         {
-            if (DataContext is not ViewModels.TextDiffContext { SelectedChunk: { } chunk, Data: { } diff, Option: { } option } vm)
-                return;
-
-            if (!option.IsLocalChange || !option.IsUnstaged)
-                return;
-
-            var patch = new Models.PatchGenerator(option, diff, chunk.StartIdx, chunk.EndIdx, chunk.Combined, chunk.IsOldSide);
-            if (!patch.IsValid)
+            if (DataContext is not ViewModels.TextDiffContext vm)
                 return;
 
             if (this.FindAncestorOfType<Repository>()?.DataContext is not ViewModels.Repository repo)
                 return;
 
-            var tmpFile = Path.GetTempFileName();
-            patch.Generate(tmpFile, true);
-            var patchText = await File.ReadAllTextAsync(tmpFile);
-            File.Delete(tmpFile);
-
-            using var lockWatcher = repo.LockWatcher();
-            using var patchFile = await Commands.BackendTempFile.CreateAsync(repo.FullPath, patchText, "sourcegit_chunk_patch");
-            await new Commands.Apply(repo.FullPath, patchFile.File, true, "nowarn", ["--reverse"]).ExecAsync();
-
-            vm.BlockNavigation.UpdateByChunk(chunk);
-            repo.MarkWorkingCopyDirtyManually();
+            await ViewModels.TextDiffOperations.ApplyChunkAsync(repo, vm, ViewModels.TextDiffOperations.ChunkAction.Discard);
         }
 
         private ViewModels.TextDiffSelectedChunk _selectedChunk = null;

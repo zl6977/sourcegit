@@ -59,8 +59,7 @@ namespace SourceGit.Commands
                 var stdoutTask = proc.StandardOutput.ReadToEndAsync();
                 var stderrTask = proc.StandardError.ReadToEndAsync();
 
-                if (!proc.HasExited) proc.Kill();
-                await proc.WaitForExitAsync();
+                await proc.WaitForExitAsync().ConfigureAwait(false);
 
                 var stdout = await stdoutTask;
                 var stderr = await stderrTask;

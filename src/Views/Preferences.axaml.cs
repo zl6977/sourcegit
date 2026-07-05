@@ -137,7 +137,7 @@ namespace SourceGit.Views
 
             if (pref.IsGitConfigured())
             {
-                var config = new Commands.Config(null).ReadAll();
+                var config = ViewModels.GitConfigService.ReadGlobal();
 
                 if (config.TryGetValue("user.name", out var name))
                     DefaultUser = name;
@@ -177,7 +177,7 @@ namespace SourceGit.Views
 
             if (change.Property == GPGFormatProperty)
             {
-                var config = await new Commands.Config(null).ReadAllAsync();
+                var config = await ViewModels.GitConfigService.ReadGlobalAsync();
                 if (GPGFormat.Value == "openpgp" && config.TryGetValue("gpg.program", out var openpgp))
                     GPGExecutableFile = openpgp;
                 else if (config.TryGetValue($"gpg.{GPGFormat.Value}.program", out var gpgProgram))
@@ -192,7 +192,7 @@ namespace SourceGit.Views
             if (Design.IsDesignMode)
                 return;
 
-            var config = await new Commands.Config(null).ReadAllAsync();
+            var config = await ViewModels.GitConfigService.ReadGlobalAsync();
             await SetIfChangedAsync(config, "user.name", DefaultUser, "");
             await SetIfChangedAsync(config, "user.email", DefaultEmail, "");
             await SetIfChangedAsync(config, "user.signingkey", GPGUserKey, "");
@@ -218,7 +218,7 @@ namespace SourceGit.Views
                     changed = true;
 
                 if (changed)
-                    await new Commands.Config(null).SetAsync($"gpg.{GPGFormat.Value}.program", GPGExecutableFile);
+                    await ViewModels.GitConfigService.SetGlobalAsync($"gpg.{GPGFormat.Value}.program", GPGExecutableFile);
             }
 
             var preferences = ViewModels.Preferences.Instance;
@@ -400,7 +400,7 @@ namespace SourceGit.Views
                 changed = true;
 
             if (changed)
-                await new Commands.Config(null).SetAsync(key, value);
+                await ViewModels.GitConfigService.SetGlobalAsync(key, value);
         }
 
         private async void OnUseNativeWindowFrameChanged(object sender, RoutedEventArgs e)

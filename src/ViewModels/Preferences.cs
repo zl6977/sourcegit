@@ -255,15 +255,15 @@ namespace SourceGit.ViewModels
 
         public bool EnableAutoFetch
         {
-            get;
-            set;
-        } = false;
+            get => _enableAutoFetch;
+            set => SetProperty(ref _enableAutoFetch, value);
+        }
 
         public int AutoFetchInterval
         {
-            get;
-            set;
-        } = 10;
+            get => _autoFetchInterval;
+            set => SetProperty(ref _autoFetchInterval, value);
+        }
 
         public bool IgnoreWhitespaceChangesInDiff
         {
@@ -818,6 +818,8 @@ namespace SourceGit.ViewModels
         private bool _check4UpdatesOnStartup = true;
         private double _lastCheckUpdateTime = 0;
         private string _ignoreUpdateTag = string.Empty;
+        private bool _enableAutoFetch = false;
+        private int _autoFetchInterval = 10;
 
         private bool _showTagsInGraph = true;
         private bool _useTwoColumnsLayoutInHistories = false;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 
@@ -109,7 +109,7 @@ namespace SourceGit.Views
                 var copy = new MenuItem();
                 copy.Header = App.Text("StashCM.CopyMessage");
                 copy.Icon = this.CreateMenuIcon("Icons.Copy");
-                copy.Tag = OperatingSystem.IsMacOS() ? "⌘+C" : "Ctrl+C";
+                copy.Tag = OperatingSystem.IsMacOS() ? "?+C" : "Ctrl+C";
                 copy.Click += async (_, ev) =>
                 {
                     await this.CopyTextAsync(stash.Message);
@@ -154,7 +154,7 @@ namespace SourceGit.Views
                     var openWithMerger = new MenuItem();
                     openWithMerger.Header = App.Text("OpenInExternalMergeTool");
                     openWithMerger.Icon = this.CreateMenuIcon("Icons.OpenWith");
-                    openWithMerger.Tag = OperatingSystem.IsMacOS() ? "⌘+⇧+D" : "Ctrl+Shift+D";
+                    openWithMerger.Tag = OperatingSystem.IsMacOS() ? "?+?+D" : "Ctrl+Shift+D";
                     openWithMerger.Click += (_, ev) =>
                     {
                         vm.OpenChangeWithExternalDiffTool(change);
@@ -164,7 +164,7 @@ namespace SourceGit.Views
                     var explore = new MenuItem();
                     explore.Header = App.Text("RevealFile");
                     explore.Icon = this.CreateMenuIcon("Icons.Explore");
-                    explore.IsEnabled = Commands.GitService.FileExists(fullPath);
+                    explore.IsEnabled = ViewModels.RepositoryFileService.FileExists(fullPath);
                     explore.Click += (_, ev) =>
                     {
                         Native.OS.OpenInFileManager(fullPath);
@@ -197,7 +197,7 @@ namespace SourceGit.Views
                 var copyPath = new MenuItem();
                 copyPath.Header = App.Text("CopyPath");
                 copyPath.Icon = this.CreateMenuIcon("Icons.Copy");
-                copyPath.Tag = OperatingSystem.IsMacOS() ? "⌘+C" : "Ctrl+C";
+                copyPath.Tag = OperatingSystem.IsMacOS() ? "?+C" : "Ctrl+C";
                 copyPath.Click += async (_, ev) =>
                 {
                     if (selected.Count == 1)
@@ -219,7 +219,7 @@ namespace SourceGit.Views
                 var copyFullPath = new MenuItem();
                 copyFullPath.Header = App.Text("CopyFullPath");
                 copyFullPath.Icon = this.CreateMenuIcon("Icons.Copy");
-                copyFullPath.Tag = OperatingSystem.IsMacOS() ? "⌘+⇧+C" : "Ctrl+Shift+C";
+                copyFullPath.Tag = OperatingSystem.IsMacOS() ? "?+?+C" : "Ctrl+Shift+C";
                 copyFullPath.Click += async (_, ev) =>
                 {
                     if (selected.Count == 1)

@@ -161,106 +161,22 @@ namespace SourceGit.ViewModels
             if (!_canResetFiles)
                 return;
 
-            if (change.Index == Models.ChangeState.Added)
-            {
-                if (_repo.Controller.FileExists(change.Path))
-                    await new Commands.Remove(_repo.FullPath, [change.Path]).ExecAsync();
-            }
-            else if (change.Index == Models.ChangeState.Renamed)
-            {
-                if (_repo.Controller.FileExists(change.Path))
-                    await new Commands.Remove(_repo.FullPath, [change.Path]).ExecAsync();
-
-                await new Commands.Checkout(_repo.FullPath).FileWithRevisionAsync(change.OriginalPath, _baseHead.SHA);
-            }
-            else
-            {
-                await new Commands.Checkout(_repo.FullPath).FileWithRevisionAsync(change.Path, _baseHead.SHA);
-            }
+            await RevisionFileOperations.ResetChangeToRevisionAsync(_repo, change, _baseHead.SHA, _baseHead.SHA, RevisionFileOperations.Side.Left);
         }
 
         public async Task ResetToRightAsync(Models.Change change)
         {
-            if (change.Index == Models.ChangeState.Deleted)
-            {
-                if (_repo.Controller.FileExists(change.Path))
-                    await new Commands.Remove(_repo.FullPath, [change.Path]).ExecAsync();
-            }
-            else if (change.Index == Models.ChangeState.Renamed)
-            {
-                if (_repo.Controller.FileExists(change.OriginalPath))
-                    await new Commands.Remove(_repo.FullPath, [change.OriginalPath]).ExecAsync();
-
-                await new Commands.Checkout(_repo.FullPath).FileWithRevisionAsync(change.Path, ToHead.SHA);
-            }
-            else
-            {
-                await new Commands.Checkout(_repo.FullPath).FileWithRevisionAsync(change.Path, ToHead.SHA);
-            }
+            await RevisionFileOperations.ResetChangeToRevisionAsync(_repo, change, ToHead.SHA, ToHead.SHA, RevisionFileOperations.Side.Right);
         }
 
         public async Task ResetMultipleToLeftAsync(List<Models.Change> changes)
         {
-            var checkouts = new List<string>();
-            var removes = new List<string>();
-
-            foreach (var c in changes)
-            {
-                if (c.Index == Models.ChangeState.Added)
-                {
-                    if (_repo.Controller.FileExists(c.Path))
-                        removes.Add(c.Path);
-                }
-                else if (c.Index == Models.ChangeState.Renamed)
-                {
-                    if (_repo.Controller.FileExists(c.Path))
-                        removes.Add(c.Path);
-
-                    checkouts.Add(c.OriginalPath);
-                }
-                else
-                {
-                    checkouts.Add(c.Path);
-                }
-            }
-
-            if (removes.Count > 0)
-                await new Commands.Remove(_repo.FullPath, removes).ExecAsync();
-
-            if (checkouts.Count > 0)
-                await new Commands.Checkout(_repo.FullPath).MultipleFilesWithRevisionAsync(checkouts, _baseHead.SHA);
+            await RevisionFileOperations.ResetChangesToRevisionAsync(_repo, changes, _baseHead.SHA, _baseHead.SHA, RevisionFileOperations.Side.Left);
         }
 
         public async Task ResetMultipleToRightAsync(List<Models.Change> changes)
         {
-            var checkouts = new List<string>();
-            var removes = new List<string>();
-
-            foreach (var c in changes)
-            {
-                if (c.Index == Models.ChangeState.Deleted)
-                {
-                    if (_repo.Controller.FileExists(c.Path))
-                        removes.Add(c.Path);
-                }
-                else if (c.Index == Models.ChangeState.Renamed)
-                {
-                    if (_repo.Controller.FileExists(c.OriginalPath))
-                        removes.Add(c.OriginalPath);
-
-                    checkouts.Add(c.Path);
-                }
-                else
-                {
-                    checkouts.Add(c.Path);
-                }
-            }
-
-            if (removes.Count > 0)
-                await new Commands.Remove(_repo.FullPath, removes).ExecAsync();
-
-            if (checkouts.Count > 0)
-                await new Commands.Checkout(_repo.FullPath).MultipleFilesWithRevisionAsync(checkouts, _toHead.SHA);
+            await RevisionFileOperations.ResetChangesToRevisionAsync(_repo, changes, _toHead.SHA, _toHead.SHA, RevisionFileOperations.Side.Right);
         }
 
         public async Task<bool> SaveChangesAsPatchAsync(List<Models.Change> changes, string saveTo)

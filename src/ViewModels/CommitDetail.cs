@@ -251,153 +251,29 @@ namespace SourceGit.ViewModels
                 return;
             }
 
-            var log = _repo.CreateLog($"Reset File to '{_commit.SHA}'");
-            await new Commands.Checkout(_repo.FullPath).Use(log).FileWithRevisionAsync(path, _commit.SHA);
-            log.Complete();
+            await RevisionFileOperations.ResetPathToRevisionAsync(_repo, path, _commit.SHA, _commit.SHA);
         }
 
         public async Task ResetToThisRevisionAsync(Models.Change change)
         {
-            var log = _repo.CreateLog($"Reset File to '{_commit.SHA}'");
-
-            if (change.Index == Models.ChangeState.Deleted)
-            {
-                if (_repo.Controller.FileExists(change.Path))
-                    await new Commands.Remove(_repo.FullPath, [change.Path])
-                        .Use(log)
-                        .ExecAsync();
-            }
-            else if (change.Index == Models.ChangeState.Renamed)
-            {
-                if (_repo.Controller.FileExists(change.OriginalPath))
-                    await new Commands.Remove(_repo.FullPath, [change.OriginalPath])
-                        .Use(log)
-                        .ExecAsync();
-
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .FileWithRevisionAsync(change.Path, _commit.SHA);
-            }
-            else
-            {
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .FileWithRevisionAsync(change.Path, _commit.SHA);
-            }
-
-            log.Complete();
+            await RevisionFileOperations.ResetChangeToRevisionAsync(_repo, change, _commit.SHA, _commit.SHA, RevisionFileOperations.Side.Right);
         }
 
         public async Task ResetToParentRevisionAsync(Models.Change change)
         {
-            var log = _repo.CreateLog($"Reset File to '{_commit.SHA}~1'");
-
-            if (change.Index == Models.ChangeState.Added)
-            {
-                if (_repo.Controller.FileExists(change.Path))
-                    await new Commands.Remove(_repo.FullPath, [change.Path])
-                        .Use(log)
-                        .ExecAsync();
-            }
-            else if (change.Index == Models.ChangeState.Renamed)
-            {
-                if (_repo.Controller.FileExists(change.Path))
-                    await new Commands.Remove(_repo.FullPath, [change.Path])
-                        .Use(log)
-                        .ExecAsync();
-
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .FileWithRevisionAsync(change.OriginalPath, $"{_commit.SHA}~1");
-            }
-            else
-            {
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .FileWithRevisionAsync(change.Path, $"{_commit.SHA}~1");
-            }
-
-            log.Complete();
+            var revision = $"{_commit.SHA}~1";
+            await RevisionFileOperations.ResetChangeToRevisionAsync(_repo, change, revision, revision, RevisionFileOperations.Side.Left);
         }
 
         public async Task ResetMultipleToThisRevisionAsync(List<Models.Change> changes)
         {
-            var checkouts = new List<string>();
-            var removes = new List<string>();
-
-            foreach (var c in changes)
-            {
-                if (c.Index == Models.ChangeState.Deleted)
-                {
-                    if (_repo.Controller.FileExists(c.Path))
-                        removes.Add(c.Path);
-                }
-                else if (c.Index == Models.ChangeState.Renamed)
-                {
-                    if (_repo.Controller.FileExists(c.OriginalPath))
-                        removes.Add(c.OriginalPath);
-
-                    checkouts.Add(c.Path);
-                }
-                else
-                {
-                    checkouts.Add(c.Path);
-                }
-            }
-
-            var log = _repo.CreateLog($"Reset Files to '{_commit.SHA}'");
-
-            if (removes.Count > 0)
-                await new Commands.Remove(_repo.FullPath, removes)
-                    .Use(log)
-                    .ExecAsync();
-
-            if (checkouts.Count > 0)
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .MultipleFilesWithRevisionAsync(checkouts, _commit.SHA);
-
-            log.Complete();
+            await RevisionFileOperations.ResetChangesToRevisionAsync(_repo, changes, _commit.SHA, _commit.SHA, RevisionFileOperations.Side.Right);
         }
 
         public async Task ResetMultipleToParentRevisionAsync(List<Models.Change> changes)
         {
-            var checkouts = new List<string>();
-            var removes = new List<string>();
-
-            foreach (var c in changes)
-            {
-                if (c.Index == Models.ChangeState.Added)
-                {
-                    if (_repo.Controller.FileExists(c.Path))
-                        removes.Add(c.Path);
-                }
-                else if (c.Index == Models.ChangeState.Renamed)
-                {
-                    if (_repo.Controller.FileExists(c.Path))
-                        removes.Add(c.Path);
-
-                    checkouts.Add(c.OriginalPath);
-                }
-                else
-                {
-                    checkouts.Add(c.Path);
-                }
-            }
-
-            var log = _repo.CreateLog($"Reset Files to '{_commit.SHA}~1'");
-
-            if (removes.Count > 0)
-                await new Commands.Remove(_repo.FullPath, removes)
-                    .Use(log)
-                    .ExecAsync();
-
-            if (checkouts.Count > 0)
-                await new Commands.Checkout(_repo.FullPath)
-                    .Use(log)
-                    .MultipleFilesWithRevisionAsync(checkouts, $"{_commit.SHA}~1");
-
-            log.Complete();
+            var revision = $"{_commit.SHA}~1";
+            await RevisionFileOperations.ResetChangesToRevisionAsync(_repo, changes, revision, revision, RevisionFileOperations.Side.Left);
         }
 
         public async Task<List<Models.Object>> GetRevisionFilesUnderFolderAsync(string parentFolder)

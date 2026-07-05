@@ -29,7 +29,7 @@ namespace SourceGit.Views
             var preference = ViewModels.Preferences.Instance;
             var workspace = preference.GetActiveWorkspace();
             var initDir = workspace.DefaultCloneDir;
-            if (string.IsNullOrEmpty(initDir) || !Commands.GitService.DirectoryExists(initDir))
+            if (string.IsNullOrEmpty(initDir) || !ViewModels.RepositoryFileService.DirectoryExists(initDir))
                 initDir = preference.GitDefaultCloneDir;
 
             var options = new FolderPickerOpenOptions() { AllowMultiple = false };

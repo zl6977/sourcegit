@@ -1,7 +1,4 @@
 using System;
-using System.IO;
-using System.Text.Json;
-
 using Avalonia.Interactivity;
 
 namespace SourceGit.Views
@@ -21,29 +18,11 @@ namespace SourceGit.Views
 
         public void AsStandalone(string file)
         {
-            var gitDir = new Commands.QueryGitDir(Path.GetDirectoryName(file)).GetResult();
-            if (!string.IsNullOrEmpty(gitDir))
-            {
-                var settingsFile = Path.Combine(gitDir, "sourcegit.settings");
-                if (Commands.GitService.FileExists(settingsFile))
-                {
-                    try
-                    {
-                        using var stream = Commands.GitService.OpenRead(settingsFile);
-                        var settings = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.RepositorySettings);
-                        ConventionalTypesOverride = settings.ConventionalTypesOverride;
-                    }
-                    catch
-                    {
-                        // Ignore errors
-                    }
-                }
-            }
-
-            _onSave = msg => Commands.GitService.WriteFile(file, msg);
+            ConventionalTypesOverride = ViewModels.CommitMessageOperations.LoadConventionalTypesOverride(file);
+            _onSave = msg => ViewModels.CommitMessageOperations.WriteMessageFile(file, msg);
             _shouldExitApp = true;
 
-            Editor.CommitMessage = Commands.GitService.ReadFile(file).ReplaceLineEndings("\n").Trim();
+            Editor.CommitMessage = ViewModels.CommitMessageOperations.ReadMessageFile(file);
         }
 
         public void AsBuiltin(string conventionalTypesOverride, string msg, Action<string> onSave)

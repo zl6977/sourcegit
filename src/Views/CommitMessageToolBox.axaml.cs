@@ -522,7 +522,7 @@ namespace SourceGit.Views
                 var foreground = this.FindResource("Brush.FG1") as IBrush;
                 var menu = new ContextMenu() { MaxWidth = 480 };
 
-                var gitTemplate = await new Commands.Config(repo.FullPath).GetAsync("commit.template");
+                var gitTemplate = await ViewModels.GitConfigService.GetRepositoryValueAsync(repo.FullPath, "commit.template");
                 var templateCount = repo.Settings.CommitTemplates.Count;
                 if (templateCount == 0 && string.IsNullOrEmpty(gitTemplate))
                 {
@@ -574,8 +574,8 @@ namespace SourceGit.Views
                         gitTemplateItem.Icon = icon;
                         gitTemplateItem.Click += (_, ev) =>
                         {
-                            if (Commands.GitService.FileExists(gitTemplate))
-                                vm.CommitMessage = Commands.GitService.ReadFile(gitTemplate);
+                            if (ViewModels.RepositoryFileService.FileExists(gitTemplate))
+                                vm.CommitMessage = ViewModels.RepositoryFileService.ReadFile(gitTemplate);
                             ev.Handled = true;
                         };
                         menu.Items.Add(gitTemplateItem);

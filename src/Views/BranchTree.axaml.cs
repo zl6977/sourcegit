@@ -256,7 +256,7 @@ namespace SourceGit.Views
                 if (tree is not { DataContext: ViewModels.Repository repo })
                     break;
 
-                var description = await new Commands.Config(repo.FullPath).GetAsync($"branch.{branch.Name}.description");
+                var description = await ViewModels.GitConfigService.GetBranchDescriptionAsync(repo.FullPath, branch.Name);
                 if (string.IsNullOrEmpty(description))
                     break;
 
@@ -849,7 +849,7 @@ namespace SourceGit.Views
                     interactiveRebase.IsEnabled = !current.Head.Equals(branch.Head, StringComparison.Ordinal);
                     interactiveRebase.Click += async (_, e) =>
                     {
-                        var commit = await new Commands.QuerySingleCommit(repo.FullPath, branch.Head).GetResultAsync();
+                        var commit = await ViewModels.CommitOperations.QuerySingleAsync(repo.FullPath, branch.Head);
                         await this.ShowDialogAsync(new ViewModels.InteractiveRebase(repo, commit));
                         e.Handled = true;
                     };
@@ -938,7 +938,7 @@ namespace SourceGit.Views
                 editDescription.Icon = this.CreateMenuIcon("Icons.Edit");
                 editDescription.Click += async (_, e) =>
                 {
-                    var desc = await new Commands.Config(repo.FullPath).GetAsync($"branch.{branch.Name}.description");
+                    var desc = await ViewModels.GitConfigService.GetBranchDescriptionAsync(repo.FullPath, branch.Name);
                     if (repo.CanCreatePopup())
                         repo.ShowPopup(new ViewModels.EditBranchDescription(repo, branch, desc));
                     e.Handled = true;
@@ -1216,7 +1216,7 @@ namespace SourceGit.Views
                 interactiveRebase.IsEnabled = !current.Head.Equals(branch.Head, StringComparison.Ordinal);
                 interactiveRebase.Click += async (_, e) =>
                 {
-                    var commit = await new Commands.QuerySingleCommit(repo.FullPath, branch.Head).GetResultAsync();
+                    var commit = await ViewModels.CommitOperations.QuerySingleAsync(repo.FullPath, branch.Head);
                     await this.ShowDialogAsync(new ViewModels.InteractiveRebase(repo, commit));
                     e.Handled = true;
                 };
@@ -1254,7 +1254,7 @@ namespace SourceGit.Views
             editDescription.Icon = this.CreateMenuIcon("Icons.Edit");
             editDescription.Click += async (_, e) =>
             {
-                var desc = await new Commands.Config(repo.FullPath).GetAsync($"branch.{branch.Name}.description");
+                var desc = await ViewModels.GitConfigService.GetBranchDescriptionAsync(repo.FullPath, branch.Name);
                 if (repo.CanCreatePopup())
                     repo.ShowPopup(new ViewModels.EditBranchDescription(repo, branch, desc));
                 e.Handled = true;

@@ -8,6 +8,8 @@ namespace SourceGit.ViewModels
 {
     public class CommandLog : ObservableObject, Models.ICommandLog
     {
+        private const int MAX_CONTENT_LENGTH = 1024 * 1024;
+
         public string Name
         {
             get;
@@ -64,9 +66,15 @@ namespace SourceGit.ViewModels
             {
                 var newline = line ?? string.Empty;
                 if (_builder != null)
+                {
                     _builder.AppendLine(newline);
+                    TrimBuilderIfNeeded();
+                }
                 else
+                {
                     _content = $"{_content}{newline}\n";
+                    TrimContentIfNeeded();
+                }
 
                 foreach (var receiver in _receivers)
                     receiver.OnReceiveCommandLog(newline);
@@ -85,11 +93,28 @@ namespace SourceGit.ViewModels
             EndTime = DateTime.Now;
 
             _content = _builder.ToString();
+            TrimContentIfNeeded();
             _builder.Clear();
             _receivers.Clear();
             _builder = null;
 
             OnPropertyChanged(nameof(IsComplete));
+        }
+
+        private void TrimBuilderIfNeeded()
+        {
+            if (_builder.Length <= MAX_CONTENT_LENGTH)
+                return;
+
+            _builder.Remove(0, _builder.Length - MAX_CONTENT_LENGTH);
+        }
+
+        private void TrimContentIfNeeded()
+        {
+            if (_content.Length <= MAX_CONTENT_LENGTH)
+                return;
+
+            _content = _content.Substring(_content.Length - MAX_CONTENT_LENGTH);
         }
 
         private string _content = string.Empty;

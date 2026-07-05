@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -448,6 +449,7 @@ namespace SourceGit.ViewModels
 
         public void Open()
         {
+            _isClosed = false;
             _historyFilterMode = _uiStates.GetHistoryFilterMode();
             _histories = new Histories(this);
             _workingCopy = new WorkingCopy(this) { CommitMessage = _uiStates.LastCommitMessage };
@@ -455,12 +457,14 @@ namespace SourceGit.ViewModels
             _searchCommitContext = new SearchCommitContext(this);
             _selectedViewIndex = Preferences.Instance.ShowLocalChangesByDefault ? 1 : 0;
             _lastFetchTime = DateTime.Now;
-            _autoFetchTimer = new Timer(AutoFetchByTimer, null, 5000, 5000);
-            RefreshAll();
+            Preferences.Instance.PropertyChanged += OnPreferenceChanged;
+            ScheduleNextAutoFetch();
+            RefreshLightweight();
         }
 
         public void Close()
         {
+            _isClosed = true;
             var commitMessage = _workingCopy.CommitMessage;
             if (!string.IsNullOrEmpty(commitMessage) && _workingCopy.InProgressContext != null)
                 _controller.WriteGitDirFile("MERGE_MSG", commitMessage);
@@ -483,8 +487,9 @@ namespace SourceGit.ViewModels
             if (_cancellationRefreshStashes is { IsCancellationRequested: false })
                 _cancellationRefreshStashes.Cancel();
 
+            Preferences.Instance.PropertyChanged -= OnPreferenceChanged;
             _watcher?.Dispose();
-            _autoFetchTimer.Dispose();
+            _autoFetchTimer?.Dispose();
         }
 
         public void SendNotification(string message, bool isError = false)
@@ -600,6 +605,7 @@ namespace SourceGit.ViewModels
         {
             var log = new CommandLog(name);
             Logs.Insert(0, log);
+            PruneLogs();
             return log;
         }
 
@@ -612,7 +618,21 @@ namespace SourceGit.ViewModels
             RefreshWorktrees();
             RefreshWorkingCopyChanges();
             RefreshStashes();
+            RefreshRepositoryMetadata();
+        }
 
+        public void RefreshLightweight()
+        {
+            RefreshCommits();
+            RefreshBranches();
+            RefreshWorktrees();
+            RefreshWorkingCopyChanges();
+            RefreshStashes();
+            RefreshRepositoryMetadata();
+        }
+
+        private void RefreshRepositoryMetadata()
+        {
             Task.Run(async () =>
             {
                 var issuetrackers = new List<Models.IssueTracker>();
@@ -894,6 +914,7 @@ namespace SourceGit.ViewModels
         public void MarkFetched()
         {
             _lastFetchTime = DateTime.Now;
+            ScheduleNextAutoFetch();
         }
 
         public void NavigateToCommit(string sha, bool isDelayMode = false)
@@ -1834,20 +1855,28 @@ namespace SourceGit.ViewModels
 
         private void AutoFetchByTimer(object sender)
         {
-            try
-            {
-                Dispatcher.UIThread.Invoke(AutoFetchOnUIThread);
-            }
-            catch
-            {
-                // Ignore exception.
-            }
+            if (_isClosed)
+                return;
+
+            Dispatcher.UIThread.Post(async () => await AutoFetchOnUIThread());
+        }
+
+        private void OnPreferenceChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(Preferences.EnableAutoFetch) or nameof(Preferences.AutoFetchInterval))
+                ScheduleNextAutoFetch();
         }
 
         private async Task AutoFetchOnUIThread()
         {
-            if (IsAutoFetching)
+            if (_isClosed)
                 return;
+
+            if (IsAutoFetching)
+            {
+                ScheduleNextAutoFetch();
+                return;
+            }
 
             CommandLog log = null;
 
@@ -1889,9 +1918,49 @@ namespace SourceGit.ViewModels
             {
                 // Ignore all exceptions.
             }
+            finally
+            {
+                IsAutoFetching = false;
+                log?.Complete();
+                ScheduleNextAutoFetch();
+            }
+        }
 
-            IsAutoFetching = false;
-            log?.Complete();
+        private void ScheduleNextAutoFetch()
+        {
+            if (_isClosed)
+                return;
+
+            if (!Preferences.Instance.EnableAutoFetch)
+            {
+                _autoFetchTimer?.Dispose();
+                _autoFetchTimer = null;
+                return;
+            }
+
+            var interval = TimeSpan.FromMinutes(Math.Max(1, Preferences.Instance.AutoFetchInterval));
+            var dueTime = _lastFetchTime.Add(interval) - DateTime.Now;
+            if (dueTime < TimeSpan.FromSeconds(5))
+                dueTime = TimeSpan.FromSeconds(5);
+
+            _autoFetchTimer ??= new Timer(AutoFetchByTimer, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            _autoFetchTimer.Change(dueTime, Timeout.InfiniteTimeSpan);
+        }
+
+        private void PruneLogs()
+        {
+            const int maxCompletedLogs = 200;
+
+            var completed = 0;
+            for (var i = 0; i < Logs.Count; i++)
+            {
+                if (!Logs[i].IsComplete)
+                    continue;
+
+                completed++;
+                if (completed > maxCompletedLogs)
+                    Logs.RemoveAt(i--);
+            }
         }
 
         private readonly Commands.RepositoryController _controller = null;
@@ -1931,6 +2000,7 @@ namespace SourceGit.ViewModels
         private bool _isAutoFetching = false;
         private Timer _autoFetchTimer = null;
         private DateTime _lastFetchTime = DateTime.MinValue;
+        private bool _isClosed = true;
 
         private Models.BisectState _bisectState = Models.BisectState.None;
         private bool _isBisectCommandRunning = false;

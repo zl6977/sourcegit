@@ -37,13 +37,20 @@ namespace SourceGit.Models
 
         private readonly Lock _synclock = new();
         private string _storePath;
+        private bool _isStarted = false;
         private List<IAvatarHost> _avatars = new List<IAvatarHost>();
         private Dictionary<string, Bitmap> _resources = new Dictionary<string, Bitmap>();
         private HashSet<string> _requesting = new HashSet<string>();
         private HashSet<string> _defaultAvatars = new HashSet<string>();
+        private readonly SemaphoreSlim _requestSignal = new SemaphoreSlim(0);
 
         public void Start()
         {
+            if (_isStarted)
+                return;
+
+            _isStarted = true;
+
             _storePath = Path.Combine(Native.OS.DataDir, "avatars");
             if (!Directory.Exists(_storePath))
                 Directory.CreateDirectory(_storePath);
@@ -58,6 +65,8 @@ namespace SourceGit.Models
 
                 while (true)
                 {
+                    await _requestSignal.WaitAsync().ConfigureAwait(false);
+
                     string email = null;
 
                     lock (_synclock)
@@ -70,10 +79,7 @@ namespace SourceGit.Models
                     }
 
                     if (email == null)
-                    {
-                        Thread.Sleep(100);
                         continue;
-                    }
 
                     var md5 = GetEmailHash(email);
                     var matchGitHubUser = REG_GITHUB_USER_EMAIL().Match(email);
@@ -178,10 +184,14 @@ namespace SourceGit.Models
                 }
             }
 
+            var shouldSignal = false;
             lock (_synclock)
             {
-                _requesting.Add(email);
+                shouldSignal = _requesting.Add(email);
             }
+
+            if (shouldSignal)
+                _requestSignal.Release();
 
             return null;
         }
