@@ -1,5 +1,91 @@
 # SourceGit - Opensource Git GUI client.
 
+## About This Fork
+
+This fork started as an effort to support WSL repositories from the Windows application: SourceGit runs on the Windows host, while Git operations can target repositories inside WSL.
+
+To support that, this fork uses AI to refactor the Git execution path into a frontend-backend separated pipeline:
+
+```text
+GUI interaction -> Git operation -> Git command -> Git backend
+```
+
+Each layer has a narrow role:
+
+* GUI interaction: shows repository state returned by Git and accepts user actions.
+* Git operation: represents user interactions as abstract Git operations.
+* Git command: builds the concrete Git CLI invocation.
+* Git backend: runs Git CLI in the target environment, such as Windows or WSL. Linux and macOS should remain compatible, but are not tested.
+
+This keeps backend details out of the GUI layer, so the same UI can work with native Windows Git or WSL Git.
+
+Compared with upstream SourceGit, this fork mainly changes:
+
+* An explicit GUI-operation-command-backend pipeline.
+* A backend/controller layer for Git execution.
+* WSL path handling and temporary-file bridging to generate Git CLI invocations that can run in WSL.
+* Automatic refresh after GUI actions that mutate repository state, such as commit, push, pull, checkout, branch, tag, stash, submodule, and worktree operations.
+* Lightweight 60s periodic refresh for the active repository, used to catch external Git changes or missed filesystem notifications.
+* A manual refresh button.
+
+Trade-offs:
+
+* Repository updates no longer rely on the C# filesystem watcher as the source of truth. This is important for WSL support, but changes made outside the GUI may not appear immediately.
+* Get used to using manual refresh.
+
+This fork plans to track upstream changes from time to time, using AI assistance to merge upstream code changes into this refactor.
+
+## 关于这个 Fork (Chinese translation)
+
+这个 fork 最初是为了支持在 Windows 应用中操作 WSL 仓库：SourceGit 运行在 Windows host 上，但 Git 操作可以作用于 WSL 里的 repository。
+
+为此，这个 fork 利用 AI 把 Git 执行路径重构为前后端分离的 pipeline：
+
+```text
+GUI interaction -> Git operation -> Git command -> Git backend
+```
+
+各层职责如下：
+
+* GUI interaction：显示 Git 返回的仓库状态，并接收用户交互。
+* Git operation：抽象的 Git 操作，来表示用户交互。
+* Git command：具体的 Git CLI 调用。
+* Git backend：Git CLI 实际执行的环境，例如 Windows 或 WSL。Linux 和 macOS 理论上应保持兼容，但没测试。
+
+这样可以避免 backend 细节泄漏到 GUI 层，让同一套 UI 同时支持 native Windows Git 和 WSL Git。
+
+相较于上游 SourceGit，这个 fork 的主要改动包括：
+
+* 明确 GUI-operation-command-backend pipeline。
+* 引入 Git 执行的 backend/controller 层。
+* 增加 WSL path 处理和临时文件桥接，用于生成 WSL 可执行的 Git CLI。
+* 对会修改仓库状态的 GUI 操作自动 refresh，例如 commit、push、pull、checkout、branch、tag、stash、submodule、worktree 等。
+* 对当前 active repository 增加轻量级60s周期 refresh，用来捕获 GUI 外部的 Git 操作，或 filesystem notification 漏掉的变化。
+* 增加了手动refresh 按钮。
+
+取舍：
+
+* 仓库更新不再把 C# filesystem watcher 作为事实来源。这对 WSL 支持很重要，但 GUI 外部的 Git 操作可能不会第一时间反映到界面。
+* 需要养成手动 refresh 的习惯。
+
+该 fork 计划不定期跟踪主线更新，并用 AI 将主线代码变更合并进当前重构。
+
+## Build
+
+Requirements:
+
+* Git
+* .NET SDK 10.0.x
+* Initialized submodules： `git submodule update --init --recursive`
+
+Build:
+
+```sh
+dotnet build -c Release
+```
+
+---
+
 [![stars](https://img.shields.io/github/stars/sourcegit-scm/sourcegit.svg)](https://github.com/sourcegit-scm/sourcegit/stargazers)
 [![forks](https://img.shields.io/github/forks/sourcegit-scm/sourcegit.svg)](https://github.com/sourcegit-scm/sourcegit/forks)
 [![license](https://img.shields.io/github/license/sourcegit-scm/sourcegit.svg)](LICENSE)
