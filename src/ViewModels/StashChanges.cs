@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class StashChanges : Popup
+    public class StashChanges : RepositoryActionPopup
     {
         public string Message
         {
@@ -43,7 +43,7 @@ namespace SourceGit.ViewModels
             set => _repo.UIStates.ChangesAfterStashing = value;
         }
 
-        public StashChanges(Repository repo, List<Models.Change> selectedChanges)
+        public StashChanges(Repository repo, List<Models.Change> selectedChanges) : base(repo)
         {
             _repo = repo;
             _changes = selectedChanges;

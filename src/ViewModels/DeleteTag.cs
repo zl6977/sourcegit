@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class DeleteTag : Popup
+    public class DeleteTag : RepositoryActionPopup
     {
         public Models.Tag Target
         {
@@ -16,7 +16,7 @@ namespace SourceGit.ViewModels
             set => _repo.UIStates.PushToRemoteWhenDeleteTag = value;
         }
 
-        public DeleteTag(Repository repo, Models.Tag tag)
+        public DeleteTag(Repository repo, Models.Tag tag) : base(repo)
         {
             _repo = repo;
             Target = tag;

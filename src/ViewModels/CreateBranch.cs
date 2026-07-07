@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class CreateBranch : Popup
+    public class CreateBranch : RepositoryActionPopup
     {
         [Required(ErrorMessage = "Branch name is required!")]
         [RegularExpression(@"^[\w\-/\.#\+]+$", ErrorMessage = "Bad branch name format!")]
@@ -66,7 +66,7 @@ namespace SourceGit.ViewModels
             }
         }
 
-        public CreateBranch(Repository repo, Models.Branch branch)
+        public CreateBranch(Repository repo, Models.Branch branch) : base(repo)
         {
             _repo = repo;
             _baseOnRevision = branch.Head;
@@ -83,7 +83,7 @@ namespace SourceGit.ViewModels
             UpdateOverrideTip();
         }
 
-        public CreateBranch(Repository repo, Models.Commit commit)
+        public CreateBranch(Repository repo, Models.Commit commit) : base(repo)
         {
             _repo = repo;
             _baseOnRevision = commit.SHA;
@@ -97,7 +97,7 @@ namespace SourceGit.ViewModels
             UpdateOverrideTip();
         }
 
-        public CreateBranch(Repository repo, Models.Tag tag)
+        public CreateBranch(Repository repo, Models.Tag tag) : base(repo)
         {
             _repo = repo;
             _baseOnRevision = tag.SHA;

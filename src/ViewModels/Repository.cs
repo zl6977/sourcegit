@@ -15,6 +15,8 @@ namespace SourceGit.ViewModels
 {
     public class Repository : ObservableObject, Models.IRepository
     {
+        private static readonly TimeSpan PERIODIC_REFRESH_INTERVAL = TimeSpan.FromSeconds(60);
+
         public bool IsBare
         {
             get;
@@ -490,6 +492,7 @@ namespace SourceGit.ViewModels
             Preferences.Instance.PropertyChanged -= OnPreferenceChanged;
             _watcher?.Dispose();
             _autoFetchTimer?.Dispose();
+            _periodicRefreshTimer?.Dispose();
         }
 
         public void SendNotification(string message, bool isError = false)
@@ -611,6 +614,7 @@ namespace SourceGit.ViewModels
 
         public void RefreshAll()
         {
+            MarkRefreshed();
             RefreshCommits();
             RefreshBranches();
             RefreshTags();
@@ -623,6 +627,7 @@ namespace SourceGit.ViewModels
 
         public void RefreshLightweight()
         {
+            MarkRefreshed();
             RefreshCommits();
             RefreshBranches();
             RefreshWorktrees();
@@ -1861,6 +1866,14 @@ namespace SourceGit.ViewModels
             Dispatcher.UIThread.Post(async () => await AutoFetchOnUIThread());
         }
 
+        private void PeriodicRefreshByTimer(object sender)
+        {
+            if (_isClosed)
+                return;
+
+            Dispatcher.UIThread.Post(PeriodicRefreshOnUIThread);
+        }
+
         private void OnPreferenceChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName is nameof(Preferences.EnableAutoFetch) or nameof(Preferences.AutoFetchInterval))
@@ -1926,6 +1939,40 @@ namespace SourceGit.ViewModels
             }
         }
 
+        private void PeriodicRefreshOnUIThread()
+        {
+            try
+            {
+                if (_isClosed)
+                    return;
+
+                var launcher = App.GetLauncher();
+                var page = GetOwnerPage();
+                if (launcher?.ActivePage != page)
+                    return;
+
+                if (!CanCreatePopup())
+                    return;
+
+                if (_controller.HasIndexLock())
+                    return;
+
+                var now = DateTime.Now;
+                if (now - _lastRefreshTime < PERIODIC_REFRESH_INTERVAL)
+                    return;
+
+                RefreshLightweight();
+            }
+            catch
+            {
+                // Ignore timer refresh failures.
+            }
+            finally
+            {
+                ScheduleNextPeriodicRefresh();
+            }
+        }
+
         private void ScheduleNextAutoFetch()
         {
             if (_isClosed)
@@ -1945,6 +1992,25 @@ namespace SourceGit.ViewModels
 
             _autoFetchTimer ??= new Timer(AutoFetchByTimer, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
             _autoFetchTimer.Change(dueTime, Timeout.InfiniteTimeSpan);
+        }
+
+        private void MarkRefreshed()
+        {
+            _lastRefreshTime = DateTime.Now;
+            ScheduleNextPeriodicRefresh();
+        }
+
+        private void ScheduleNextPeriodicRefresh()
+        {
+            if (_isClosed)
+                return;
+
+            var dueTime = _lastRefreshTime.Add(PERIODIC_REFRESH_INTERVAL) - DateTime.Now;
+            if (dueTime < TimeSpan.FromSeconds(5))
+                dueTime = TimeSpan.FromSeconds(5);
+
+            _periodicRefreshTimer ??= new Timer(PeriodicRefreshByTimer, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            _periodicRefreshTimer.Change(dueTime, Timeout.InfiniteTimeSpan);
         }
 
         private void PruneLogs()
@@ -2000,6 +2066,8 @@ namespace SourceGit.ViewModels
         private bool _isAutoFetching = false;
         private Timer _autoFetchTimer = null;
         private DateTime _lastFetchTime = DateTime.MinValue;
+        private DateTime _lastRefreshTime = DateTime.MinValue;
+        private Timer _periodicRefreshTimer = null;
         private bool _isClosed = true;
 
         private Models.BisectState _bisectState = Models.BisectState.None;

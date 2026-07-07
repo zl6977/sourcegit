@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class DeleteRemote : Popup
+    public class DeleteRemote : RepositoryActionPopup
     {
         public Models.Remote Remote
         {
@@ -10,7 +10,7 @@ namespace SourceGit.ViewModels
             private set;
         }
 
-        public DeleteRemote(Repository repo, Models.Remote remote)
+        public DeleteRemote(Repository repo, Models.Remote remote) : base(repo)
         {
             _repo = repo;
             Remote = remote;

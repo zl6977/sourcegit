@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class SetSubmoduleBranch : Popup
+    public class SetSubmoduleBranch : RepositoryActionPopup
     {
         public Models.Submodule Submodule
         {
@@ -16,7 +16,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _changeTo, value);
         }
 
-        public SetSubmoduleBranch(Repository repo, Models.Submodule submodule)
+        public SetSubmoduleBranch(Repository repo, Models.Submodule submodule) : base(repo)
         {
             _repo = repo;
             _changeTo = submodule.Branch;

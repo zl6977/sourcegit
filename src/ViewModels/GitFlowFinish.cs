@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class GitFlowFinish : Popup
+    public class GitFlowFinish : RepositoryActionPopup
     {
         public Models.Branch Branch
         {
@@ -33,7 +33,7 @@ namespace SourceGit.ViewModels
             set;
         } = false;
 
-        public GitFlowFinish(Repository repo, Models.Branch branch, Models.GitFlowBranchType type)
+        public GitFlowFinish(Repository repo, Models.Branch branch, Models.GitFlowBranchType type) : base(repo)
         {
             _repo = repo;
             Branch = branch;

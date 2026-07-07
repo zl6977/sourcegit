@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class PushRevision : Popup
+    public class PushRevision : RepositoryActionPopup
     {
         public Models.Commit Revision
         {
@@ -21,7 +21,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public PushRevision(Repository repo, Models.Commit revision, Models.Branch remoteBranch)
+        public PushRevision(Repository repo, Models.Commit revision, Models.Branch remoteBranch) : base(repo)
         {
             _repo = repo;
             Revision = revision;

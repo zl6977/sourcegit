@@ -13,7 +13,7 @@ namespace SourceGit.ViewModels
         NoConflicts,
     }
 
-    public class Merge : Popup
+    public class Merge : RepositoryActionPopup
     {
         public object Source
         {
@@ -53,7 +53,7 @@ namespace SourceGit.ViewModels
             private set => SetProperty(ref _testingState, value);
         }
 
-        public Merge(Repository repo, Models.Branch source, string into, bool forceFastForward)
+        public Merge(Repository repo, Models.Branch source, string into, bool forceFastForward) : base(repo)
         {
             _repo = repo;
             _sourceName = source.FriendlyName;
@@ -66,7 +66,7 @@ namespace SourceGit.ViewModels
                 Test();
         }
 
-        public Merge(Repository repo, Models.Commit source, string into)
+        public Merge(Repository repo, Models.Commit source, string into) : base(repo)
         {
             _repo = repo;
             _sourceName = source.SHA;
@@ -78,7 +78,7 @@ namespace SourceGit.ViewModels
             Test();
         }
 
-        public Merge(Repository repo, Models.Tag source, string into)
+        public Merge(Repository repo, Models.Tag source, string into) : base(repo)
         {
             _repo = repo;
             _sourceName = source.Name;

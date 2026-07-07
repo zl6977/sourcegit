@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class CreateTag : Popup
+    public class CreateTag : RepositoryActionPopup
     {
         public object BasedOn
         {
@@ -52,7 +52,7 @@ namespace SourceGit.ViewModels
             set => _repo.UIStates.PushToRemoteWhenCreateTag = value;
         }
 
-        public CreateTag(Repository repo, Models.Branch branch)
+        public CreateTag(Repository repo, Models.Branch branch) : base(repo)
         {
             _repo = repo;
             _basedOn = branch.Head;
@@ -61,7 +61,7 @@ namespace SourceGit.ViewModels
             SignTag = new Commands.Config(repo.FullPath).Get("tag.gpgsign").Equals("true", StringComparison.OrdinalIgnoreCase);
         }
 
-        public CreateTag(Repository repo, Models.Commit commit)
+        public CreateTag(Repository repo, Models.Commit commit) : base(repo)
         {
             _repo = repo;
             _basedOn = commit.SHA;

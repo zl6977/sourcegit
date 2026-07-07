@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class FetchInto : Popup
+    public class FetchInto : RepositoryActionPopup
     {
         public Models.Branch Local
         {
@@ -14,7 +14,7 @@ namespace SourceGit.ViewModels
             get;
         }
 
-        public FetchInto(Repository repo, Models.Branch local, Models.Branch upstream)
+        public FetchInto(Repository repo, Models.Branch local, Models.Branch upstream) : base(repo)
         {
             _repo = repo;
             Local = local;

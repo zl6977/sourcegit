@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class CherryPick : Popup
+    public class CherryPick : RepositoryActionPopup
     {
         public List<Models.Commit> Targets
         {
@@ -42,7 +42,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public CherryPick(Repository repo, List<Models.Commit> targets)
+        public CherryPick(Repository repo, List<Models.Commit> targets) : base(repo)
         {
             _repo = repo;
             Targets = targets;
@@ -53,7 +53,7 @@ namespace SourceGit.ViewModels
             AutoCommit = true;
         }
 
-        public CherryPick(Repository repo, Models.Commit merge, List<Models.Commit> parents)
+        public CherryPick(Repository repo, Models.Commit merge, List<Models.Commit> parents) : base(repo)
         {
             _repo = repo;
             Targets = [merge];

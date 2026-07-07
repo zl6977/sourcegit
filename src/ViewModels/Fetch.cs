@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class Fetch : Popup
+    public class Fetch : RepositoryActionPopup
     {
         public List<Models.Remote> Remotes
         {
@@ -43,7 +43,7 @@ namespace SourceGit.ViewModels
             set => _repo.UIStates.EnableForceOnFetch = value;
         }
 
-        public Fetch(Repository repo, Models.Remote preferredRemote = null)
+        public Fetch(Repository repo, Models.Remote preferredRemote = null) : base(repo)
         {
             _repo = repo;
             IsFetchAllRemoteVisible = repo.Remotes.Count > 1 && preferredRemote == null;

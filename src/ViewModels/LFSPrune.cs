@@ -2,9 +2,9 @@
 
 namespace SourceGit.ViewModels
 {
-    public class LFSPrune : Popup
+    public class LFSPrune : RepositoryActionPopup
     {
-        public LFSPrune(Repository repo)
+        public LFSPrune(Repository repo) : base(repo)
         {
             _repo = repo;
         }

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class EditRemote : Popup
+    public class EditRemote : RepositoryActionPopup
     {
         [Required(ErrorMessage = "Remote name is required!!!")]
         [RegularExpression(@"^[\w\-\.]+$", ErrorMessage = "Bad remote name format!!!")]
@@ -44,7 +44,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _sshkey, value, true);
         }
 
-        public EditRemote(Repository repo, Models.Remote remote)
+        public EditRemote(Repository repo, Models.Remote remote) : base(repo)
         {
             _repo = repo;
             _remote = remote;

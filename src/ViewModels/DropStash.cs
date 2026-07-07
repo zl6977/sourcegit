@@ -2,11 +2,11 @@
 
 namespace SourceGit.ViewModels
 {
-    public class DropStash : Popup
+    public class DropStash : RepositoryActionPopup
     {
         public Models.Stash Stash { get; }
 
-        public DropStash(Repository repo, Models.Stash stash)
+        public DropStash(Repository repo, Models.Stash stash) : base(repo)
         {
             _repo = repo;
             Stash = stash;

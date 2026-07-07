@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class ChangeSubmoduleUrl : Popup
+    public class ChangeSubmoduleUrl : RepositoryActionPopup
     {
         public Models.Submodule Submodule
         {
@@ -19,7 +19,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _url, value, true);
         }
 
-        public ChangeSubmoduleUrl(Repository repo, Models.Submodule submodule)
+        public ChangeSubmoduleUrl(Repository repo, Models.Submodule submodule) : base(repo)
         {
             _repo = repo;
             _url = submodule.URL;

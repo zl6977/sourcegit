@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class Checkout : Popup
+    public class Checkout : RepositoryActionPopup
     {
         public string BranchName
         {
@@ -20,7 +20,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public Checkout(Repository repo, Models.Branch branch)
+        public Checkout(Repository repo, Models.Branch branch) : base(repo)
         {
             _repo = repo;
             _branch = branch;

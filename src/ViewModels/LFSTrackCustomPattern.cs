@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class LFSTrackCustomPattern : Popup
+    public class LFSTrackCustomPattern : RepositoryActionPopup
     {
         [Required(ErrorMessage = "LFS track pattern is required!!!")]
         public string Pattern
@@ -18,7 +18,7 @@ namespace SourceGit.ViewModels
             set;
         } = false;
 
-        public LFSTrackCustomPattern(Repository repo)
+        public LFSTrackCustomPattern(Repository repo) : base(repo)
         {
             _repo = repo;
         }

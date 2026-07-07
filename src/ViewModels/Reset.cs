@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class Reset : Popup
+    public class Reset : RepositoryActionPopup
     {
         public Models.Branch Current
         {
@@ -20,7 +20,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public Reset(Repository repo, Models.Branch current, Models.Commit to)
+        public Reset(Repository repo, Models.Branch current, Models.Commit to) : base(repo)
         {
             _repo = repo;
             Current = current;

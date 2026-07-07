@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class DeleteSubmodule : Popup
+    public class DeleteSubmodule : RepositoryActionPopup
     {
         public string Submodule
         {
@@ -10,7 +10,7 @@ namespace SourceGit.ViewModels
             private set;
         }
 
-        public DeleteSubmodule(Repository repo, string submodule)
+        public DeleteSubmodule(Repository repo, string submodule) : base(repo)
         {
             _repo = repo;
             Submodule = submodule;

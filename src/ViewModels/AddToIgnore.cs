@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class AddToIgnore : Popup
+    public class AddToIgnore : RepositoryActionPopup
     {
         public List<Models.GitIgnoreFile> StorageFiles
         {
@@ -29,7 +29,7 @@ namespace SourceGit.ViewModels
             }
         }
 
-        public AddToIgnore(Repository repo, string pattern)
+        public AddToIgnore(Repository repo, string pattern) : base(repo)
         {
             _repo = repo;
             _pattern = pattern;

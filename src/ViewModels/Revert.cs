@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class Revert : Popup
+    public class Revert : RepositoryActionPopup
     {
         public Models.Commit Target
         {
@@ -15,7 +15,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public Revert(Repository repo, Models.Commit target)
+        public Revert(Repository repo, Models.Commit target) : base(repo)
         {
             _repo = repo;
             Target = target;

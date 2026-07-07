@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class DeleteMultipleTags : Popup
+    public class DeleteMultipleTags : RepositoryActionPopup
     {
         public List<Models.Tag> Tags
         {
@@ -16,7 +16,7 @@ namespace SourceGit.ViewModels
             set;
         } = false;
 
-        public DeleteMultipleTags(Repository repo, List<Models.Tag> tags)
+        public DeleteMultipleTags(Repository repo, List<Models.Tag> tags) : base(repo)
         {
             _repo = repo;
             Tags = tags;

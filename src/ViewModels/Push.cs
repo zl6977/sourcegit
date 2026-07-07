@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class Push : Popup
+    public class Push : RepositoryActionPopup
     {
         public bool HasSpecifiedLocalBranch
         {
@@ -97,7 +97,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public Push(Repository repo, Models.Branch localBranch)
+        public Push(Repository repo, Models.Branch localBranch) : base(repo)
         {
             _repo = repo;
 

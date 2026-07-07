@@ -1,16 +1,16 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class DeleteMultipleBranches : Popup
+    public class DeleteMultipleBranches : RepositoryActionPopup
     {
         public List<Models.Branch> Targets
         {
             get;
         }
 
-        public DeleteMultipleBranches(Repository repo, List<Models.Branch> branches, bool isLocal)
+        public DeleteMultipleBranches(Repository repo, List<Models.Branch> branches, bool isLocal) : base(repo)
         {
             _repo = repo;
             _isLocal = isLocal;

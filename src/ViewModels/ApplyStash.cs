@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class ApplyStash : Popup
+    public class ApplyStash : RepositoryActionPopup
     {
         public Models.Stash Stash
         {
@@ -22,7 +22,7 @@ namespace SourceGit.ViewModels
             set;
         } = false;
 
-        public ApplyStash(Repository repo, Models.Stash stash)
+        public ApplyStash(Repository repo, Models.Stash stash) : base(repo)
         {
             _repo = repo;
             Stash = stash;

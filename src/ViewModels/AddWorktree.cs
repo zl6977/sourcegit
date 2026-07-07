@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class AddWorktree : Popup
+    public class AddWorktree : RepositoryActionPopup
     {
         [Required(ErrorMessage = "Worktree path is required!")]
         [CustomValidation(typeof(AddWorktree), nameof(ValidateWorktreePath))]
@@ -70,7 +70,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _selectedTrackingBranch, value);
         }
 
-        public AddWorktree(Repository repo)
+        public AddWorktree(Repository repo) : base(repo)
         {
             _repo = repo;
 

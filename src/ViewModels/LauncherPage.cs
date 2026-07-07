@@ -92,6 +92,7 @@ namespace SourceGit.ViewModels
                     var finished = await dump.Sure();
                     if (finished)
                     {
+                        dump.RefreshRepositoryAfterFinished()?.RefreshAll();
                         dump.Cleanup();
                         Popup = null;
                     }

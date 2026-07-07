@@ -2,14 +2,14 @@
 
 namespace SourceGit.ViewModels
 {
-    public class PruneRemote : Popup
+    public class PruneRemote : RepositoryActionPopup
     {
         public Models.Remote Remote
         {
             get;
         }
 
-        public PruneRemote(Repository repo, Models.Remote remote)
+        public PruneRemote(Repository repo, Models.Remote remote) : base(repo)
         {
             _repo = repo;
             Remote = remote;

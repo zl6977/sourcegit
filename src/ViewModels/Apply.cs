@@ -7,7 +7,7 @@ using Avalonia.Input.Platform;
 
 namespace SourceGit.ViewModels
 {
-    public class Apply : Popup
+    public class Apply : RepositoryActionPopup
     {
         [CustomValidation(typeof(Apply), nameof(ValidatePatchFile))]
         public string PatchFile
@@ -46,7 +46,7 @@ namespace SourceGit.ViewModels
             set;
         } = null;
 
-        public Apply(Repository repo)
+        public Apply(Repository repo) : base(repo)
         {
             _repo = repo;
             SelectedWhiteSpaceMode = Models.ApplyWhiteSpaceMode.Supported[0];

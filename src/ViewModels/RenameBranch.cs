@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class RenameBranch : Popup
+    public class RenameBranch : RepositoryActionPopup
     {
         public Models.Branch Target
         {
@@ -20,7 +20,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _name, value, true);
         }
 
-        public RenameBranch(Repository repo, Models.Branch target)
+        public RenameBranch(Repository repo, Models.Branch target) : base(repo)
         {
             _repo = repo;
             _name = target.Name;

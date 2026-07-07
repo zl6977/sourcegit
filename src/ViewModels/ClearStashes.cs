@@ -2,9 +2,9 @@
 
 namespace SourceGit.ViewModels
 {
-    public class ClearStashes : Popup
+    public class ClearStashes : RepositoryActionPopup
     {
-        public ClearStashes(Repository repo)
+        public ClearStashes(Repository repo) : base(repo)
         {
             _repo = repo;
         }

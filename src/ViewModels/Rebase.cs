@@ -13,7 +13,7 @@ namespace SourceGit.ViewModels
         NoConflicts,
     }
 
-    public class Rebase : Popup
+    public class Rebase : RepositoryActionPopup
     {
         public Models.Branch Current
         {
@@ -45,7 +45,7 @@ namespace SourceGit.ViewModels
             private set => SetProperty(ref _testingState, value);
         }
 
-        public Rebase(Repository repo, Models.Branch current, Models.Branch on)
+        public Rebase(Repository repo, Models.Branch current, Models.Branch on) : base(repo)
         {
             _repo = repo;
             _revision = on.Head;
@@ -56,7 +56,7 @@ namespace SourceGit.ViewModels
             Test();
         }
 
-        public Rebase(Repository repo, Models.Branch current, Models.Commit on)
+        public Rebase(Repository repo, Models.Branch current, Models.Commit on) : base(repo)
         {
             _repo = repo;
             _revision = on.SHA;

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class SetUpstream : Popup
+    public class SetUpstream : RepositoryActionPopup
     {
         public Models.Branch Local
         {
@@ -29,7 +29,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _unset, value);
         }
 
-        public SetUpstream(Repository repo, Models.Branch local, List<Models.Branch> remoteBranches)
+        public SetUpstream(Repository repo, Models.Branch local, List<Models.Branch> remoteBranches) : base(repo)
         {
             _repo = repo;
             Local = local;

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class Pull : Popup
+    public class Pull : RepositoryActionPopup
     {
         public List<Models.Remote> Remotes => _repo.Remotes;
         public Models.Branch Current { get; }
@@ -55,7 +55,7 @@ namespace SourceGit.ViewModels
             set => _repo.UIStates.PreferRebaseInsteadOfMerge = value;
         }
 
-        public Pull(Repository repo, Models.Branch specifiedRemoteBranch)
+        public Pull(Repository repo, Models.Branch specifiedRemoteBranch) : base(repo)
         {
             _repo = repo;
             Current = repo.CurrentBranch;

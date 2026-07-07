@@ -42,20 +42,20 @@ namespace SourceGit.ViewModels
         } = 0;
     }
 
-    public class Discard : Popup
+    public class Discard : RepositoryActionPopup
     {
         public object Mode
         {
             get;
         }
 
-        public Discard(Repository repo)
+        public Discard(Repository repo) : base(repo)
         {
             _repo = repo;
             Mode = new DiscardAllMode();
         }
 
-        public Discard(Repository repo, List<Models.Change> changes)
+        public Discard(Repository repo, List<Models.Change> changes) : base(repo)
         {
             _repo = repo;
             _changes = changes;

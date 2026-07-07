@@ -49,6 +49,11 @@ namespace SourceGit.ViewModels
             return null;
         }
 
+        public virtual Repository RefreshRepositoryAfterFinished()
+        {
+            return null;
+        }
+
         protected void Use(CommandLog log)
         {
             _log = log;
@@ -58,5 +63,20 @@ namespace SourceGit.ViewModels
         private bool _inProgress = false;
         private string _progressDescription = string.Empty;
         private CommandLog _log = null;
+    }
+
+    public class RepositoryActionPopup : Popup
+    {
+        protected RepositoryActionPopup(Repository repo)
+        {
+            _repo = repo;
+        }
+
+        public override Repository RefreshRepositoryAfterFinished()
+        {
+            return _repo;
+        }
+
+        private readonly Repository _repo;
     }
 }

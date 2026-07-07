@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class LFSFetch : Popup
+    public class LFSFetch : RepositoryActionPopup
     {
         public List<Models.Remote> Remotes => _repo.Remotes;
 
@@ -13,7 +13,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public LFSFetch(Repository repo)
+        public LFSFetch(Repository repo) : base(repo)
         {
             _repo = repo;
             SelectedRemote = _repo.Remotes[0];

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class CheckoutBranchFromStash : Popup
+    public class CheckoutBranchFromStash : RepositoryActionPopup
     {
         public Models.Stash Target
         {
@@ -20,7 +20,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _branchName, value, true);
         }
 
-        public CheckoutBranchFromStash(Repository repo, Models.Stash stash)
+        public CheckoutBranchFromStash(Repository repo, Models.Stash stash) : base(repo)
         {
             _repo = repo;
             Target = stash;

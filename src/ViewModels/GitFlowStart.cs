@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class GitFlowStart : Popup
+    public class GitFlowStart : RepositoryActionPopup
     {
         public Models.GitFlowBranchType Type
         {
@@ -32,7 +32,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _name, value, true);
         }
 
-        public GitFlowStart(Repository repo, Models.GitFlowBranchType type)
+        public GitFlowStart(Repository repo, Models.GitFlowBranchType type) : base(repo)
         {
             _repo = repo;
 

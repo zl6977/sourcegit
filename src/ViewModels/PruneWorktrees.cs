@@ -2,9 +2,9 @@
 
 namespace SourceGit.ViewModels
 {
-    public class PruneWorktrees : Popup
+    public class PruneWorktrees : RepositoryActionPopup
     {
-        public PruneWorktrees(Repository repo)
+        public PruneWorktrees(Repository repo) : base(repo)
         {
             _repo = repo;
         }

@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class MergeMultiple : Popup
+    public class MergeMultiple : RepositoryActionPopup
     {
         public List<object> Targets
         {
@@ -22,7 +22,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public MergeMultiple(Repository repo, List<Models.Commit> commits)
+        public MergeMultiple(Repository repo, List<Models.Commit> commits) : base(repo)
         {
             _repo = repo;
             Targets.AddRange(commits);
@@ -30,7 +30,7 @@ namespace SourceGit.ViewModels
             Strategy = Models.MergeStrategy.ForMultiple[0];
         }
 
-        public MergeMultiple(Repository repo, List<Models.Branch> branches)
+        public MergeMultiple(Repository repo, List<Models.Branch> branches) : base(repo)
         {
             _repo = repo;
             Targets.AddRange(branches);

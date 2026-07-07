@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class PushTag : Popup
+    public class PushTag : RepositoryActionPopup
     {
         public Models.Tag Target
         {
@@ -27,7 +27,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _pushAllRemotes, value);
         }
 
-        public PushTag(Repository repo, Models.Tag target)
+        public PushTag(Repository repo, Models.Tag target) : base(repo)
         {
             _repo = repo;
             Target = target;

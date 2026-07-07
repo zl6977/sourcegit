@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class UpdateSubmodules : Popup
+    public class UpdateSubmodules : RepositoryActionPopup
     {
         public bool HasPreSelectedSubmodule
         {
@@ -51,7 +51,7 @@ namespace SourceGit.ViewModels
             set;
         } = false;
 
-        public UpdateSubmodules(Repository repo, Models.Submodule selected)
+        public UpdateSubmodules(Repository repo, Models.Submodule selected) : base(repo)
         {
             _repo = repo;
 

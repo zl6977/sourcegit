@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public partial class InitGitFlow : Popup
+    public partial class InitGitFlow : RepositoryActionPopup
     {
         [GeneratedRegex(@"^[\w\-/\.]+$")]
         private static partial Regex REG_TAG_PREFIX();
@@ -60,7 +60,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _tagPrefix, value, true);
         }
 
-        public InitGitFlow(Repository repo)
+        public InitGitFlow(Repository repo) : base(repo)
         {
             _repo = repo;
 

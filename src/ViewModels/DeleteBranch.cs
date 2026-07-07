@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class DeleteBranch : Popup
+    public class DeleteBranch : RepositoryActionPopup
     {
         public Models.Branch Target
         {
@@ -17,7 +17,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public DeleteBranch(Repository repo, Models.Branch branch)
+        public DeleteBranch(Repository repo, Models.Branch branch) : base(repo)
         {
             _repo = repo;
             Target = branch;
@@ -50,7 +50,7 @@ namespace SourceGit.ViewModels
                         msgBuilder
                             .AppendLine(App.Text("DeleteBranch.AskForRemote"))
                             .AppendLine()
-                            .Append("• ").Append(tracking.FriendlyName);
+                            .Append("� ").Append(tracking.FriendlyName);
 
                         var deleteTracking = await App.AskConfirmAsync(msgBuilder.ToString(), Models.ConfirmButtonType.YesNo);
                         if (deleteTracking)

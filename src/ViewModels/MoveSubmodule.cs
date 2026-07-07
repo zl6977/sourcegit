@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class MoveSubmodule : Popup
+    public class MoveSubmodule : RepositoryActionPopup
     {
         public Models.Submodule Submodule
         {
@@ -18,7 +18,7 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _moveTo, value, true);
         }
 
-        public MoveSubmodule(Repository repo, Models.Submodule submodule)
+        public MoveSubmodule(Repository repo, Models.Submodule submodule) : base(repo)
         {
             _repo = repo;
             _moveTo = submodule.Path;

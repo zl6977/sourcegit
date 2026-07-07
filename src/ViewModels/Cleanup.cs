@@ -2,9 +2,9 @@
 
 namespace SourceGit.ViewModels
 {
-    public class Cleanup : Popup
+    public class Cleanup : RepositoryActionPopup
     {
-        public Cleanup(Repository repo)
+        public Cleanup(Repository repo) : base(repo)
         {
             _repo = repo;
         }

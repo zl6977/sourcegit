@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class CheckoutDetached : Popup
+    public class CheckoutDetached : RepositoryActionPopup
     {
         public object Target
         {
@@ -20,7 +20,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public CheckoutDetached(Repository repo, Models.Commit commit)
+        public CheckoutDetached(Repository repo, Models.Commit commit) : base(repo)
         {
             _repo = repo;
             _revision = commit.SHA;
@@ -31,7 +31,7 @@ namespace SourceGit.ViewModels
                 Models.DealWithLocalChanges.DoNothing;
         }
 
-        public CheckoutDetached(Repository repo, Models.Tag tag)
+        public CheckoutDetached(Repository repo, Models.Tag tag) : base(repo)
         {
             _repo = repo;
             _revision = tag.SHA;

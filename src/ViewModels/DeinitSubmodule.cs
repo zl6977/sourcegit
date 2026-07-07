@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class DeinitSubmodule : Popup
+    public class DeinitSubmodule : RepositoryActionPopup
     {
         public string Submodule
         {
@@ -16,7 +16,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public DeinitSubmodule(Repository repo, string submodule)
+        public DeinitSubmodule(Repository repo, string submodule) : base(repo)
         {
             _repo = repo;
             Submodule = submodule;

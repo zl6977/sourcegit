@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace SourceGit.ViewModels
 {
-    public class AddSubmodule : Popup
+    public class AddSubmodule : RepositoryActionPopup
     {
         [Required(ErrorMessage = "Url is required!!!")]
         [CustomValidation(typeof(AddSubmodule), nameof(ValidateURL))]
@@ -27,7 +27,7 @@ namespace SourceGit.ViewModels
             set;
         }
 
-        public AddSubmodule(Repository repo)
+        public AddSubmodule(Repository repo) : base(repo)
         {
             _repo = repo;
         }

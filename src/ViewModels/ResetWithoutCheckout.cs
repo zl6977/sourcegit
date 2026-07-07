@@ -2,7 +2,7 @@
 
 namespace SourceGit.ViewModels
 {
-    public class ResetWithoutCheckout : Popup
+    public class ResetWithoutCheckout : RepositoryActionPopup
     {
         public Models.Branch Target
         {
@@ -14,7 +14,7 @@ namespace SourceGit.ViewModels
             get;
         }
 
-        public ResetWithoutCheckout(Repository repo, Models.Branch target, Models.Branch to)
+        public ResetWithoutCheckout(Repository repo, Models.Branch target, Models.Branch to) : base(repo)
         {
             _repo = repo;
             _revision = to.Head;
@@ -22,7 +22,7 @@ namespace SourceGit.ViewModels
             To = to;
         }
 
-        public ResetWithoutCheckout(Repository repo, Models.Branch target, Models.Commit to)
+        public ResetWithoutCheckout(Repository repo, Models.Branch target, Models.Commit to) : base(repo)
         {
             _repo = repo;
             _revision = to.SHA;
