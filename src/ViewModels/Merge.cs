@@ -141,7 +141,7 @@ namespace SourceGit.ViewModels
                 return mode;
 
             var preferredMergeModeIdx = _repo.Settings.PreferredMergeMode;
-            if (preferredMergeModeIdx < 0 || preferredMergeModeIdx > Models.MergeMode.Supported.Length)
+            if (preferredMergeModeIdx < 0 || preferredMergeModeIdx >= Models.MergeMode.Supported.Length)
                 return Models.MergeMode.Default;
 
             return Models.MergeMode.Supported[preferredMergeModeIdx];

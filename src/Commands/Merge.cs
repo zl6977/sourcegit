@@ -9,7 +9,10 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
 
-            Args = ["merge", "--progress", edit ? "--edit" : "--no-edit", source, mode];
+            Args = ["merge", "--progress", edit ? "--edit" : "--no-edit"];
+            if (!string.IsNullOrEmpty(mode))
+                Args.Add(mode);
+            Args.Add(source);
         }
 
         public Merge(string repo, List<string> targets, bool autoCommit, string strategy)
