@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -15,7 +14,7 @@ namespace SourceGit.Commands
             if (isShared)
             {
                 var storage = $"{repo}/.issuetracker";
-                _isStorageFileExists = File.Exists(storage);
+                _isStorageFileExists = GitService.FileExists(storage);
                 _baseArgs = ["config", "-f", storage];
             }
             else

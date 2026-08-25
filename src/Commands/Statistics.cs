@@ -5,11 +5,19 @@ namespace SourceGit.Commands
 {
     public class Statistics : Command
     {
-        public Statistics(string repo, int max)
+        public Statistics(string repo, int max, Models.Branch specBranch)
         {
             WorkingDirectory = repo;
             Context = repo;
-            Args = ["log", "--date-order", "--branches", "--remotes", $"-{max}", "--format=%ct$%aN±%aE"];
+            Args = ["log", "--date-order", $"-{max}", "--format=%ct$%aN±%aE"];
+
+            if (specBranch == null || string.IsNullOrEmpty(specBranch.FullName))
+            {
+                Args.Add("--branches");
+                Args.Add("--remotes");
+            }
+            else
+                Args.Add(specBranch.FullName);
         }
 
         public async Task<Models.Statistics> ReadAsync()

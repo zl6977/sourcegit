@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Threading;
 
 using Avalonia;
@@ -209,7 +208,7 @@ namespace SourceGit.Views
                     menu.Items.Add(new MenuItem() { Header = "-" });
                     menu.Items.Add(delete);
                 }
-                else if (Directory.Exists(node.Id))
+                else if (ViewModels.RepositoryFileService.DirectoryExists(node.Id))
                 {
                     var open = new MenuItem();
                     open.Header = App.Text("Welcome.OpenOrInit");

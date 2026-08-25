@@ -97,7 +97,7 @@ namespace SourceGit.ViewModels
                 foreach (var subNode in SubNodes)
                     subNode.Open();
             }
-            else if (Directory.Exists(_id))
+            else if (Commands.GitService.DirectoryExists(_id))
             {
                 App.GetLauncher().OpenRepositoryInTab(this, null);
             }
@@ -126,13 +126,13 @@ namespace SourceGit.ViewModels
 
         public void OpenInFileManager()
         {
-            if (_isRepository && Directory.Exists(_id))
+            if (_isRepository && Commands.GitService.DirectoryExists(_id))
                 Native.OS.OpenInFileManager(_id);
         }
 
         public void OpenTerminal()
         {
-            if (_isRepository && Directory.Exists(_id))
+            if (_isRepository && Commands.GitService.DirectoryExists(_id))
                 Native.OS.OpenTerminal(_id);
         }
 

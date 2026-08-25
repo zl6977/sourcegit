@@ -48,7 +48,7 @@ namespace SourceGit.Commands
             return await ExecAsync().ConfigureAwait(false);
         }
 
-        public async Task<bool> StartAsync(Models.GitFlowBranchType type, string name)
+        public async Task<bool> StartAsync(Models.GitFlowBranchType type, string name, Models.Branch based)
         {
             switch (type)
             {
@@ -65,6 +65,9 @@ namespace SourceGit.Commands
                     RaiseException("Bad git-flow branch type!!!");
                     return false;
             }
+
+            if (based != null)
+                Args.Add(based.Name);
 
             return await ExecAsync().ConfigureAwait(false);
         }

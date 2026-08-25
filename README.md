@@ -24,13 +24,14 @@ Compared with upstream SourceGit, this fork mainly changes:
 * An explicit GUI-operation-command-backend pipeline.
 * A backend/controller layer for Git execution.
 * WSL path handling and temporary-file bridging to generate Git CLI invocations that can run in WSL.
+* Batched WSL execution: state queries for WSL repositories are merged into a single wsl.exe call per refresh tick.
 * Automatic refresh after GUI actions that mutate repository state, such as commit, push, pull, checkout, branch, tag, stash, submodule, and worktree operations.
-* Lightweight 60s periodic refresh for the active repository, used to catch external Git changes or missed filesystem notifications.
+* Lightweight 30s periodic refresh for the active repository only, used to catch external Git changes.
 * A manual refresh button.
 
 Trade-offs:
 
-* Repository updates no longer rely on the C# filesystem watcher as the source of truth. This is important for WSL support, but changes made outside the GUI may not appear immediately.
+* No C# filesystem watcher is used at all (important for WSL support). External changes are picked up by the 30s polling of the active repository, so they may not appear immediately.
 * Get used to using manual refresh.
 
 This fork plans to track upstream changes from time to time, using AI assistance to merge upstream code changes into this refactor.
@@ -59,13 +60,14 @@ GUI interaction -> Git operation -> Git command -> Git backend
 * 明确 GUI-operation-command-backend pipeline。
 * 引入 Git 执行的 backend/controller 层。
 * 增加 WSL path 处理和临时文件桥接，用于生成 WSL 可执行的 Git CLI。
+* 批量 WSL 执行：WSL 仓库的状态查询在每次 refresh tick 合并为单次 wsl.exe 调用。
 * 对会修改仓库状态的 GUI 操作自动 refresh，例如 commit、push、pull、checkout、branch、tag、stash、submodule、worktree 等。
-* 对当前 active repository 增加轻量级60s周期 refresh，用来捕获 GUI 外部的 Git 操作，或 filesystem notification 漏掉的变化。
+* 对当前 active repository 增加轻量级 30s 周期 refresh，用来捕获 GUI 外部的 Git 操作。
 * 增加了手动refresh 按钮。
 
 取舍：
 
-* 仓库更新不再把 C# filesystem watcher 作为事实来源。这对 WSL 支持很重要，但 GUI 外部的 Git 操作可能不会第一时间反映到界面。
+* 完全不使用 C# filesystem watcher（这对 WSL 支持很重要）。GUI 外部的 Git 操作靠当前仓库的 30s 轮询捕获，可能不会第一时间反映到界面。
 * 需要养成手动 refresh 的习惯。
 
 该 fork 计划不定期跟踪主线更新，并用 AI 将主线代码变更合并进当前重构。

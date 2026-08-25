@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Threading.Tasks;
 
 namespace SourceGit.Commands
 {
@@ -104,12 +103,6 @@ namespace SourceGit.Commands
             return GitService.ReadFile(path, FullPath);
         }
 
-        public string ReadGitCommonDirFile(string fileName)
-        {
-            var path = Path.Combine(_gitCommonDir, fileName);
-            return GitService.ReadFile(path, FullPath);
-        }
-
         public void WriteGitDirFile(string fileName, string content)
         {
             var path = Path.Combine(GitDir, fileName);
@@ -144,36 +137,6 @@ namespace SourceGit.Commands
         {
             var path = Path.Combine(GitDir, fileName);
             return GitService.OpenRead(path, FullPath);
-        }
-
-        public async Task<string> ReadFileAsync(string repoRelativePath)
-        {
-            var path = Path.Combine(FullPath, repoRelativePath);
-            return await System.IO.File.ReadAllTextAsync(path);
-        }
-
-        public async Task WriteFileAsync(string repoRelativePath, string content)
-        {
-            var path = Path.Combine(FullPath, repoRelativePath);
-            await System.IO.File.WriteAllTextAsync(path, content);
-        }
-
-        public async Task AppendAllTextAsync(string repoRelativePath, string content)
-        {
-            var path = Path.Combine(FullPath, repoRelativePath);
-            await System.IO.File.AppendAllTextAsync(path, content);
-        }
-
-        public async Task WriteAllLinesAsync(string repoRelativePath, System.Collections.Generic.IEnumerable<string> lines)
-        {
-            var path = Path.Combine(FullPath, repoRelativePath);
-            await System.IO.File.WriteAllLinesAsync(path, lines);
-        }
-
-        public long GetFileSize(string repoRelativePath)
-        {
-            var path = Path.Combine(FullPath, repoRelativePath);
-            return new System.IO.FileInfo(path).Length;
         }
 
         public Stream OpenRead(string repoRelativePath)
@@ -276,21 +239,5 @@ namespace SourceGit.Commands
 
         #endregion
 
-        #region Directory Operations
-
-        public string ResolvePath(string relativePath)
-        {
-            var fullpath = Path.Combine(FullPath, relativePath);
-            if (OperatingSystem.IsWindows())
-                return fullpath.Replace('/', '\\');
-            return fullpath;
-        }
-
-        public string NormalizePath(string path)
-        {
-            return path.Replace('\\', '/').TrimEnd('/');
-        }
-
-        #endregion
     }
 }

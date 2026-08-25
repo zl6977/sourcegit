@@ -1,6 +1,5 @@
 using System;
 using System.Diagnostics;
-using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -33,7 +32,7 @@ namespace SourceGit.Views
                 initDir = preference.GitDefaultCloneDir;
 
             var options = new FolderPickerOpenOptions() { AllowMultiple = false };
-            if (Directory.Exists(initDir))
+            if (ViewModels.RepositoryFileService.DirectoryExists(initDir))
             {
                 var folder = await topLevel.StorageProvider.TryGetFolderFromPathAsync(initDir);
                 options.SuggestedStartLocation = folder;

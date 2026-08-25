@@ -30,16 +30,5 @@ namespace SourceGit.ViewModels
             return new Commands.Config(null).SetAsync(key, value);
         }
 
-        public static async Task SetGlobalIfChangedAsync(Dictionary<string, string> cached, string key, string value, string defaultValue)
-        {
-            bool changed = false;
-            if (cached.TryGetValue(key, out var old))
-                changed = old != value;
-            else if (!string.IsNullOrEmpty(value) && value != defaultValue)
-                changed = true;
-
-            if (changed)
-                await SetGlobalAsync(key, value);
-        }
     }
 }

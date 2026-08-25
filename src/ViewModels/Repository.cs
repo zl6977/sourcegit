@@ -464,6 +464,15 @@ namespace SourceGit.ViewModels
 
         public void Open()
         {
+            try
+            {
+                _watcher = new Models.Watcher(this, FullPath);
+            }
+            catch (Exception ex)
+            {
+                SendNotification($"Failed to start watcher for repository: '{FullPath}'. You may need to press 'F5' to refresh repository manually!\n\nReason: {ex.Message}", true);
+            }
+
             _isClosed = false;
             _historyFilterMode = _uiStates.GetHistoryFilterMode();
             _histories = new Histories(this);
@@ -475,6 +484,19 @@ namespace SourceGit.ViewModels
             Preferences.Instance.PropertyChanged += OnPreferenceChanged;
             ScheduleNextAutoFetch();
             RefreshLightweight();
+        }
+
+        public bool IsActive()
+        {
+            var launcher = App.GetLauncher();
+            if (launcher == null)
+                return false;
+
+            var page = GetOwnerPage();
+            if (page == null)
+                return false;
+
+            return launcher.ActivePage == page;
         }
 
         public void Close()

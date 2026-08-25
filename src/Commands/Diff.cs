@@ -101,7 +101,7 @@ _ = proc.StandardError.ReadToEndAsync();
             }
             finally { proc?.Dispose(); }
 
-            if (_isLFS || _result.IsBinary || _result.TextDiff.Lines.Count == 0)
+            if (_result.IsLFS || _result.IsBinary || _result.TextDiff.Lines.Count == 0)
             {
                 _result.TextDiff = null;
             }
@@ -288,7 +288,7 @@ _ = proc.StandardError.ReadToEndAsync();
 
         private bool ParseLFSChange(char prefix, string content)
         {
-            if (_isLFS)
+            if (_result.IsLFS)
             {
                 if (prefix == PREFIX_DELETED)
                 {
@@ -318,7 +318,7 @@ _ = proc.StandardError.ReadToEndAsync();
             {
                 if (content.StartsWith(LFS_SPECIFIER, StringComparison.Ordinal))
                 {
-                    _isLFS = true;
+                    _result.IsLFS = true;
                     _result.LFSDiff = new Models.LFSDiff();
                     return true;
                 }
@@ -374,6 +374,5 @@ _ = proc.StandardError.ReadToEndAsync();
         private int _oldLine = 0;
         private int _newLine = 0;
         private bool _isInChunk = false;
-        private bool _isLFS = false;
     }
 }

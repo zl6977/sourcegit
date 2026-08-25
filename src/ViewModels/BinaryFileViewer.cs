@@ -41,7 +41,7 @@ namespace SourceGit.ViewModels
             }
             else
             {
-                Content = new Models.BinaryFile(Path.Combine(_repo, _file), false);
+                Content = new Models.BinaryFile(Commands.GitService.OpenRead(Path.Combine(_repo, _file), _repo));
             }
 
             IsLoading = false;

@@ -362,14 +362,14 @@ namespace SourceGit
 
             var repo = test.StdOut.Trim();
             var relativePath = Path.GetRelativePath(repo, fullPath).Replace('\\', '/');
-            if (File.Exists(fullPath))
+            if (Commands.GitService.FileExists(fullPath))
             {
                 desktop.MainWindow = new Views.FileHistories()
                 {
                     DataContext = new ViewModels.FileHistories(repo, relativePath)
                 };
             }
-            else if (Directory.Exists(fullPath))
+            else if (Commands.GitService.DirectoryExists(fullPath))
             {
                 desktop.MainWindow = new Views.DirHistories()
                 {
@@ -491,7 +491,7 @@ namespace SourceGit
             if (desktop.Args is { Length: 1 })
             {
                 var arg = desktop.Args[0].Replace('\\', '/').TrimEnd('/').Trim('\"').Trim();
-                if (Directory.Exists(arg))
+                if (Commands.GitService.DirectoryExists(arg))
                     startupRepo = arg;
             }
 

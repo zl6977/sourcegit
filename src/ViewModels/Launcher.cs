@@ -45,6 +45,12 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _commandPalette, value);
         }
 
+        public Models.Version NewVersion
+        {
+            get => _newVersion;
+            set => SetProperty(ref _newVersion, value);
+        }
+
         string[] _deferredRepos = null;
         string _deferredStartupRepo = null;
 
@@ -501,5 +507,6 @@ namespace SourceGit.ViewModels
         private bool _ignoreIndexChange;
         private string _title = string.Empty;
         private ICommandPalette _commandPalette;
+        private Models.Version _newVersion = null;
     }
 }

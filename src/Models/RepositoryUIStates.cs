@@ -120,12 +120,6 @@ namespace SourceGit.Models
             set;
         } = true;
 
-        public bool CheckSubmodulesOnPush
-        {
-            get;
-            set;
-        } = true;
-
         public bool PushAllTags
         {
             get;
@@ -229,6 +223,18 @@ namespace SourceGit.Models
         } = string.Empty;
 
         public AvaloniaList<HistoryFilter> HistoryFilters
+        {
+            get;
+            set;
+        } = [];
+
+        public bool IsHistoryFiltersCollapsed
+        {
+            get;
+            set;
+        } = false;
+
+        public List<string> RecentCommitMessages
         {
             get;
             set;
@@ -490,6 +496,26 @@ namespace SourceGit.Models
             args.AddRange(excludedTags);
 
             args.Add("--tags");
+        }
+
+        public void AddRecentCommitMessage(string message)
+        {
+            message = message.Trim().ReplaceLineEndings("\n");
+            var existIdx = RecentCommitMessages.IndexOf(message);
+            if (existIdx == 0)
+                return;
+
+            if (existIdx > 0)
+            {
+                RecentCommitMessages.RemoveAt(existIdx);
+                RecentCommitMessages.Insert(0, message);
+                return;
+            }
+
+            if (RecentCommitMessages.Count > 9)
+                RecentCommitMessages.RemoveRange(9, RecentCommitMessages.Count - 9);
+
+            RecentCommitMessages.Insert(0, message);
         }
 
         private string _file = string.Empty;

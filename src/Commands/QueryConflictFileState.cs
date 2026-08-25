@@ -12,7 +12,8 @@ namespace SourceGit.Commands
 
             WorkingDirectory = repo;
             Context = repo;
-            Args = $"diff --no-color --no-ext-diff --no-textconv --full-index --patch {opt}";
+            Args = ["diff", "--no-color", "--no-ext-diff", "--no-textconv", "--full-index", "--patch"];
+            Args.AddRange(opt.ToArgs());
         }
 
         public async Task<Models.ConflictFileState> GetResultAsync()

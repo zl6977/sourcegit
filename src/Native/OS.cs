@@ -315,7 +315,6 @@ namespace SourceGit.Native
             start.RedirectStandardOutput = true;
             start.RedirectStandardError = false;
             start.StandardOutputEncoding = Encoding.UTF8;
-            start.StandardErrorEncoding = Encoding.UTF8;
 
             try
             {
@@ -362,7 +361,6 @@ namespace SourceGit.Native
             start.RedirectStandardOutput = true;
             start.RedirectStandardError = false;
             start.StandardOutputEncoding = Encoding.UTF8;
-            start.StandardErrorEncoding = Encoding.UTF8;
 
             GitFlowVersion = Models.GitFlowVersion.None;
 

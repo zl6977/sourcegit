@@ -1,14 +1,13 @@
 using System;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
-
 
 namespace SourceGit.Models
 {
     /// <summary>
-    /// Monitors repository changes via polling instead of filesystem events.
-    /// This works uniformly for both Windows and WSL repositories.
+    /// Monitors repository changes by polling the git state every 30 seconds.
+    /// Only the currently visible repository is polled; use the manual refresh
+    /// (F5) for real-time updates. All queries are translated to CLI and executed
+    /// through the git backend (a single batched WSL invocation for WSL repositories).
     /// </summary>
     public class Watcher : IDisposable
     {
@@ -25,21 +24,24 @@ namespace SourceGit.Models
                 Interlocked.Decrement(ref _target._lockCount);
             }
 
-            private Watcher _target;
+            private Watcher _target = null;
         }
 
         /// <summary>
         /// Polling interval in milliseconds.
         /// </summary>
-        private const int POLL_INTERVAL_MS = 1000;
+        private const int POLL_INTERVAL_MS = 30000;
 
-        public Watcher(IRepository repo, string fullpath, string gitDir)
+        public Watcher(IRepository repo, string fullpath)
         {
             _repo = repo;
             _repoPath = fullpath;
 
-            // Initialize baseline on first tick to avoid blocking startup
-            _needInit = true;
+            if (WslRepositoryPath.TryParse(fullpath, out var wslPath))
+            {
+                _isWsl = true;
+                _wslPath = wslPath;
+            }
 
             _timer = new Timer(Tick, null, POLL_INTERVAL_MS, POLL_INTERVAL_MS);
         }
@@ -70,6 +72,19 @@ namespace SourceGit.Models
             if (Interlocked.Read(ref _lockCount) > 0)
                 return;
 
+            // Only the currently visible repository is polled.
+            bool isActive;
+            try
+            {
+                isActive = _repo.IsActive();
+            }
+            catch
+            {
+                isActive = false;
+            }
+            if (!isActive)
+                return;
+
             // Prevent concurrent timer ticks - if a previous tick is still running, skip this one
             if (Interlocked.Exchange(ref _isRunning, 1) == 1)
                 return;
@@ -90,25 +105,39 @@ namespace SourceGit.Models
 
         private void CheckForChanges()
         {
+            string headHash, indexHash, stashHash, refHash;
+            bool hasWCChanges;
+
+            if (_isWsl)
+                (headHash, indexHash, stashHash, refHash, hasWCChanges) = QueryWslState();
+            else
+            {
+                headHash = QueryHeadHash();
+                indexHash = QueryIndexHash();
+                stashHash = QueryStashHash();
+                refHash = QueryRefHash();
+                hasWCChanges = QueryHasWorkingCopyChanges();
+            }
+
             // First tick: initialize baseline values
             if (_needInit)
             {
-                _previousHeadHash = QueryHeadHash();
-                _previousIndexHash = QueryIndexHash();
-                _previousStashHash = QueryStashHash();
-                _previousTagCount = QueryTagCount();
+                _previousHeadHash = headHash;
+                _previousIndexHash = indexHash;
+                _previousStashHash = stashHash;
+                _previousRefHash = refHash;
                 _needInit = false;
                 return;
             }
 
             var refreshCommits = false;
             var refreshSubmodules = false;
+
             // Check if HEAD changed (branch/commit)
-            var currentHeadHash = QueryHeadHash();
-            if (!string.Equals(currentHeadHash, _previousHeadHash, StringComparison.Ordinal))
+            if (!string.Equals(headHash, _previousHeadHash, StringComparison.Ordinal))
             {
                 refreshCommits = true;
-                _previousHeadHash = currentHeadHash;
+                _previousHeadHash = headHash;
                 _repo.RefreshBranches();
                 _repo.RefreshWorktrees();
 
@@ -116,20 +145,29 @@ namespace SourceGit.Models
                     refreshSubmodules = true;
             }
 
-            // Check if index changed
-            var currentIndexHash = QueryIndexHash();
-            if (!string.Equals(currentIndexHash, _previousIndexHash, StringComparison.Ordinal))
+            // Check if branches or tags changed
+            if (!string.Equals(refHash, _previousRefHash, StringComparison.Ordinal))
             {
-                _previousIndexHash = currentIndexHash;
+                _previousRefHash = refHash;
+                _repo.RefreshBranches();
+                _repo.RefreshWorktrees();
+                _repo.RefreshTags();
+
+                if (_repo.MayHaveSubmodules())
+                    refreshSubmodules = true;
+                refreshCommits = true;
+            }
+
+            // Check if index changed
+            if (!string.Equals(indexHash, _previousIndexHash, StringComparison.Ordinal))
+            {
+                _previousIndexHash = indexHash;
                 _repo.RefreshWorkingCopyChanges();
             }
 
             // Check if working copy changed
-            if (!refreshCommits)
-            {
-                if (QueryHasWorkingCopyChanges())
-                    _repo.RefreshWorkingCopyChanges();
-            }
+            else if (!refreshCommits && hasWCChanges)
+                _repo.RefreshWorkingCopyChanges();
 
             // Check if submodules changed
             if (refreshSubmodules || _submoduleUpdated)
@@ -139,20 +177,10 @@ namespace SourceGit.Models
             }
 
             // Check if stash changed
-            var currentStashHash = QueryStashHash();
-            if (!string.Equals(currentStashHash, _previousStashHash, StringComparison.Ordinal))
+            if (!string.Equals(stashHash, _previousStashHash, StringComparison.Ordinal))
             {
-                _previousStashHash = currentStashHash;
+                _previousStashHash = stashHash;
                 _repo.RefreshStashes();
-            }
-
-            // Check if tags changed
-            var currentTagCount = QueryTagCount();
-            if (currentTagCount != _previousTagCount)
-            {
-                _previousTagCount = currentTagCount;
-                _repo.RefreshTags();
-                refreshCommits = true;
             }
 
             // Check for externally modified branches
@@ -205,16 +233,16 @@ namespace SourceGit.Models
             }
         }
 
-        private int QueryTagCount()
+        private string QueryRefHash()
         {
             try
             {
-                var result = new Commands.GitQuery(_repoPath, "tag", "-l").GetResult();
-                return result.Split('\n', System.StringSplitOptions.RemoveEmptyEntries).Length;
+                var result = new Commands.GitQuery(_repoPath, "for-each-ref", "refs/heads/", "refs/remotes/", "refs/tags", "--format=%(refname)").GetResult();
+                return GetQuickHash(result);
             }
             catch
             {
-                return 0;
+                return string.Empty;
             }
         }
 
@@ -222,12 +250,38 @@ namespace SourceGit.Models
         {
             try
             {
-                var exitCode = new Commands.GitQuery(_repoPath, "diff-index", "--quiet", "HEAD", "--").GetExitCode();
-                return exitCode != 0;
+                return new Commands.GitQuery(_repoPath, "diff-index", "--quiet", "HEAD", "--").GetExitCode() != 0;
             }
             catch
             {
                 return false;
+            }
+        }
+
+        private (string, string, string, string, bool) QueryWslState()
+        {
+            try
+            {
+                using var batch = new Commands.WslBatchExecutor(_wslPath);
+                var results = batch.Execute(
+                [
+                    ["rev-parse", "--verify", "HEAD"],
+                    ["ls-files", "--stage"],
+                    ["rev-parse", "--verify", "refs/stash"],
+                    ["for-each-ref", "refs/heads/", "refs/remotes/", "refs/tags", "--format=%(refname)"],
+                    ["status", "--porcelain"],
+                ]);
+
+                return (
+                    results[0]?.Trim() ?? string.Empty,
+                    string.IsNullOrEmpty(results[1]) ? string.Empty : GetQuickHash(results[1]),
+                    results[2]?.Trim() ?? string.Empty,
+                    GetQuickHash(results[3] ?? string.Empty),
+                    !string.IsNullOrEmpty(results[4]));
+            }
+            catch
+            {
+                return (string.Empty, string.Empty, string.Empty, string.Empty, false);
             }
         }
 
@@ -247,14 +301,15 @@ namespace SourceGit.Models
 
         private readonly IRepository _repo;
         private readonly string _repoPath;
-        private bool _needInit = true;
+        private readonly bool _isWsl;
+        private readonly WslRepositoryPath _wslPath = null;
         private Timer _timer;
 
+        private bool _needInit = true;
         private string _previousHeadHash = string.Empty;
         private string _previousIndexHash = string.Empty;
         private string _previousStashHash = string.Empty;
-        private int _previousTagCount;
-
+        private string _previousRefHash = string.Empty;
         private bool _branchUpdated;
         private bool _submoduleUpdated;
 

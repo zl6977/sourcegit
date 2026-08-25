@@ -24,7 +24,7 @@ namespace SourceGit.Commands
 
         public async Task<Models.RevisionSubmodule> GetResultAsync()
         {
-            Args = $"show --no-show-signature --decorate=full --format=%H%x00%P%x00%D%x00%aN±%aE%x00%at%x00%cN±%cE%x00%ct%x00%s%x00%B -s {_revision}";
+            Args = ["show", "--no-show-signature", "--decorate=full", "--format=%H%x00%P%x00%D%x00%aN±%aE%x00%at%x00%cN±%cE%x00%ct%x00%s%x00%B", "-s", _revision];
 
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             if (!rs.IsSuccess || string.IsNullOrEmpty(rs.StdOut))

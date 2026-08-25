@@ -28,11 +28,16 @@ namespace SourceGit.Commands
             CleanUp();
         }
 
+        public string[] Execute(IReadOnlyList<IReadOnlyList<string>> commands)
+        {
+            return ExecuteAsync(commands).GetAwaiter().GetResult();
+        }
+
         public async Task<string[]> ExecuteAsync(IReadOnlyList<IReadOnlyList<string>> commands)
         {
             var script = BuildScript(commands);
             _tmpFile = Path.Combine(Path.GetTempPath(), $"sourcegit_wsl_{Guid.NewGuid():N}.sh");
-            File.WriteAllText(_tmpFile, script, Encoding.UTF8);
+            File.WriteAllText(_tmpFile, script, new System.Text.UTF8Encoding(false));
 
             try
             {
@@ -49,7 +54,7 @@ namespace SourceGit.Commands
                     {
                         "-d", _wslPath.Distro,
                         "--exec", "bash",
-                        $"/{WslPathFromWin(_tmpFile)}",
+                        WslPathFromWin(_tmpFile),
                     },
                 };
 
@@ -75,16 +80,16 @@ namespace SourceGit.Commands
         private string BuildScript(IReadOnlyList<IReadOnlyList<string>> commands)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("#!/bin/bash");
-            sb.AppendLine($"cd {_wslPath.LinuxPath}");
+            sb.Append("#!/bin/bash\n");
+            sb.Append($"cd {_wslPath.LinuxPath}\n");
 
             for (var i = 0; i < commands.Count; i++)
             {
                 sb.Append("git --no-pager -c core.quotepath=off");
                 foreach (var arg in commands[i])
                     sb.Append(" ").Append(EscapeBash(arg));
-                sb.AppendLine();
-                sb.AppendLine("printf '\\0\\0\\0\\0\\0\\0\\0\\0'");
+                sb.Append("\n");
+                sb.Append("printf '\\0\\0\\0\\0\\0\\0\\0\\0'\n");
             }
 
             return sb.ToString();
@@ -112,9 +117,14 @@ namespace SourceGit.Commands
 
         private static string WslPathFromWin(string winPath)
         {
-            var drive = char.ToLowerInvariant(winPath[0]);
-            var rest = winPath.Substring(3).Replace('\\', '/');
-            return $"{drive}/{rest}";
+            if (winPath.Length >= 3 && char.IsLetter(winPath[0]) && winPath[1] == ':')
+            {
+                var drive = char.ToLowerInvariant(winPath[0]);
+                var rest = winPath.Substring(3).Replace('\\', '/');
+                return $"/mnt/{drive}/{rest}";
+            }
+
+            return winPath.Replace('\\', '/');
         }
 
         private void CleanUp()

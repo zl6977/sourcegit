@@ -17,16 +17,27 @@ namespace SourceGit.Models
 
             if (File.Exists(_filePath))
             {
-                _size = new FileInfo(_filePath).Length;
                 _reader = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read, BUFFER_SIZE, FileOptions.RandomAccess);
-                _readedStart = 0;
-                _readedEnd = Math.Min(_size, BUFFER_SIZE);
+                Init();
+            }
+        }
 
-                if (_size > 0)
-                {
-                    _reader.Seek(_readedStart, SeekOrigin.Begin);
-                    _reader.ReadExactly(_buffer, 0, (int)_readedEnd);
-                }
+        public BinaryFile(Stream reader)
+        {
+            _reader = reader;
+            Init();
+        }
+
+        private void Init()
+        {
+            _size = _reader.Length;
+            _readedStart = 0;
+            _readedEnd = Math.Min(_size, BUFFER_SIZE);
+
+            if (_size > 0)
+            {
+                _reader.Seek(_readedStart, SeekOrigin.Begin);
+                _reader.ReadExactly(_buffer, 0, (int)_readedEnd);
             }
         }
 
@@ -66,7 +77,7 @@ namespace SourceGit.Models
 
         private string _filePath = string.Empty;
         private bool _needDeleteFile = false;
-        private FileStream _reader = null;
+        private Stream _reader = null;
         private long _size = 0;
         private long _readedStart = 0;
         private long _readedEnd = 0;

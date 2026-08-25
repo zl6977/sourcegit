@@ -73,6 +73,7 @@ namespace SourceGit.Commands
             var start = GitService.CreateStartInfo(cmd, true);
             start.WindowStyle = ProcessWindowStyle.Hidden;
             start.RedirectStandardError = false;
+            start.StandardErrorEncoding = null;
             return start;
         }
     }
