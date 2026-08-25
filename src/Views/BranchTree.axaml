@@ -112,7 +112,7 @@
               </StackPanel>
             </DataTemplate>
           </Border.DataTemplates>
-          
+
           <Grid Height="24"
                 Margin="{Binding Depth, Converter={x:Static c:IntConverters.ToTreeMargin}}"
                 ColumnDefinitions="16,*">

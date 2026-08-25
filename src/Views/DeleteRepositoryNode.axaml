@@ -21,7 +21,7 @@
                  Text="{DynamicResource Text.DeleteRepositoryNode.TitleForRepository}"
                  IsVisible="{Binding Node.IsRepository}"/>
     </StackPanel>
-    
+
 
     <Grid Margin="0,16,8,0" RowDefinitions="32,Auto,32" ColumnDefinitions="120,*">
       <TextBlock Grid.Row="0" Grid.Column="0"

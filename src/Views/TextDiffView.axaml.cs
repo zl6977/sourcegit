@@ -1009,6 +1009,8 @@ namespace SourceGit.Views
         {
             base.OnLoaded(e);
 
+            ApplyTemplate();
+
             _scrollViewer = this.FindDescendantOfType<ScrollViewer>();
             if (_scrollViewer != null)
             {
@@ -1047,7 +1049,6 @@ namespace SourceGit.Views
                     builder.Append('\n');
                 }
 
-                builder.Length--;
                 Text = builder.ToString();
             }
             else
@@ -1195,6 +1196,8 @@ namespace SourceGit.Views
         {
             base.OnLoaded(e);
 
+            ApplyTemplate();
+
             _scrollViewer = this.FindDescendantOfType<ScrollViewer>();
             if (_scrollViewer != null)
             {
@@ -1238,7 +1241,6 @@ namespace SourceGit.Views
                     builder.Append('\n');
                 }
 
-                builder.Length--;
                 Text = builder.ToString();
             }
             else

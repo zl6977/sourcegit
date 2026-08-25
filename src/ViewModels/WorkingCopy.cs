@@ -231,13 +231,45 @@ namespace SourceGit.ViewModels
 
         public void SetData(List<Models.Change> changes)
         {
-            if (!IsChanged(_cached, changes))
+            do
             {
+                if (IsChanged(_cached, changes))
+                    break;
+
+                if (_useAmend)
+                {
+                    var testStaged = GetStagedChanges(_cached);
+                    if (IsChanged(_staged, testStaged))
+                    {
+                        var visibleStagedNew = GetVisibleChanges(testStaged);
+                        var selectedStagedNew = new List<Models.Change>();
+
+                        if (_selectedStaged is { Count: > 0 })
+                        {
+                            var set = new HashSet<string>();
+                            foreach (var c in _selectedStaged)
+                                set.Add(c.Path);
+
+                            foreach (var c in visibleStagedNew)
+                            {
+                                if (set.Contains(c.Path))
+                                    selectedStagedNew.Add(c);
+                            }
+                        }
+
+                        _isLoadingData = true;
+                        Staged = testStaged;
+                        VisibleStaged = visibleStagedNew;
+                        SelectedStaged = selectedStagedNew;
+                        _isLoadingData = false;
+                    }
+                }
+
                 HasUnsolvedConflicts = _cached.Find(x => x.IsConflicted) != null;
                 UpdateInProgressState();
                 UpdateDetail();
                 return;
-            }
+            } while (false);
 
             var lastSelectedUnstaged = new HashSet<string>();
             if (_selectedUnstaged is { Count: > 0 })
@@ -553,7 +585,7 @@ namespace SourceGit.ViewModels
         {
             var sure = await App.AskConfirmAsync(App.Text("WorkingCopy.ClearCommitHistories.Confirm"));
             if (sure)
-                _repo.Settings.CommitMessages.Clear();
+                _repo.UIStates.RecentCommitMessages.Clear();
         }
 
         public async Task CommitAsync(bool autoStage, bool autoPush)
@@ -606,7 +638,7 @@ namespace SourceGit.ViewModels
 
             using var lockWatcher = _repo.LockWatcher();
             IsCommitting = true;
-            _repo.Settings.PushCommitMessage(_commitMessage);
+            _repo.UIStates.AddRecentCommitMessage(_commitMessage);
 
             if (autoStage && _unstaged.Count > 0)
                 await StageChangesAsync(_unstaged, null);
@@ -668,15 +700,16 @@ namespace SourceGit.ViewModels
             {
                 if (c.IsConflicted)
                 {
-                    var isResolved = c.ConflictReason switch
+                    if (c.ConflictReason is Models.ConflictReason.BothAdded or Models.ConflictReason.BothModified)
                     {
-                        Models.ConflictReason.BothAdded or Models.ConflictReason.BothModified =>
-                            await new Commands.IsConflictResolved(_repo.FullPath, c).GetResultAsync(),
-                        _ => false,
-                    };
-
-                    if (!isResolved)
+                        var state = await new Commands.QueryConflictFileState(_repo.FullPath, c).GetResultAsync();
+                        if (state != Models.ConflictFileState.Resolved)
+                            continue;
+                    }
+                    else
+                    {
                         continue;
+                    }
                 }
 
                 outs.Add(c);

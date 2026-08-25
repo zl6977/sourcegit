@@ -52,7 +52,6 @@
   <x:String x:Key="Text.AssumeUnchanged.Empty" xml:space="preserve">СПИСОК ПУСТ</x:String>
   <x:String x:Key="Text.Avatar.Load" xml:space="preserve">Загрузить картинку...</x:String>
   <x:String x:Key="Text.Avatar.Refetch" xml:space="preserve">Обновить</x:String>
-  <x:String x:Key="Text.BinaryNotSupported" xml:space="preserve">ДВОИЧНЫЙ ФАЙЛ НЕ ПОДДЕРЖИВАЕТСЯ!!!</x:String>
   <x:String x:Key="Text.Bisect">Раздвоить</x:String>
   <x:String x:Key="Text.Bisect.Abort">О</x:String>
   <x:String x:Key="Text.Bisect.Bad">Плохая</x:String>
@@ -188,7 +187,6 @@
   <x:String x:Key="Text.CommitDetail.Files.Submodule" xml:space="preserve">Подмодуль</x:String>
   <x:String x:Key="Text.CommitDetail.Info" xml:space="preserve">ИНФОРМАЦИЯ</x:String>
   <x:String x:Key="Text.CommitDetail.Info.Author" xml:space="preserve">АВТОР</x:String>
-  <x:String x:Key="Text.CommitDetail.Info.Children" xml:space="preserve">ДОЧЕРНИЙ</x:String>
   <x:String x:Key="Text.CommitDetail.Info.Committer" xml:space="preserve">РЕВИЗОР (ИСПОЛНИТЕЛЬ)</x:String>
   <x:String x:Key="Text.CommitDetail.Info.ContainsIn" xml:space="preserve">Найти все ветки с этой ревизией</x:String>
   <x:String x:Key="Text.CommitDetail.Info.ContainsIn.Title" xml:space="preserve">ВЕТКИ С ЭТОЙ РЕВИЗИЕЙ</x:String>
@@ -214,8 +212,8 @@
   <x:String x:Key="Text.Compare.Commits.Tips" xml:space="preserve">Подсказка: Если другая сторона является ГОЛОВОЙ (используя контекстное меню), вы можете использовать частично выбранные ревизии (cherry-pick).</x:String>
   <x:String x:Key="Text.Configure" xml:space="preserve">Настройка репозитория</x:String>
   <x:String x:Key="Text.Configure.CommitMessageTemplate" xml:space="preserve">ШАБЛОН РЕВИЗИИ</x:String>
-  <x:String x:Key="Text.Configure.CommitMessageTemplate.BuiltinVars" xml:space="preserve">Встроенные параметры: 
-  
+  <x:String x:Key="Text.Configure.CommitMessageTemplate.BuiltinVars" xml:space="preserve">Встроенные параметры:
+
   ${branch_name} Имя текущей локальной ветки
   ${files_num} Количество изменённых файлов
   ${files} Пути изменённых файлов
@@ -226,8 +224,8 @@
   <x:String x:Key="Text.Configure.CommitMessageTemplate.Name" xml:space="preserve">Название:</x:String>
   <x:String x:Key="Text.Configure.CustomAction" xml:space="preserve">ПОЛЬЗОВАТЕЛЬСКОЕ ДЕЙСТВИЕ</x:String>
   <x:String x:Key="Text.Configure.CustomAction.Arguments" xml:space="preserve">Аргументы:</x:String>
-  <x:String x:Key="Text.Configure.CustomAction.Arguments.Tip" xml:space="preserve">Встроенные параметры: 
-  
+  <x:String x:Key="Text.Configure.CustomAction.Arguments.Tip" xml:space="preserve">Встроенные параметры:
+
   ${REPO} Путь репозитория
   ${REMOTE} Выбранная удаённая ветка
   ${BRANCH} Выбранная ветка, без ${REMOTE} удалённых веток
@@ -347,7 +345,9 @@
   <x:String x:Key="Text.DeinitSubmodule.Path" xml:space="preserve">Подмодуль:</x:String>
   <x:String x:Key="Text.DeleteBranch" xml:space="preserve">Удалить ветку</x:String>
   <x:String x:Key="Text.DeleteBranch.Branch" xml:space="preserve">Ветка:</x:String>
+  <x:String x:Key="Text.DeleteBranch.Force" xml:space="preserve">Принудительно удалить, даже если содержит неслитые ревизии</x:String>
   <x:String x:Key="Text.DeleteBranch.IsRemoteTip" xml:space="preserve">Вы собираетесь удалить внешнюю ветку!!!</x:String>
+  <x:String x:Key="Text.DeleteBranch.WithTrackingRemote" xml:space="preserve">Также удалите внешнюю ветку ${0}$</x:String>
   <x:String x:Key="Text.DeleteMultiBranch" xml:space="preserve">Удаление нескольких веток</x:String>
   <x:String x:Key="Text.DeleteMultiBranch.Tip" xml:space="preserve">Вы пытаетесь удалить несколько веток одновременно. Обязательно перепроверьте, прежде чем предпринимать какие-либо действия!</x:String>
   <x:String x:Key="Text.DeleteMultiTags" xml:space="preserve">Удалить несколько меток</x:String>
@@ -367,6 +367,7 @@
   <x:String x:Key="Text.DeleteTag.Tag" xml:space="preserve">Метка:</x:String>
   <x:String x:Key="Text.DeleteTag.WithRemote" xml:space="preserve">Удалить из внешнего репозитория</x:String>
   <x:String x:Key="Text.Diff.Binary" xml:space="preserve">СРАВНЕНИЕ БИНАРНИКОВ</x:String>
+  <x:String x:Key="Text.Diff.Binary.ViewContentOfNew" xml:space="preserve">ПРОСМОТР НОВОГО СОДЕРЖИМОГО</x:String>
   <x:String x:Key="Text.Diff.EmptyFile" xml:space="preserve">ФАЙЛ ПУСТ</x:String>
   <x:String x:Key="Text.Diff.First" xml:space="preserve">Первое сравнение</x:String>
   <x:String x:Key="Text.Diff.IgnoreWhitespace" xml:space="preserve">Игнорировать изменения пробелов</x:String>
@@ -423,6 +424,9 @@
   <x:String x:Key="Text.Fetch.NoTags" xml:space="preserve">Извлечь без меток</x:String>
   <x:String x:Key="Text.Fetch.Remote" xml:space="preserve">Внешний репозиторий:</x:String>
   <x:String x:Key="Text.Fetch.Title" xml:space="preserve">Извлечь внешние изменения</x:String>
+  <x:String x:Key="Text.File.Binary" xml:space="preserve">ДВОИЧНЫЙ ФАЙЛ</x:String>
+  <x:String x:Key="Text.File.HexViewer" xml:space="preserve">ПРОСМОТР В ШЕСТНАДЦАТЕРИЧНОМ ФОРМАТЕ</x:String>
+  <x:String x:Key="Text.File.HexViewer.GotoAddress" xml:space="preserve">Перейти по адресу...</x:String>
   <x:String x:Key="Text.FileCM.AssumeUnchanged" xml:space="preserve">Не отслеживать</x:String>
   <x:String x:Key="Text.FileCM.CustomAction" xml:space="preserve">Пользовательское действие</x:String>
   <x:String x:Key="Text.FileCM.Discard" xml:space="preserve">Отклонить...</x:String>
@@ -440,6 +444,15 @@
   <x:String x:Key="Text.FileHistory" xml:space="preserve">История файлов</x:String>
   <x:String x:Key="Text.FileHistory.FileChange" xml:space="preserve">ИЗМЕНИТЬ</x:String>
   <x:String x:Key="Text.FileHistory.FileContent" xml:space="preserve">СОДЕРЖИМОЕ</x:String>
+  <x:String x:Key="Text.FileModeChange" xml:space="preserve">Изменение режима файла: </x:String>
+  <x:String x:Key="Text.FileModeChange.Deleted" xml:space="preserve">Режим удалённого файла: </x:String>
+  <x:String x:Key="Text.FileModeChange.Directory" xml:space="preserve">Каталог</x:String>
+  <x:String x:Key="Text.FileModeChange.Executable" xml:space="preserve">Исполняемый</x:String>
+  <x:String x:Key="Text.FileModeChange.New" xml:space="preserve">Новый режим файла: </x:String>
+  <x:String x:Key="Text.FileModeChange.Normal" xml:space="preserve">Обычный</x:String>
+  <x:String x:Key="Text.FileModeChange.Submodule" xml:space="preserve">Подмодуль</x:String>
+  <x:String x:Key="Text.FileModeChange.Symlink" xml:space="preserve">Символическая сскла</x:String>
+  <x:String x:Key="Text.FileModeChange.Unknown" xml:space="preserve">Неизвестно</x:String>
   <x:String x:Key="Text.GitFlow" xml:space="preserve">Git-процесс</x:String>
   <x:String x:Key="Text.GitFlow.DevelopBranch" xml:space="preserve">Ветка разработчика:</x:String>
   <x:String x:Key="Text.GitFlow.Feature" xml:space="preserve">Свойство:</x:String>
@@ -573,6 +586,7 @@
   <x:String x:Key="Text.Launcher.Commands" xml:space="preserve">Команды</x:String>
   <x:String x:Key="Text.Launcher.Error" xml:space="preserve">ОШИБКА</x:String>
   <x:String x:Key="Text.Launcher.Info" xml:space="preserve">УВЕДОМЛЕНИЕ</x:String>
+  <x:String x:Key="Text.Launcher.NewVersion" xml:space="preserve">Доступна новая версия</x:String>
   <x:String x:Key="Text.Launcher.OpenRepository" xml:space="preserve">Открыть репозитории</x:String>
   <x:String x:Key="Text.Launcher.Pages" xml:space="preserve">Вкладки</x:String>
   <x:String x:Key="Text.Launcher.Workspaces" xml:space="preserve">Рабочие места</x:String>
@@ -651,6 +665,7 @@
   <x:String x:Key="Text.Preferences.AI.Model.AutoFetchAvailableModels" xml:space="preserve">Автоматическое получение доступных идентификаторов моделей</x:String>
   <x:String x:Key="Text.Preferences.AI.Name" xml:space="preserve">Имя:</x:String>
   <x:String x:Key="Text.Preferences.AI.ReadApiKeyFromEnv" xml:space="preserve">Введённое значение — это имя для загрузки API-ключа из ENV</x:String>
+  <x:String x:Key="Text.Preferences.AI.ReasoningEffortLevel" xml:space="preserve">Уровень обоснованности усилий</x:String>
   <x:String x:Key="Text.Preferences.AI.Server" xml:space="preserve">Сервер</x:String>
   <x:String x:Key="Text.Preferences.Appearance" xml:space="preserve">ВИД</x:String>
   <x:String x:Key="Text.Preferences.Appearance.DefaultFont" xml:space="preserve">Шрифт по умолчанию</x:String>
@@ -680,7 +695,6 @@
   <x:String x:Key="Text.Preferences.General.MaxHistoryCommits" xml:space="preserve">Максимальная длина истории</x:String>
   <x:String x:Key="Text.Preferences.General.ShowChangesPageByDefault" xml:space="preserve">Показывать вкладку «ЛОКАЛЬНЫЕ ИЗМЕНЕНИЯ» по умолчанию</x:String>
   <x:String x:Key="Text.Preferences.General.ShowChangesTabInCommitDetailByDefault" xml:space="preserve">Показывать вкладку «Изменения» в сведении ревизии по умолчанию</x:String>
-  <x:String x:Key="Text.Preferences.General.ShowChildren" xml:space="preserve">Показать наследника в деталях комментария</x:String>
   <x:String x:Key="Text.Preferences.General.ShowRelativeTimeInGraph" xml:space="preserve">Отображение относительного времени на графе ревизии</x:String>
   <x:String x:Key="Text.Preferences.General.ShowTagsInGraph" xml:space="preserve">Показывать метки на графике</x:String>
   <x:String x:Key="Text.Preferences.General.SubjectGuideLength" xml:space="preserve">Длина темы ревизии</x:String>
@@ -793,9 +807,12 @@
   <x:String x:Key="Text.Repository.Explore" xml:space="preserve">Открыть в файловом менеджере</x:String>
   <x:String x:Key="Text.Repository.Filter" xml:space="preserve">Поиск веток, меток и подмодулей</x:String>
   <x:String x:Key="Text.Repository.FilterCommits" xml:space="preserve">Видимость на графике</x:String>
+  <x:String x:Key="Text.Repository.FilterCommits.Collapse" xml:space="preserve">Свернуть фильтры</x:String>
   <x:String x:Key="Text.Repository.FilterCommits.Default" xml:space="preserve">Не установлен (по умолчанию)</x:String>
   <x:String x:Key="Text.Repository.FilterCommits.Exclude" xml:space="preserve">Скрыть в графе ревизии</x:String>
+  <x:String x:Key="Text.Repository.FilterCommits.Expand" xml:space="preserve">Развернуть фильтры</x:String>
   <x:String x:Key="Text.Repository.FilterCommits.Include" xml:space="preserve">Фильтр в графе ревизии</x:String>
+  <x:String x:Key="Text.Repository.FilterCommits.Summary" xml:space="preserve">фильтры включены</x:String>
   <x:String x:Key="Text.Repository.HistoriesLayout" xml:space="preserve">РАСПОЛОЖЕНИЕ</x:String>
   <x:String x:Key="Text.Repository.HistoriesLayout.Horizontal" xml:space="preserve">Горизонтально</x:String>
   <x:String x:Key="Text.Repository.HistoriesLayout.Vertical" xml:space="preserve">Вертикально</x:String>
@@ -980,6 +997,7 @@
   <x:String x:Key="Text.WorkingCopy.AddToGitIgnore.ExtensionInSameFolder" xml:space="preserve">Игнорировать *{0} файлы в том же каталоге</x:String>
   <x:String x:Key="Text.WorkingCopy.AddToGitIgnore.InFolder" xml:space="preserve">Игнорировать неотслеживаемые файлы в этом каталоге</x:String>
   <x:String x:Key="Text.WorkingCopy.AddToGitIgnore.SingleFile" xml:space="preserve">Игнорировать только эти файлы</x:String>
+  <x:String x:Key="Text.WorkingCopy.AddToGitIgnore.UntrackedInSameFolder" xml:space="preserve">Игнорировать все неотслеживаемые файлы в одном и том же каталоге</x:String>
   <x:String x:Key="Text.WorkingCopy.Amend" xml:space="preserve">Изменить</x:String>
   <x:String x:Key="Text.WorkingCopy.CanStageTip" xml:space="preserve">Теперь вы можете сформировать этот файл.</x:String>
   <x:String x:Key="Text.WorkingCopy.ClearCommitHistories" xml:space="preserve">Очистить историю</x:String>
@@ -999,6 +1017,7 @@
   <x:String x:Key="Text.WorkingCopy.Conflicts.Resolved" xml:space="preserve">КОНФЛИКТЫ ФАЙЛОВ РАЗРЕШЕНЫ</x:String>
   <x:String x:Key="Text.WorkingCopy.Conflicts.UseMine" xml:space="preserve">ИСПОЛЬЗОВАТЬ МОИ</x:String>
   <x:String x:Key="Text.WorkingCopy.Conflicts.UseTheirs" xml:space="preserve">ИСПОЛЬЗОВАТЬ ИХ</x:String>
+  <x:String x:Key="Text.WorkingCopy.FilterChanges" xml:space="preserve">Фильтр изменений...</x:String>
   <x:String x:Key="Text.WorkingCopy.IncludeUntracked" xml:space="preserve">ВКЛЮЧИТЬ НЕОТСЛЕЖИВАЕМЫЕ ФАЙЛЫ</x:String>
   <x:String x:Key="Text.WorkingCopy.NoCommitHistories" xml:space="preserve">НЕТ ПОСЛЕДНИХ ВХОДНЫХ СООБЩЕНИЙ</x:String>
   <x:String x:Key="Text.WorkingCopy.NoCommitTemplates" xml:space="preserve">НЕТ ШАБЛОНОВ РЕВИЗИИ</x:String>

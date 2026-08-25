@@ -19,7 +19,7 @@
                  Classes="bold"
                  Text="{DynamicResource Text.Merge}"/>
     </StackPanel>
-    
+
     <Grid Margin="0,16,0,0" RowDefinitions="32,32,32,Auto,Auto" ColumnDefinitions="130,*">
       <TextBlock Grid.Row="0" Grid.Column="0"
                  HorizontalAlignment="Right" VerticalAlignment="Center"
@@ -138,14 +138,14 @@
                      VerticalAlignment="Center"
                      Text="{DynamicResource Text.Merge.Test.NoConflicts}"/>
         </StackPanel>
-        
+
         <StackPanel Orientation="Horizontal"
                     VerticalAlignment="Center"
                     IsVisible="{Binding TestingState, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:MergeTestingState.WillCauseConflicts}}">
           <Path Width="14" Height="14"
                 Data="{DynamicResource Icons.Error}"
                 Fill="Goldenrod"/>
-          
+
           <TextBlock Margin="8,0,0,0"
                      VerticalAlignment="Center"
                      Text="{DynamicResource Text.Merge.Test.WillCauseConflicts}"/>

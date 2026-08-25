@@ -79,9 +79,14 @@ namespace SourceGit.ViewModels
             foreach (var branch in repo.Branches)
             {
                 if (branch.IsLocal)
-                    LocalBranches.Add(branch);
+                {
+                    if (!branch.IsCurrent && !branch.HasWorktree)
+                        LocalBranches.Add(branch);
+                }
                 else
+                {
                     RemoteBranches.Add(branch);
+                }
             }
         }
 
@@ -131,7 +136,8 @@ namespace SourceGit.ViewModels
             var name = GetBranchName(true);
             if (!string.IsNullOrEmpty(name))
             {
-                var remoteBranch = RemoteBranches.Find(b => b.Name.EndsWith(name, StringComparison.Ordinal));
+                var remoteBranch = RemoteBranches.Find(b => b.Name.Equals(name, StringComparison.Ordinal));
+                remoteBranch ??= RemoteBranches.Find(b => b.Name.EndsWith("/" + name, StringComparison.Ordinal));
                 if (remoteBranch != null)
                 {
                     SelectedTrackingBranch = remoteBranch;

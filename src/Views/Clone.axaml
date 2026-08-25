@@ -35,7 +35,7 @@
                 Data="{StaticResource Icons.Link}"
                 Fill="{DynamicResource Brush.FG1}"/>
         </TextBox.InnerLeftContent>
-        
+
         <TextBox.InnerRightContent>
           <v:RemoteProtocolSwitcher Url="{Binding Remote, Mode=TwoWay}"/>
         </TextBox.InnerRightContent>
@@ -59,7 +59,7 @@
                 Data="{StaticResource Icons.Password}"
                 Fill="{DynamicResource Brush.FG1}"/>
         </TextBox.InnerLeftContent>
-        
+
         <TextBox.InnerRightContent>
           <Button Classes="icon_button" Width="28" Height="28" Click="SelectSSHKey">
             <Path Data="{StaticResource Icons.Folder.Open}" Fill="{DynamicResource Brush.FG1}"/>

@@ -52,7 +52,6 @@
   <x:String x:Key="Text.AssumeUnchanged.Empty" xml:space="preserve">未変更と見なしたファイルはありません</x:String>
   <x:String x:Key="Text.Avatar.Load" xml:space="preserve">画像を選択...</x:String>
   <x:String x:Key="Text.Avatar.Refetch" xml:space="preserve">再読み込み</x:String>
-  <x:String x:Key="Text.BinaryNotSupported" xml:space="preserve">バイナリファイルはサポートされていません！！！</x:String>
   <x:String x:Key="Text.Bisect">問題の発生源を特定</x:String>
   <x:String x:Key="Text.Bisect.Abort">中止</x:String>
   <x:String x:Key="Text.Bisect.Bad">問題あり</x:String>
@@ -188,7 +187,6 @@
   <x:String x:Key="Text.CommitDetail.Files.Submodule" xml:space="preserve">サブモジュール</x:String>
   <x:String x:Key="Text.CommitDetail.Info" xml:space="preserve">コミットの情報</x:String>
   <x:String x:Key="Text.CommitDetail.Info.Author" xml:space="preserve">著者</x:String>
-  <x:String x:Key="Text.CommitDetail.Info.Children" xml:space="preserve">子コミット</x:String>
   <x:String x:Key="Text.CommitDetail.Info.Committer" xml:space="preserve">コミッター</x:String>
   <x:String x:Key="Text.CommitDetail.Info.ContainsIn" xml:space="preserve">このコミットが含まれる参照を確認</x:String>
   <x:String x:Key="Text.CommitDetail.Info.ContainsIn.Title" xml:space="preserve">これらの参照にコミットが含まれています</x:String>
@@ -346,10 +344,10 @@
   <x:String x:Key="Text.DeinitSubmodule.Force" xml:space="preserve">ローカルの変更の有無に関わらず、強制的に解除</x:String>
   <x:String x:Key="Text.DeinitSubmodule.Path" xml:space="preserve">サブモジュール:</x:String>
   <x:String x:Key="Text.DeleteBranch" xml:space="preserve">ブランチを削除</x:String>
-  <x:String x:Key="Text.DeleteBranch.AskForRemote" xml:space="preserve">次のリモートブランチも削除しますか？</x:String>
   <x:String x:Key="Text.DeleteBranch.Branch" xml:space="preserve">ブランチ:</x:String>
   <x:String x:Key="Text.DeleteBranch.Force" xml:space="preserve">未マージのコミットがあっても強制的に削除</x:String>
   <x:String x:Key="Text.DeleteBranch.IsRemoteTip" xml:space="preserve">リモートブランチを削除しようとしています！！！</x:String>
+  <x:String x:Key="Text.DeleteBranch.WithTrackingRemote" xml:space="preserve">リモートブランチの ${0}$ も削除</x:String>
   <x:String x:Key="Text.DeleteMultiBranch" xml:space="preserve">複数のブランチを削除</x:String>
   <x:String x:Key="Text.DeleteMultiBranch.Tip" xml:space="preserve">複数のブランチをまとめて削除しようとしています。操作を行う前によく確認してください！</x:String>
   <x:String x:Key="Text.DeleteMultiTags" xml:space="preserve">複数のタグを削除</x:String>
@@ -691,7 +689,6 @@
   <x:String x:Key="Text.Preferences.General.MaxHistoryCommits" xml:space="preserve">コミット履歴</x:String>
   <x:String x:Key="Text.Preferences.General.ShowChangesPageByDefault" xml:space="preserve">初めから `ローカルの変更` ページを表示</x:String>
   <x:String x:Key="Text.Preferences.General.ShowChangesTabInCommitDetailByDefault" xml:space="preserve">初めからコミットの詳細の `変更` タブを表示</x:String>
-  <x:String x:Key="Text.Preferences.General.ShowChildren" xml:space="preserve">コミットの詳細に子コミットを表示</x:String>
   <x:String x:Key="Text.Preferences.General.ShowRelativeTimeInGraph" xml:space="preserve">コミットグラフを相対時間で表記</x:String>
   <x:String x:Key="Text.Preferences.General.ShowTagsInGraph" xml:space="preserve">コミットグラフにタグを表示</x:String>
   <x:String x:Key="Text.Preferences.General.SubjectGuideLength" xml:space="preserve">適切とするコミットタイトルの長さ</x:String>

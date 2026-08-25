@@ -48,7 +48,6 @@
   <x:String x:Key="Text.AssumeUnchanged.Empty" xml:space="preserve">NO FILES ASSUMED AS UNCHANGED</x:String>
   <x:String x:Key="Text.Avatar.Load" xml:space="preserve">Load Image...</x:String>
   <x:String x:Key="Text.Avatar.Refetch" xml:space="preserve">Refresh</x:String>
-  <x:String x:Key="Text.BinaryNotSupported" xml:space="preserve">BINARY FILE NOT SUPPORTED!!!</x:String>
   <x:String x:Key="Text.Bisect">Bisect</x:String>
   <x:String x:Key="Text.Bisect.Abort">Abort</x:String>
   <x:String x:Key="Text.Bisect.Bad">Bad</x:String>
@@ -184,7 +183,6 @@
   <x:String x:Key="Text.CommitDetail.Files.Submodule" xml:space="preserve">Submodule</x:String>
   <x:String x:Key="Text.CommitDetail.Info" xml:space="preserve">INFORMATION</x:String>
   <x:String x:Key="Text.CommitDetail.Info.Author" xml:space="preserve">AUTHOR</x:String>
-  <x:String x:Key="Text.CommitDetail.Info.Children" xml:space="preserve">CHILDREN</x:String>
   <x:String x:Key="Text.CommitDetail.Info.Committer" xml:space="preserve">COMMITTER</x:String>
   <x:String x:Key="Text.CommitDetail.Info.ContainsIn" xml:space="preserve">Check refs that contains this commit</x:String>
   <x:String x:Key="Text.CommitDetail.Info.ContainsIn.Title" xml:space="preserve">COMMIT IS CONTAINED BY</x:String>
@@ -210,8 +208,8 @@
   <x:String x:Key="Text.Compare.Commits.Tips" xml:space="preserve">Tips: You can cherry-pick selected commits if the other side is HEAD (using context menu).</x:String>
   <x:String x:Key="Text.Configure" xml:space="preserve">Repository Configure</x:String>
   <x:String x:Key="Text.Configure.CommitMessageTemplate" xml:space="preserve">COMMIT TEMPLATE</x:String>
-  <x:String x:Key="Text.Configure.CommitMessageTemplate.BuiltinVars" xml:space="preserve">Built-in parameters: 
-  
+  <x:String x:Key="Text.Configure.CommitMessageTemplate.BuiltinVars" xml:space="preserve">Built-in parameters:
+
   ${branch_name} Current local branch name.
   ${files_num} Number of changed files
   ${files} Paths of changed files
@@ -222,8 +220,8 @@
   <x:String x:Key="Text.Configure.CommitMessageTemplate.Name" xml:space="preserve">Template Name:</x:String>
   <x:String x:Key="Text.Configure.CustomAction" xml:space="preserve">CUSTOM ACTION</x:String>
   <x:String x:Key="Text.Configure.CustomAction.Arguments" xml:space="preserve">Arguments:</x:String>
-  <x:String x:Key="Text.Configure.CustomAction.Arguments.Tip" xml:space="preserve">Built-in parameters: 
-  
+  <x:String x:Key="Text.Configure.CustomAction.Arguments.Tip" xml:space="preserve">Built-in parameters:
+
   ${REPO} Repository's path
   ${REMOTE} Selected remote or selected branch's remote
   ${BRANCH} Selected branch, without ${REMOTE} part for remote branches
@@ -342,10 +340,10 @@
   <x:String x:Key="Text.DeinitSubmodule.Force" xml:space="preserve">Force de-init even if it contains local changes.</x:String>
   <x:String x:Key="Text.DeinitSubmodule.Path" xml:space="preserve">Submodule:</x:String>
   <x:String x:Key="Text.DeleteBranch" xml:space="preserve">Delete Branch</x:String>
-  <x:String x:Key="Text.DeleteBranch.AskForRemote" xml:space="preserve">Do you want to also delete the following remote branch?</x:String>
   <x:String x:Key="Text.DeleteBranch.Branch" xml:space="preserve">Branch:</x:String>
   <x:String x:Key="Text.DeleteBranch.Force" xml:space="preserve">Force delete even if it contains unmerged commit(s)</x:String>
   <x:String x:Key="Text.DeleteBranch.IsRemoteTip" xml:space="preserve">You are about to delete a remote branch!!!</x:String>
+  <x:String x:Key="Text.DeleteBranch.WithTrackingRemote" xml:space="preserve">Also delete remote branch ${0}$</x:String>
   <x:String x:Key="Text.DeleteMultiBranch" xml:space="preserve">Delete Multiple Branches</x:String>
   <x:String x:Key="Text.DeleteMultiBranch.Tip" xml:space="preserve">You are trying to delete multiple branches at one time. Be sure to double-check before taking action!</x:String>
   <x:String x:Key="Text.DeleteMultiTags" xml:space="preserve">Delete Multiple Tags</x:String>
@@ -365,6 +363,7 @@
   <x:String x:Key="Text.DeleteTag.Tag" xml:space="preserve">Tag:</x:String>
   <x:String x:Key="Text.DeleteTag.WithRemote" xml:space="preserve">Delete from remote repositories</x:String>
   <x:String x:Key="Text.Diff.Binary" xml:space="preserve">BINARY DIFF</x:String>
+  <x:String x:Key="Text.Diff.Binary.ViewContentOfNew" xml:space="preserve">VIEW NEW CONTENT</x:String>
   <x:String x:Key="Text.Diff.EmptyFile" xml:space="preserve">EMPTY FILE</x:String>
   <x:String x:Key="Text.Diff.First" xml:space="preserve">First Difference</x:String>
   <x:String x:Key="Text.Diff.IgnoreWhitespace" xml:space="preserve">Ignore Whitespace Changes</x:String>
@@ -421,6 +420,9 @@
   <x:String x:Key="Text.Fetch.NoTags" xml:space="preserve">Fetch without tags</x:String>
   <x:String x:Key="Text.Fetch.Remote" xml:space="preserve">Remote:</x:String>
   <x:String x:Key="Text.Fetch.Title" xml:space="preserve">Fetch Remote Changes</x:String>
+  <x:String x:Key="Text.File.Binary" xml:space="preserve">BINARY FILE</x:String>
+  <x:String x:Key="Text.File.HexViewer" xml:space="preserve">HEX VIEWER</x:String>
+  <x:String x:Key="Text.File.HexViewer.GotoAddress" xml:space="preserve">Go to address...</x:String>
   <x:String x:Key="Text.FileCM.AssumeUnchanged" xml:space="preserve">Assume unchanged</x:String>
   <x:String x:Key="Text.FileCM.CustomAction" xml:space="preserve">Custom Action</x:String>
   <x:String x:Key="Text.FileCM.Discard" xml:space="preserve">Discard...</x:String>
@@ -526,7 +528,7 @@
   <x:String x:Key="Text.HistoriesDetailsStandalone.RevisionCompare" xml:space="preserve">Revision Compare</x:String>
   <x:String x:Key="Text.Hotkeys" xml:space="preserve">Keyboard Shortcuts Reference</x:String>
   <x:String x:Key="Text.Hotkeys.Global" xml:space="preserve">GLOBAL</x:String>
-  <x:String x:Key="Text.Hotkeys.Global.Clone" xml:space="preserve">Clone new repository</x:String>
+  <x:String x:Key="Text.Hotkeys.Global.Clone" xml:space="preserve">Clone remote repository</x:String>
   <x:String x:Key="Text.Hotkeys.Global.CloseTab" xml:space="preserve">Close current tab</x:String>
   <x:String x:Key="Text.Hotkeys.Global.GotoNextTab" xml:space="preserve">Go to next tab</x:String>
   <x:String x:Key="Text.Hotkeys.Global.GotoPrevTab" xml:space="preserve">Go to previous tab</x:String>
@@ -580,6 +582,7 @@
   <x:String x:Key="Text.Launcher.Commands" xml:space="preserve">Commands</x:String>
   <x:String x:Key="Text.Launcher.Error" xml:space="preserve">ERROR</x:String>
   <x:String x:Key="Text.Launcher.Info" xml:space="preserve">NOTICE</x:String>
+  <x:String x:Key="Text.Launcher.NewVersion" xml:space="preserve">New Version Available</x:String>
   <x:String x:Key="Text.Launcher.OpenRepository" xml:space="preserve">Open Repositories</x:String>
   <x:String x:Key="Text.Launcher.Pages" xml:space="preserve">Tabs</x:String>
   <x:String x:Key="Text.Launcher.Workspaces" xml:space="preserve">Workspaces</x:String>
@@ -658,6 +661,7 @@
   <x:String x:Key="Text.Preferences.AI.Model.AutoFetchAvailableModels" xml:space="preserve">Fetch available model-ids automatically</x:String>
   <x:String x:Key="Text.Preferences.AI.Name" xml:space="preserve">Name</x:String>
   <x:String x:Key="Text.Preferences.AI.ReadApiKeyFromEnv" xml:space="preserve">Entered value is the name to load API key from ENV</x:String>
+  <x:String x:Key="Text.Preferences.AI.ReasoningEffortLevel" xml:space="preserve">Reasoning Effort Level</x:String>
   <x:String x:Key="Text.Preferences.AI.Server" xml:space="preserve">Server</x:String>
   <x:String x:Key="Text.Preferences.Appearance" xml:space="preserve">APPEARANCE</x:String>
   <x:String x:Key="Text.Preferences.Appearance.DefaultFont" xml:space="preserve">Default Font</x:String>
@@ -687,7 +691,6 @@
   <x:String x:Key="Text.Preferences.General.MaxHistoryCommits" xml:space="preserve">History Commits</x:String>
   <x:String x:Key="Text.Preferences.General.ShowChangesPageByDefault" xml:space="preserve">Show `LOCAL CHANGES` page by default</x:String>
   <x:String x:Key="Text.Preferences.General.ShowChangesTabInCommitDetailByDefault" xml:space="preserve">Show `CHANGES` tab in commit detail by default</x:String>
-  <x:String x:Key="Text.Preferences.General.ShowChildren" xml:space="preserve">Show children in the commit details</x:String>
   <x:String x:Key="Text.Preferences.General.ShowRelativeTimeInGraph" xml:space="preserve">Show relative time in commit graph</x:String>
   <x:String x:Key="Text.Preferences.General.ShowTagsInGraph" xml:space="preserve">Show tags in commit graph</x:String>
   <x:String x:Key="Text.Preferences.General.SubjectGuideLength" xml:space="preserve">Subject Guide Length</x:String>
@@ -800,9 +803,12 @@
   <x:String x:Key="Text.Repository.Explore" xml:space="preserve">Open in File Browser</x:String>
   <x:String x:Key="Text.Repository.Filter" xml:space="preserve">Search Branches/Tags/Submodules</x:String>
   <x:String x:Key="Text.Repository.FilterCommits" xml:space="preserve">Visibility in Graph</x:String>
+  <x:String x:Key="Text.Repository.FilterCommits.Collapse" xml:space="preserve">Collapse Filters</x:String>
   <x:String x:Key="Text.Repository.FilterCommits.Default" xml:space="preserve">Unset</x:String>
   <x:String x:Key="Text.Repository.FilterCommits.Exclude" xml:space="preserve">Hide in commit graph</x:String>
+  <x:String x:Key="Text.Repository.FilterCommits.Expand" xml:space="preserve">Expand Filters</x:String>
   <x:String x:Key="Text.Repository.FilterCommits.Include" xml:space="preserve">Filter in commit graph</x:String>
+  <x:String x:Key="Text.Repository.FilterCommits.Summary" xml:space="preserve">filter(s) enabled</x:String>
   <x:String x:Key="Text.Repository.HistoriesLayout" xml:space="preserve">LAYOUT</x:String>
   <x:String x:Key="Text.Repository.HistoriesLayout.Horizontal" xml:space="preserve">Horizontal</x:String>
   <x:String x:Key="Text.Repository.HistoriesLayout.Vertical" xml:space="preserve">Vertical</x:String>
@@ -1007,6 +1013,7 @@
   <x:String x:Key="Text.WorkingCopy.Conflicts.Resolved" xml:space="preserve">FILE CONFLICTS ARE RESOLVED</x:String>
   <x:String x:Key="Text.WorkingCopy.Conflicts.UseMine" xml:space="preserve">USE MINE</x:String>
   <x:String x:Key="Text.WorkingCopy.Conflicts.UseTheirs" xml:space="preserve">USE THEIRS</x:String>
+  <x:String x:Key="Text.WorkingCopy.FilterChanges" xml:space="preserve">Filter Changes...</x:String>
   <x:String x:Key="Text.WorkingCopy.IncludeUntracked" xml:space="preserve">INCLUDE UNTRACKED FILES</x:String>
   <x:String x:Key="Text.WorkingCopy.NoCommitHistories" xml:space="preserve">NO RECENT INPUT MESSAGES</x:String>
   <x:String x:Key="Text.WorkingCopy.NoCommitTemplates" xml:space="preserve">NO COMMIT TEMPLATES</x:String>

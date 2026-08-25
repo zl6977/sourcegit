@@ -52,7 +52,7 @@
               <Setter Property="Opacity" Value="1"/>
             </Style>
           </ListBox.Styles>
-          
+
           <ListBox.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel Orientation="Horizontal" Height="30"/>

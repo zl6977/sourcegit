@@ -451,8 +451,8 @@ namespace SourceGit.Views
         {
             var options = new FilePickerOpenOptions()
             {
-                FileTypeFilter = [new FilePickerFileType("Executable file(script)") { Patterns = ["*.*"] }],
                 AllowMultiple = false,
+                FileTypeFilter = [new("Executable file(script)") { Patterns = ["*"] }]
             };
 
             try

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -21,6 +23,10 @@ namespace SourceGit.Views
             if (sender is Button button && DataContext is ViewModels.Repository repo)
             {
                 var fullpath = repo.FullPath;
+                if (!Directory.Exists(fullpath))
+                    return;
+
+                var isMacOS = OperatingSystem.IsMacOS();
                 var menu = new ContextMenu();
                 menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
 
@@ -31,6 +37,7 @@ namespace SourceGit.Views
                 var explore = new MenuItem();
                 explore.Header = App.Text("Repository.Explore");
                 explore.Icon = this.CreateMenuIcon("Icons.Explore");
+                explore.Tag = isMacOS ? "⌘+E" : "Ctrl+E";
                 explore.Click += (_, e) =>
                 {
                     Native.OS.OpenInFileManager(fullpath);
@@ -40,6 +47,7 @@ namespace SourceGit.Views
                 var terminal = new MenuItem();
                 terminal.Header = App.Text("Repository.Terminal");
                 terminal.Icon = this.CreateMenuIcon("Icons.Terminal");
+                terminal.Tag = isMacOS ? "Λ+`" : "Ctrl+`";
                 terminal.Click += (_, e) =>
                 {
                     Native.OS.OpenTerminal(fullpath);

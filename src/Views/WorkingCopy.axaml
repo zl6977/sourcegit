@@ -33,6 +33,7 @@
                  CornerRadius="12"
                  Text="{Binding Filter, Mode=TwoWay}"
                  BorderBrush="{DynamicResource Brush.Border2}"
+                 Watermark="{DynamicResource Text.WorkingCopy.FilterChanges}"
                  VerticalContentAlignment="Center">
           <TextBox.InnerLeftContent>
             <Path Width="14" Height="14"
@@ -355,7 +356,7 @@
               </Style>
             </Style>
           </SplitButton.Styles>
-          
+
           <SplitButton.IsEnabled>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
               <Binding Path="IsCommitting" Converter="{x:Static BoolConverters.Not}"/>

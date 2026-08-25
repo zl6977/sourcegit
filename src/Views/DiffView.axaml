@@ -25,7 +25,7 @@
                             FontSize="10"
                             OldMode="{Binding OldMode, Mode=OneWay}"
                             NewMode="{Binding NewMode, Mode=OneWay}"/>
-          
+
           <!-- Line Changes Summary -->
           <ContentControl Grid.Column="2" Margin="4,0,0,0" Content="{Binding Content, Mode=OneWay}" IsVisible="{Binding IsTextDiff}">
             <ContentControl.DataTemplates>
@@ -246,6 +246,13 @@
 
                 <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding NewSize, Converter={x:Static c:LongConverters.ToFileSize}}" Foreground="{DynamicResource Brush.FG2}" HorizontalAlignment="Right" FontSize="16" Margin="8,0"/>
               </Grid>
+
+              <Button Classes="flat"
+                      Margin="0,16,0,0"
+                      HorizontalAlignment="Center"
+                      Content="{DynamicResource Text.Diff.Binary.ViewContentOfNew}"
+                      IsVisible="{Binding NewSize, Mode=OneWay, Converter={x:Static c:LongConverters.IsGreaterThanZero}}"
+                      Click="OnOpenBinaryFileViewer"/>
             </StackPanel>
           </DataTemplate>
 
@@ -291,7 +298,8 @@
                   </Border>
 
                   <Border Margin="0,8"
-                          BorderThickness="1" BorderBrush="{DynamicResource Brush.Border1}"
+                          BorderThickness="1" BorderBrush="{DynamicResource Brush.Border2}"
+                          CornerRadius="4"
                           Background="{DynamicResource Brush.Window}"
                           IsVisible="{Binding Old, Converter={x:Static ObjectConverters.IsNotNull}}">
                     <ContentControl Content="{Binding Old}">
@@ -318,6 +326,7 @@
 
                   <Border Margin="0,8"
                           BorderThickness="1" BorderBrush="Green"
+                          CornerRadius="4"
                           Background="{DynamicResource Brush.Window}"
                           IsVisible="{Binding New, Converter={x:Static ObjectConverters.IsNotNull}}">
                     <ContentControl Content="{Binding New}">
@@ -336,7 +345,7 @@
                       </ContentControl.DataTemplates>
                     </ContentControl>
                   </Border>
-                  
+
                   <Button Classes="flat"
                           Margin="0,8"
                           HorizontalAlignment="Center"

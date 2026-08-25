@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.IO.Pipes;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,7 +21,7 @@ namespace SourceGit.Models
                 _singletonLock = File.Open(Path.Combine(Native.OS.DataDir, "process.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
                 IsFirstInstance = true;
                 _server = new NamedPipeServerStream(
-                    "SourceGitIPCChannel" + Environment.UserName,
+                    GetPipeName(),
                     PipeDirection.In,
                     -1,
                     PipeTransmissionMode.Byte,
@@ -37,7 +39,7 @@ namespace SourceGit.Models
         {
             try
             {
-                using (var client = new NamedPipeClientStream(".", "SourceGitIPCChannel" + Environment.UserName, PipeDirection.Out, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly))
+                using (var client = new NamedPipeClientStream(".", GetPipeName(), PipeDirection.Out, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly))
                 {
                     client.Connect(1000);
                     if (!client.IsConnected)
@@ -65,6 +67,19 @@ namespace SourceGit.Models
         {
             _cancellationTokenSource?.Cancel();
             _singletonLock?.Dispose();
+        }
+
+        private static string GetPipeName()
+        {
+            // SourceGit does not support multiple instances on macOS, so we can use a fixed pipe name for macOS.
+            if (OperatingSystem.IsMacOS())
+                return "SourceGit";
+
+            // Windows and Linux can have multiple instances of SourceGit running (portable-mode), so we need to generate a unique pipe name based on the data directory.
+            var dataDir = Native.OS.DataDir.Replace('\\', '/').TrimEnd('/');
+            var hashStr = $"{Environment.UserName}_{dataDir}";
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(hashStr))).Substring(0, 10);
+            return $"SG_{hash}";
         }
 
         private async void StartServer()

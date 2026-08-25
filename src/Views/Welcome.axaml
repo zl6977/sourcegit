@@ -50,7 +50,7 @@
                     Margin="0" Padding="0"
                     Click="OnSearchHotKey"
                     HotKey="{OnPlatform Ctrl+F, macOS=⌘+F}"/>
-            
+
             <Button Classes="icon_button" IsVisible="{Binding SearchFilter, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Click="OnClearSearchFilter">
               <Path Width="16" Height="16" Margin="0,0,0,0" Data="{StaticResource Icons.Clear}" Fill="{DynamicResource Brush.FG1}"/>
             </Button>
@@ -220,6 +220,6 @@
                  FontSize="12"
                  Text="{DynamicResource Text.Welcome.DragDropTip}"
                  Opacity=".5"/>
-    </Border>    
+    </Border>
   </Grid>
 </UserControl>

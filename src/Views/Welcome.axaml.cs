@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Threading;
+
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -148,22 +150,66 @@ namespace SourceGit.Views
             {
                 var menu = new ContextMenu();
 
-                if (!node.IsRepository && node.SubNodes.Count > 0)
+                var edit = new MenuItem();
+                edit.Header = App.Text("Welcome.Edit");
+                edit.Icon = this.CreateMenuIcon("Icons.Edit");
+                edit.Click += (_, e) =>
                 {
-                    var openAll = new MenuItem();
-                    openAll.Header = App.Text("Welcome.OpenAllInNode");
-                    openAll.Icon = this.CreateMenuIcon("Icons.Folder.Open");
-                    openAll.Click += (_, e) =>
+                    node.Edit();
+                    e.Handled = true;
+                };
+
+                var move = new MenuItem();
+                move.Header = App.Text("Welcome.Move");
+                move.Icon = this.CreateMenuIcon("Icons.MoveTo");
+                move.Click += (_, e) =>
+                {
+                    node.Move();
+                    e.Handled = true;
+                };
+
+                var delete = new MenuItem();
+                delete.Header = App.Text("Welcome.Delete");
+                delete.Icon = this.CreateMenuIcon("Icons.Clear");
+                delete.Click += (_, e) =>
+                {
+                    node.Delete();
+                    e.Handled = true;
+                };
+
+                if (!node.IsRepository)
+                {
+                    if (node.SubNodes.Count > 0)
                     {
-                        node.Open();
+                        var openAll = new MenuItem();
+                        openAll.Header = App.Text("Welcome.OpenAllInNode");
+                        openAll.Icon = this.CreateMenuIcon("Icons.Folder.Open");
+                        openAll.Click += (_, e) =>
+                        {
+                            node.Open();
+                            e.Handled = true;
+                        };
+
+                        menu.Items.Add(openAll);
+                        menu.Items.Add(new MenuItem() { Header = "-" });
+                    }
+
+                    var addSubFolder = new MenuItem();
+                    addSubFolder.Header = App.Text("Welcome.AddSubFolder");
+                    addSubFolder.Icon = this.CreateMenuIcon("Icons.Folder.Add");
+                    addSubFolder.Click += (_, e) =>
+                    {
+                        node.AddSubFolder();
                         e.Handled = true;
                     };
 
-                    menu.Items.Add(openAll);
+                    menu.Items.Add(addSubFolder);
+                    menu.Items.Add(edit);
+                    menu.Items.Add(move);
                     menu.Items.Add(new MenuItem() { Header = "-" });
+                    menu.Items.Add(delete);
                 }
-
-                if (node.IsRepository)
+                else if (Directory.Exists(node.Id))
                 {
                     var open = new MenuItem();
                     open.Header = App.Text("Welcome.OpenOrInit");
@@ -197,51 +243,16 @@ namespace SourceGit.Views
                     menu.Items.Add(explore);
                     menu.Items.Add(terminal);
                     menu.Items.Add(new MenuItem() { Header = "-" });
+                    menu.Items.Add(edit);
+                    menu.Items.Add(move);
+                    menu.Items.Add(new MenuItem() { Header = "-" });
+                    menu.Items.Add(delete);
                 }
                 else
                 {
-                    var addSubFolder = new MenuItem();
-                    addSubFolder.Header = App.Text("Welcome.AddSubFolder");
-                    addSubFolder.Icon = this.CreateMenuIcon("Icons.Folder.Add");
-                    addSubFolder.Click += (_, e) =>
-                    {
-                        node.AddSubFolder();
-                        e.Handled = true;
-                    };
-                    menu.Items.Add(addSubFolder);
+                    menu.Items.Add(delete);
                 }
 
-                var edit = new MenuItem();
-                edit.Header = App.Text("Welcome.Edit");
-                edit.Icon = this.CreateMenuIcon("Icons.Edit");
-                edit.Click += (_, e) =>
-                {
-                    node.Edit();
-                    e.Handled = true;
-                };
-
-                var move = new MenuItem();
-                move.Header = App.Text("Welcome.Move");
-                move.Icon = this.CreateMenuIcon("Icons.MoveTo");
-                move.Click += (_, e) =>
-                {
-                    node.Move();
-                    e.Handled = true;
-                };
-
-                var delete = new MenuItem();
-                delete.Header = App.Text("Welcome.Delete");
-                delete.Icon = this.CreateMenuIcon("Icons.Clear");
-                delete.Click += (_, e) =>
-                {
-                    node.Delete();
-                    e.Handled = true;
-                };
-
-                menu.Items.Add(edit);
-                menu.Items.Add(move);
-                menu.Items.Add(new MenuItem() { Header = "-" });
-                menu.Items.Add(delete);
                 menu.Open(grid);
             }
 

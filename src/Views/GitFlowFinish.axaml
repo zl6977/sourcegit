@@ -26,7 +26,7 @@
                  Text="{DynamicResource Text.GitFlow.FinishHotfix}"
                  IsVisible="{Binding Type, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static m:GitFlowBranchType.Hotfix}}"/>
     </StackPanel>
-    
+
     <Grid Margin="0,16,0,0" RowDefinitions="32,32,32,32" ColumnDefinitions="150,*">
       <TextBlock Grid.Row="0" Grid.Column="0"
                  HorizontalAlignment="Right" VerticalAlignment="Center"

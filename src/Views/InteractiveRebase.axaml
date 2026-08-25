@@ -65,7 +65,7 @@
 
         <Path Width="14" Height="14" Data="{StaticResource Icons.Info}"/>
       </Border>
-      
+
       <Button Grid.Column="2" Width="0" Height="0" Click="OnMoveSelectedUp" HotKey="{OnPlatform Ctrl+Up, macOS=⌘+Up}"/>
       <Button Grid.Column="3" Width="0" Height="0" Click="OnMoveSelectedDown" HotKey="{OnPlatform Ctrl+Down, macOS=⌘+Down}"/>
     </Grid>
@@ -134,7 +134,7 @@
                            FontFamily="{DynamicResource Fonts.Monospace}"
                            Text="{Binding OriginalOrder, StringFormat='#{0}'}"
                            HorizontalAlignment="Center"/>
-                
+
                 <!-- Action -->
                 <Button Grid.Column="1" Opacity="1" Margin="4,0,0,0" Padding="8,2" Background="Transparent" Click="OnShowActionsDropdownMenu">
                   <StackPanel Orientation="Horizontal">
@@ -247,7 +247,7 @@
                            Text="{Binding Value, Converter={x:Static c:StringConverters.FormatByResourceKey}, ConverterParameter='Histories.Selected'}"/>
               </StackPanel>
             </DataTemplate>
-            
+
             <DataTemplate DataType="vm:CommitDetail">
               <Grid>
                 <v:CommitDetail IsDetailsPanelExpanded="True"/>
@@ -273,13 +273,13 @@
         <CheckBox Content="{DynamicResource Text.InteractiveRebase.AutoStash}"
                   VerticalAlignment="Center"
                   IsChecked="{Binding AutoStash, Mode=TwoWay}"/>
-        
+
         <CheckBox Margin="16,0,0,0"
                   Content="{DynamicResource Text.InteractiveRebase.NoVerify}"
                   VerticalAlignment="Center"
                   IsChecked="{Binding NoVerify, Mode=TwoWay}"/>
       </StackPanel>
-      
+
       <Button Grid.Column="1" Classes="flat primary" MinWidth="80" Content="{DynamicResource Text.Start}" Click="OnStartJobs"/>
       <Button Grid.Column="2" Classes="flat" Margin="8,0,0,0" MinWidth="80" Content="{DynamicResource Text.Cancel}" Click="CloseWindow"/>
     </Grid>

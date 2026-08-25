@@ -19,7 +19,7 @@
               BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Brush.Border2}"
               DoubleTapped="MaximizeOrRestoreWindow"
               PointerPressed="BeginMoveWindow"/>
-      
+
       <Path Width="12" Height="12"
             Margin="10,0,0,0"
             HorizontalAlignment="Left"

@@ -63,6 +63,10 @@ namespace SourceGit.Models
 
     public class BinaryDiff
     {
+        public string Repository { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+        public string NewRevision { get; set; } = string.Empty;
+
         public long OldSize { get; set; } = 0;
         public long NewSize { get; set; } = 0;
     }
@@ -101,7 +105,7 @@ namespace SourceGit.Models
     public class DiffResult
     {
         public bool IsBinary { get; set; } = false;
-        public bool IsLFS { get; set; } = false;
+        public bool IsSubmoduleChange { get; set; } = false;
         public string OldHash { get; set; } = string.Empty;
         public string NewHash { get; set; } = string.Empty;
         public int OldMode { get; set; } = 0;

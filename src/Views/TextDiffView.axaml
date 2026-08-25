@@ -51,7 +51,7 @@
               <ColumnDefinition Width="1" MinWidth="1" MaxWidth="1"/>
               <ColumnDefinition Width="12" MinWidth="12" MaxWidth="12"/>
             </Grid.ColumnDefinitions>
-            
+
             <v:SingleSideTextDiffPresenter Grid.Column="0"
                                            IsOld="True"
                                            FileName="{Binding Option.Path}"

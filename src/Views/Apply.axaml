@@ -30,7 +30,7 @@
                      IsChecked="{Binding FromClipboard, Mode=TwoWay}"
                      Margin="18,0,0,0"/>
       </StackPanel>
-      
+
       <TextBox Grid.Row="1" Grid.Column="1"
                x:Name="TxtPatchFile"
                Height="28"
@@ -50,7 +50,7 @@
             <Path Data="{StaticResource Icons.Folder.Open}" Fill="{DynamicResource Brush.FG1}"/>
           </Button>
         </TextBox.InnerRightContent>
-      </TextBox>     
+      </TextBox>
 
       <TextBlock Grid.Row="2" Grid.Column="0"
                  HorizontalAlignment="Right" VerticalAlignment="Center"

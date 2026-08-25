@@ -18,7 +18,7 @@
                  Classes="bold"
                  Text="{DynamicResource Text.AddWorktree}"/>
     </StackPanel>
-    
+
     <Grid Margin="0,16,0,0" RowDefinitions="32,32,32,Auto,Auto" ColumnDefinitions="150,*">
       <TextBlock Grid.Row="0" Grid.Column="0"
                  HorizontalAlignment="Right" VerticalAlignment="Center"

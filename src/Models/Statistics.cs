@@ -42,11 +42,14 @@ namespace SourceGit.Models
             else
                 MaxValue = (int)(Math.Floor(maxValue / 6.0) * 8.0);
 
-            Count = mode switch
-            {
-                StatisticsMode.All => (end.Year - start.Year) * 12 + (end.Month - start.Month) + 1,
-                _ => all.Count,
-            };
+            if (maxValue == 0)
+                Count = 0;
+            else
+                Count = mode switch
+                {
+                    StatisticsMode.All => (end.Year - start.Year) * 12 + (end.Month - start.Month) + 1,
+                    _ => all.Count,
+                };
         }
 
         public void WithUser(Dictionary<DateTime, int> user)

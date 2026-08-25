@@ -49,7 +49,6 @@
   <x:String x:Key="Text.AssumeUnchanged.Empty" xml:space="preserve">אין קבצים בהנחת assume-unchanged</x:String>
   <x:String x:Key="Text.Avatar.Load" xml:space="preserve">טען תמונה...</x:String>
   <x:String x:Key="Text.Avatar.Refetch" xml:space="preserve">רענן</x:String>
-  <x:String x:Key="Text.BinaryNotSupported" xml:space="preserve">קובץ בינארי אינו נתמך!!!</x:String>
   <x:String x:Key="Text.Bisect">Bisect</x:String>
   <x:String x:Key="Text.Bisect.Abort">ביטול</x:String>
   <x:String x:Key="Text.Bisect.Bad">פגום (Bad)</x:String>
@@ -178,7 +177,6 @@
   <x:String x:Key="Text.CommitDetail.Files.Submodule" xml:space="preserve">Submodule</x:String>
   <x:String x:Key="Text.CommitDetail.Info" xml:space="preserve">מידע</x:String>
   <x:String x:Key="Text.CommitDetail.Info.Author" xml:space="preserve">AUTHOR</x:String>
-  <x:String x:Key="Text.CommitDetail.Info.Children" xml:space="preserve">צאצאים</x:String>
   <x:String x:Key="Text.CommitDetail.Info.Committer" xml:space="preserve">COMMITTER</x:String>
   <x:String x:Key="Text.CommitDetail.Info.ContainsIn" xml:space="preserve">בדוק refs המכילים את ה־commit הזה</x:String>
   <x:String x:Key="Text.CommitDetail.Info.ContainsIn.Title" xml:space="preserve">ה־COMMIT כלול ב־</x:String>
@@ -336,6 +334,7 @@
   <x:String x:Key="Text.DeleteBranch" xml:space="preserve">מחק Branch</x:String>
   <x:String x:Key="Text.DeleteBranch.Branch" xml:space="preserve">Branch:</x:String>
   <x:String x:Key="Text.DeleteBranch.IsRemoteTip" xml:space="preserve">פעולה זו תמחק branch מרוחק!!!</x:String>
+  <x:String x:Key="Text.DeleteBranch.WithTrackingRemote" xml:space="preserve">למחוק גם את ה־branch המרוחק ${0}$</x:String>
   <x:String x:Key="Text.DeleteMultiBranch" xml:space="preserve">מחק מספר Branches</x:String>
   <x:String x:Key="Text.DeleteMultiBranch.Tip" xml:space="preserve">פעולה זו תמחק מספר branches בו זמנית. בדוק היטב לפני הביצוע!</x:String>
   <x:String x:Key="Text.DeleteMultiTags" xml:space="preserve">מחק מספר Tags</x:String>
@@ -659,7 +658,6 @@
   <x:String x:Key="Text.Preferences.General.MaxHistoryCommits" xml:space="preserve">Commits בהיסטוריה</x:String>
   <x:String x:Key="Text.Preferences.General.ShowChangesPageByDefault" xml:space="preserve">הצג דף `LOCAL CHANGES` כברירת מחדל</x:String>
   <x:String x:Key="Text.Preferences.General.ShowChangesTabInCommitDetailByDefault" xml:space="preserve">הצג לשונית `CHANGES` בפרטי ה־commit כברירת מחדל</x:String>
-  <x:String x:Key="Text.Preferences.General.ShowChildren" xml:space="preserve">הצג צאצאים בפרטי ה־commit</x:String>
   <x:String x:Key="Text.Preferences.General.ShowRelativeTimeInGraph" xml:space="preserve">הצג זמן יחסי בגרף ה־commits</x:String>
   <x:String x:Key="Text.Preferences.General.ShowTagsInGraph" xml:space="preserve">הצג tags בגרף ה־commits</x:String>
   <x:String x:Key="Text.Preferences.General.SubjectGuideLength" xml:space="preserve">אורך מנחה ל־Subject</x:String>

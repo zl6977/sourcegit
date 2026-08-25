@@ -40,6 +40,7 @@ namespace SourceGit.ViewModels
                 if (value != _sharedData.ActiveTabIndex)
                 {
                     _sharedData.ActiveTabIndex = value;
+                    OnPropertyChanged(nameof(ActiveTabIndex));
 
                     if (value == 1 && DiffContext == null && _selectedChanges is { Count: 1 })
                         DiffContext = new DiffContext(_repo.FullPath, new Models.DiffOption(_commit, _selectedChanges[0]));
@@ -76,12 +77,6 @@ namespace SourceGit.ViewModels
         {
             get;
             private set;
-        }
-
-        public List<string> Children
-        {
-            get => _children;
-            private set => SetProperty(ref _children, value);
         }
 
         public List<Models.Change> Changes
@@ -338,7 +333,6 @@ namespace SourceGit.ViewModels
             ViewRevisionFileContent = null;
             ViewRevisionFilePath = string.Empty;
             CanOpenRevisionFileWithDefaultEditor = false;
-            Children = null;
             RevisionFileSearchFilter = string.Empty;
             RevisionFileSearchSuggestion = null;
             ScrollOffset = Vector.Zero;
@@ -385,22 +379,13 @@ namespace SourceGit.ViewModels
                     Dispatcher.UIThread.Post(() => SignInfo = signInfo);
             }, token);
 
-            if (Preferences.Instance.ShowChildren)
-            {
-                Task.Run(async () =>
-                {
-                    var max = Preferences.Instance.MaxHistoryCommits;
-                    var cmd = new Commands.QueryCommitChildren(_repo.FullPath, _commit.SHA, max) { CancellationToken = token };
-                    var children = await cmd.GetResultAsync().ConfigureAwait(false);
-                    if (!token.IsCancellationRequested)
-                        Dispatcher.UIThread.Post(() => Children = children);
-                }, token);
-            }
-
             Task.Run(async () =>
             {
-                var cmd = new Commands.CompareRevisions(_repo.FullPath, _commit.FirstParentToCompare, _commit.SHA) { CancellationToken = token };
-                var changes = await cmd.ReadAsync().ConfigureAwait(false);
+                var changes = await new Commands.CompareRevisions(_repo.FullPath, _commit.FirstParentToCompare, _commit.SHA)
+                    .WithCancellation(token)
+                    .ReadAsync()
+                    .ConfigureAwait(false);
+
                 var visible = changes;
                 if (!string.IsNullOrWhiteSpace(_searchChangeFilter))
                 {
@@ -571,13 +556,13 @@ namespace SourceGit.ViewModels
                 else
                 {
                     var size = await new Commands.QueryFileSize(_repo.FullPath, file.Path, _commit.SHA).GetResultAsync();
-                    ViewRevisionFileContent = new Models.RevisionBinaryFile() { Size = size };
+                    ViewRevisionFileContent = new Models.RevisionBinaryFile(_repo.FullPath, file.Path, _commit.SHA, size);
                 }
 
                 return;
             }
 
-            var contentStream = await Commands.QueryFileContent.RunAsync(_repo.FullPath, _commit.SHA, file.Path);
+            await using var contentStream = await Commands.QueryFileContent.RunAsync(_repo.FullPath, _commit.SHA, file.Path);
             var content = await new StreamReader(contentStream).ReadToEndAsync();
             var lfs = Models.LFSObject.Parse(content);
             if (lfs != null)
@@ -596,25 +581,13 @@ namespace SourceGit.ViewModels
 
         private async Task SetViewingCommitAsync(Models.Object file)
         {
-            var submoduleRoot = Path.Combine(_repo.FullPath, file.Path).Replace('\\', '/').Trim('/');
-            var commit = await new Commands.QuerySingleCommit(submoduleRoot, file.SHA).GetResultAsync();
-            if (commit == null)
+            var submoduleRoot = Path.Combine(_repo.FullPath, file.Path).Replace('\\', '/').TrimEnd('/');
+            var info = await new Commands.QuerySubmoduleRevision(submoduleRoot, file.SHA).GetResultAsync();
+            ViewRevisionFileContent = info ?? new Models.RevisionSubmodule()
             {
-                ViewRevisionFileContent = new Models.RevisionSubmodule()
-                {
-                    Commit = new Models.Commit() { SHA = file.SHA },
-                    FullMessage = new Models.CommitFullMessage()
-                };
-            }
-            else
-            {
-                var message = await new Commands.QueryCommitFullMessage(submoduleRoot, file.SHA).GetResultAsync();
-                ViewRevisionFileContent = new Models.RevisionSubmodule()
-                {
-                    Commit = commit,
-                    FullMessage = new Models.CommitFullMessage { Message = message }
-                };
-            }
+                Commit = new Models.Commit() { SHA = file.SHA },
+                FullMessage = new Models.CommitFullMessage()
+            };
         }
 
         [GeneratedRegex(@"\b(https?://|ftp://)[\w\d\._/\-~%@()+:?&=#!]*[\w\d/]")]
@@ -631,7 +604,6 @@ namespace SourceGit.ViewModels
         private Models.Commit _commit = null;
         private Models.CommitFullMessage _fullMessage = null;
         private Models.CommitSignInfo _signInfo = null;
-        private List<string> _children = null;
         private List<Models.Change> _changes = [];
         private List<Models.Change> _visibleChanges = [];
         private List<Models.Change> _selectedChanges = null;

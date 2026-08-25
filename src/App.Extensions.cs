@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 using Avalonia.Media;
 
 namespace SourceGit
@@ -16,6 +17,18 @@ namespace SourceGit
         public static string Escaped(this string value)
         {
             return value.Replace("\"", "\\\"", StringComparison.Ordinal);
+        }
+
+        public static string EscapeForBRE(this string value)
+        {
+            return value
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace(".", "\\.", StringComparison.Ordinal)
+                .Replace("[", "\\[", StringComparison.Ordinal)
+                .Replace("*", "\\*", StringComparison.Ordinal)
+                .Replace("^", "\\^", StringComparison.Ordinal)
+                .Replace("$", "\\$", StringComparison.Ordinal)
+                .Replace("{", "\\{", StringComparison.Ordinal);
         }
 
         public static string FormatFontNames(string input)
@@ -65,6 +78,12 @@ namespace SourceGit
         public static T Use<T>(this T cmd, Models.ICommandLog log) where T : Commands.Command
         {
             cmd.Log = log;
+            return cmd;
+        }
+
+        public static T WithCancellation<T>(this T cmd, CancellationToken token) where T : Commands.Command
+        {
+            cmd.CancellationToken = token;
             return cmd;
         }
     }

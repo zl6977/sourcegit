@@ -59,6 +59,19 @@ namespace SourceGit.ViewModels
             private set => SetProperty(ref _historyFilterMode, value);
         }
 
+        public bool IsHistoryFiltersCollapsed
+        {
+            get => _uiStates.IsHistoryFiltersCollapsed;
+            set
+            {
+                if (value != _uiStates.IsHistoryFiltersCollapsed)
+                {
+                    _uiStates.IsHistoryFiltersCollapsed = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public bool HasAllowedSignersFile
         {
             get => _hasAllowedSignersFile;
@@ -1327,6 +1340,7 @@ namespace SourceGit.ViewModels
             Task.Run(async () =>
             {
                 var changes = await new Commands.QueryLocalChanges(FullPath, _uiStates.IncludeUntrackedInLocalChanges, noOptionalLocks)
+                    .WithCancellation(token)
                     .GetResultAsync()
                     .ConfigureAwait(false);
 

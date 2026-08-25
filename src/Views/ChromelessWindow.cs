@@ -119,6 +119,11 @@ namespace SourceGit.Views
                     ViewModels.Preferences.Instance.Zoom = zoom;
                     e.Handled = true;
                 }
+                else if (e.Key == Key.W)
+                {
+                    Close();
+                    e.Handled = true;
+                }
             }
         }
 

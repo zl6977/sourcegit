@@ -46,7 +46,6 @@
   <x:String x:Key="Text.AssumeUnchanged.Empty" xml:space="preserve">NESSUN FILE ASSUNTO COME INVARIATO</x:String>
   <x:String x:Key="Text.Avatar.Load" xml:space="preserve">Carico l'Immagine...</x:String>
   <x:String x:Key="Text.Avatar.Refetch" xml:space="preserve">Aggiorna</x:String>
-  <x:String x:Key="Text.BinaryNotSupported" xml:space="preserve">FILE BINARIO NON SUPPORTATO!!!</x:String>
   <x:String x:Key="Text.Bisect" xml:space="preserve">Biseca</x:String>
   <x:String x:Key="Text.Bisect.Abort" xml:space="preserve">Annulla</x:String>
   <x:String x:Key="Text.Bisect.Bad" xml:space="preserve">Cattiva</x:String>
@@ -163,7 +162,6 @@
   <x:String x:Key="Text.CommitDetail.Files.Submodule" xml:space="preserve">Sottomodulo</x:String>
   <x:String x:Key="Text.CommitDetail.Info" xml:space="preserve">INFORMAZIONI</x:String>
   <x:String x:Key="Text.CommitDetail.Info.Author" xml:space="preserve">AUTORE</x:String>
-  <x:String x:Key="Text.CommitDetail.Info.Children" xml:space="preserve">FIGLI</x:String>
   <x:String x:Key="Text.CommitDetail.Info.Committer" xml:space="preserve">CHI HA COMMITTATO</x:String>
   <x:String x:Key="Text.CommitDetail.Info.ContainsIn" xml:space="preserve">Controlla i riferimenti che contengono questo commit</x:String>
   <x:String x:Key="Text.CommitDetail.Info.ContainsIn.Title" xml:space="preserve">IL COMMIT È CONTENUTO DA</x:String>
@@ -196,7 +194,7 @@ ${pure_files:N} Come ${files:N}, ma senza cartelle</x:String>
   <x:String x:Key="Text.Configure.CustomAction" xml:space="preserve">AZIONE PERSONALIZZATA</x:String>
   <x:String x:Key="Text.Configure.CustomAction.Arguments" xml:space="preserve">Argomenti:</x:String>
   <x:String x:Key="Text.Configure.CustomAction.Arguments.Tip" xml:space="preserve">Parametri integrati:
-  
+
   ${REPO} Percorso del repository
   ${REMOTE} Remoto selezionato o remoto del branch selezionato
   ${BRANCH} Branch selezionato, senza la parte ${REMOTE} per i branch remoti
@@ -311,6 +309,7 @@ ${pure_files:N} Come ${files:N}, ma senza cartelle</x:String>
   <x:String x:Key="Text.DeleteBranch" xml:space="preserve">Elimina Branch</x:String>
   <x:String x:Key="Text.DeleteBranch.Branch" xml:space="preserve">Branch:</x:String>
   <x:String x:Key="Text.DeleteBranch.IsRemoteTip" xml:space="preserve">Stai per eliminare un branch remoto!!!</x:String>
+  <x:String x:Key="Text.DeleteBranch.WithTrackingRemote" xml:space="preserve">Elimina anche il branch remoto ${0}$</x:String>
   <x:String x:Key="Text.DeleteMultiBranch" xml:space="preserve">Elimina Branch Multipli</x:String>
   <x:String x:Key="Text.DeleteMultiBranch.Tip" xml:space="preserve">Stai per eliminare più branch contemporaneamente. Controlla attentamente prima di procedere!</x:String>
   <x:String x:Key="Text.DeleteMultiTags" xml:space="preserve">Elimina Tag Multipli</x:String>
@@ -607,7 +606,6 @@ ${pure_files:N} Come ${files:N}, ma senza cartelle</x:String>
   <x:String x:Key="Text.Preferences.General.MaxHistoryCommits" xml:space="preserve">Numero massimo di commit nella cronologia</x:String>
   <x:String x:Key="Text.Preferences.General.ShowChangesPageByDefault" xml:space="preserve">Mostra pagina `MODIFICHE LOCALI` per impostazione predefinita</x:String>
   <x:String x:Key="Text.Preferences.General.ShowChangesTabInCommitDetailByDefault" xml:space="preserve">Mostra scheda `MODIFICHE` nei dettagli del commit per impostazione predefinita</x:String>
-  <x:String x:Key="Text.Preferences.General.ShowChildren" xml:space="preserve">Mostra i figli nei dettagli del commit</x:String>
   <x:String x:Key="Text.Preferences.General.ShowTagsInGraph" xml:space="preserve">Mostra i tag nel grafico dei commit</x:String>
   <x:String x:Key="Text.Preferences.General.SubjectGuideLength" xml:space="preserve">Lunghezza Guida Oggetto</x:String>
   <x:String x:Key="Text.Preferences.General.UseGitHubStyleAvatar" xml:space="preserve">Genera avatar predefinito stile GitHub</x:String>
