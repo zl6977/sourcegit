@@ -15,7 +15,11 @@ namespace SourceGit.Commands
             if (useRebase)
                 Args.Add("--rebase=true");
             Args.Add(remote);
-            Args.Add(branch);
+            // An empty branch means "pull the upstream". Do not emit an empty
+            // argument: `git` tolerates it on Windows, but `wsl.exe --exec`
+            // rejects it with `Wsl/Service/E_INVALIDARG`.
+            if (!string.IsNullOrEmpty(branch))
+                Args.Add(branch);
         }
 
         public async Task<bool> RunAsync()
