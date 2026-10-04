@@ -12,12 +12,19 @@ namespace SourceGit.Commands
 
         public Result GetResult()
         {
-            return ReadToEnd();
+            return Map(ReadToEnd());
         }
 
         public async Task<Result> GetResultAsync()
         {
-            return await ReadToEndAsync().ConfigureAwait(false);
+            return Map(await ReadToEndAsync().ConfigureAwait(false));
+        }
+
+        private Result Map(Result result)
+        {
+            if (result.IsSuccess && SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory) && !string.IsNullOrWhiteSpace(result.StdOut))
+                result.StdOut = SourceGit.Remote.RepositoryPath.Remote(SourceGit.Remote.RepositoryPath.ConnectionId(WorkingDirectory), result.StdOut.Trim());
+            return result;
         }
     }
 }

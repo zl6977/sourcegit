@@ -19,13 +19,13 @@ namespace SourceGit.Models
         public string PublicKeyPath { get; set; }
         public string RawPublicKey { get; set; }
         public string Fingerprint { get; set; } = "--- (invalid)";
-        public string Name => Path.GetFileName(PrivateKeyPath);
+        public string Name => SourceGit.Remote.RepositoryPath.GetFileName(PrivateKeyPath);
 
         public SSHKeyPair(string privateKey, string publicKey)
         {
             PrivateKeyPath = privateKey;
             PublicKeyPath = publicKey;
-            RawPublicKey = File.ReadAllText(publicKey);
+            RawPublicKey = SourceGit.Remote.RepositoryFile.ReadAllText(publicKey);
 
             var parts = RawPublicKey.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length != 3)

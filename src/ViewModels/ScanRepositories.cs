@@ -74,13 +74,13 @@ namespace SourceGit.ViewModels
                 selectedDir = _selected.Path;
             }
 
-            if (!Directory.Exists(selectedDir))
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(selectedDir))
                 return true;
 
             ProgressDescription = $"Scan repositories under '{selectedDir}' ...";
 
             var minDelay = Task.Delay(500);
-            var rootDir = new DirectoryInfo(selectedDir);
+            var rootDir = new SourceGit.Remote.RepositoryDirectoryInfo(selectedDir);
             var found = new List<string>();
 
             await GetUnmanagedRepositoriesAsync(rootDir, found, new EnumerationOptions()
@@ -97,7 +97,7 @@ namespace SourceGit.ViewModels
             {
                 var f = found[i];
                 ProgressDescription = $"Registering ({i + 1}/{found.Count}) {f}...";
-                var parent = new DirectoryInfo(f).Parent!.FullName.Replace('\\', '/').TrimEnd('/');
+                var parent = new SourceGit.Remote.RepositoryDirectoryInfo(f).Parent!.FullName.Replace('\\', '/').TrimEnd('/');
                 if (parent.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase))
                 {
                     var node = Preferences.Instance.FindOrAddNodeByRepositoryPath(f, null, false, false);
@@ -133,7 +133,7 @@ namespace SourceGit.ViewModels
             }
         }
 
-        private async Task GetUnmanagedRepositoriesAsync(DirectoryInfo dir, List<string> outs, EnumerationOptions opts, int depth = 0)
+        private async Task GetUnmanagedRepositoriesAsync(SourceGit.Remote.RepositoryDirectoryInfo dir, List<string> outs, EnumerationOptions opts, int depth = 0)
         {
             var subdirs = dir.GetDirectories("*", opts);
             foreach (var subdir in subdirs)
@@ -148,8 +148,8 @@ namespace SourceGit.ViewModels
                 if (IsManaged(normalizedSelf))
                     continue;
 
-                var gitDir = Path.Combine(subdir.FullName, ".git");
-                if (Directory.Exists(gitDir) || File.Exists(gitDir))
+                var gitDir = SourceGit.Remote.RepositoryPath.Combine(subdir.FullName, ".git");
+                if (SourceGit.Remote.RepositoryDirectory.Exists(gitDir) || SourceGit.Remote.RepositoryFile.Exists(gitDir))
                 {
                     var test = await new Commands.QueryRepositoryRootPath(subdir.FullName).GetResultAsync();
                     if (test.IsSuccess && !string.IsNullOrEmpty(test.StdOut))

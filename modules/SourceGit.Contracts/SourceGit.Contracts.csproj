@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><IsAotCompatible>true</IsAotCompatible>
+    <SourceGitBuildId Condition="'$(SourceGitBuildId)' == ''">remote-1</SourceGitBuildId>
+  </PropertyGroup>
+  <Target Name="GenerateRemoteBuildIdentity" BeforeTargets="BeforeCompile">
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(SourceGitBuildId)', '^[a-zA-Z0-9._-]+$'))" Text="SourceGitBuildId must contain only letters, numbers, dot, underscore or hyphen." />
+    <WriteLinesToFile File="$(IntermediateOutputPath)RemoteBuild.g.cs" Lines="namespace SourceGit.Contracts { internal static class BuildIdentity { internal const string Value = &quot;$(SourceGitBuildId)&quot;%3B } }" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup><Compile Include="$(IntermediateOutputPath)RemoteBuild.g.cs" /></ItemGroup>
+  </Target>
+</Project>

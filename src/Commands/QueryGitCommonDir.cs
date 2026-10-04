@@ -19,9 +19,11 @@ namespace SourceGit.Commands
                 return string.Empty;
 
             var dir = rs.StdOut.Trim();
-            if (Path.IsPathRooted(dir))
+            if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
+                return SourceGit.Remote.RepositoryPath.Combine(WorkingDirectory, dir);
+            if (SourceGit.Remote.RepositoryPath.IsPathRooted(dir))
                 return dir;
-            return Path.GetFullPath(Path.Combine(WorkingDirectory, dir));
+            return SourceGit.Remote.RepositoryPath.GetFullPath(SourceGit.Remote.RepositoryPath.Combine(WorkingDirectory, dir));
         }
     }
 }

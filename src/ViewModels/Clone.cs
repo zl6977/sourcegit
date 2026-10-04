@@ -111,7 +111,7 @@ namespace SourceGit.ViewModels
 
         public static ValidationResult ValidateParentFolder(string folder, ValidationContext _)
         {
-            if (!Directory.Exists(folder))
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(folder))
                 return new ValidationResult("Given path can NOT be found");
             return ValidationResult.Success;
         }
@@ -136,20 +136,20 @@ namespace SourceGit.ViewModels
             var path = _parentFolder;
             if (!string.IsNullOrEmpty(_local))
             {
-                path = Path.GetFullPath(Path.Combine(path, _local));
+                path = SourceGit.Remote.RepositoryPath.GetFullPath(SourceGit.Remote.RepositoryPath.Combine(path, _local));
             }
             else
             {
-                var name = Path.GetFileName(_remote)!;
+                var name = SourceGit.Remote.RepositoryPath.GetFileName(_remote)!;
                 if (name.EndsWith(".git", StringComparison.Ordinal))
                     name = name.Substring(0, name.Length - 4);
                 else if (name.EndsWith(".bundle", StringComparison.Ordinal))
                     name = name.Substring(0, name.Length - 7);
 
-                path = Path.GetFullPath(Path.Combine(path, name));
+                path = SourceGit.Remote.RepositoryPath.GetFullPath(SourceGit.Remote.RepositoryPath.Combine(path, name));
             }
 
-            if (!Directory.Exists(path))
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(path))
             {
                 Models.Notification.Send(_pageId, $"Folder '{path}' can NOT be found", true);
                 return false;

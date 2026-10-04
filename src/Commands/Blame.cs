@@ -15,6 +15,9 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
             RaiseError = false;
+            _file = file;
+            _revision = revision;
+            _ignoreWhitespace = ignoreWhitespace;
 
             var builder = new StringBuilder();
             builder.Append("blame -f -t ");
@@ -27,6 +30,22 @@ namespace SourceGit.Commands
 
         public async Task<Models.BlameData> ReadAsync()
         {
+            if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
+            {
+                try
+                {
+                    var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(WorkingDirectory);
+                    var handle = await workspace.OpenTransientAsync(WorkingDirectory, CancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var data = await workspace.Client.GetBlameAsync(handle.Id, _revision, _file, _ignoreWhitespace, CancellationToken).ConfigureAwait(false);
+                        return Map(data);
+                    }
+                    finally { await workspace.ReleaseTransientAsync(handle.Id).ConfigureAwait(false); }
+                }
+                catch { return _result; }
+            }
+
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             if (!rs.IsSuccess)
                 return _result;
@@ -96,8 +115,34 @@ namespace SourceGit.Commands
             }
         }
 
+        private static Models.BlameData Map(SourceGit.Contracts.BlameData data)
+        {
+            var result = new Models.BlameData();
+            if (data.IsBinary)
+            {
+                result.IsBinary = true;
+                return result;
+            }
+            result.Content = data.Content;
+            foreach (var line in data.Lines)
+            {
+                result.LineInfos.Add(new Models.BlameLineInfo
+                {
+                    IsFirstInGroup = line.IsFirstInGroup,
+                    CommitSHA = line.CommitSHA,
+                    File = line.File,
+                    Author = line.Author,
+                    Timestamp = (ulong)line.Timestamp,
+                });
+            }
+            return result;
+        }
+
         private readonly Models.BlameData _result = new Models.BlameData();
         private readonly StringBuilder _content = new StringBuilder();
+        private readonly string _file;
+        private readonly string _revision;
+        private readonly bool _ignoreWhitespace;
         private string _lastSHA = string.Empty;
         private bool _needUnifyCommitSHA = false;
         private int _minSHALen = 64;

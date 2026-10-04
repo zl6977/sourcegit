@@ -10,14 +10,17 @@ namespace SourceGit.Models
         public string Message { get; set; }
         public bool IsError { get; set; }
 
-        public static void Send(string group, string message, bool isError = false)
+        // Returns the created notification so callers can dismiss it later (see Launcher).
+        public static Notification Send(string group, string message, bool isError = false)
         {
-            Raised?.Invoke(new Notification
+            var notification = new Notification
             {
                 Group = group,
                 Message = message,
                 IsError = isError
-            });
+            };
+            Raised?.Invoke(notification);
+            return notification;
         }
     }
 }

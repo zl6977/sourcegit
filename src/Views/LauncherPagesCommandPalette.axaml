@@ -187,7 +187,7 @@
 
       <ListBox.ItemTemplate>
         <DataTemplate DataType="vm:RepositoryNode">
-          <Grid ColumnDefinitions="Auto,*" Background="Transparent" Tapped="OnItemTapped" ToolTip.Tip="{Binding Id, Mode=OneWay}">
+          <Grid ColumnDefinitions="Auto,*" Background="Transparent" Tapped="OnItemTapped" ToolTip.Tip="{Binding Id, Mode=OneWay, Converter={x:Static c:PathConverters.RemoteDisplayPath}}">
             <v:Bookmark Grid.Column="0"
                         Width="12" Height="12"
                         Value="{Binding Bookmark, Mode=OneWay}"/>
@@ -196,7 +196,7 @@
                        VerticalAlignment="Center"
                        IsHitTestVisible="False">
               <Run Text="{Binding Name, Mode=OneWay}"/>
-              <Run Text="{Binding Id, Mode=OneWay, StringFormat=({0}), Converter={x:Static c:PathConverters.RelativeToHome}}" Foreground="{DynamicResource Brush.FG2}"/>
+              <Run Text="{Binding Id, Mode=OneWay, StringFormat=({0}), Converter={x:Static c:PathConverters.RemoteDisplayPath}}" Foreground="{DynamicResource Brush.FG2}"/>
             </TextBlock>
           </Grid>
         </DataTemplate>

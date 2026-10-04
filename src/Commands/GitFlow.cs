@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace SourceGit.Commands
@@ -13,7 +13,7 @@ namespace SourceGit.Commands
 
         public async Task<bool> InitAsync(string production, string develop, string feature, string release, string hotfix, string tag)
         {
-            if (Native.OS.GitFlowVersion == Models.GitFlowVersion.Next)
+            if (SourceGit.Remote.RemoteWorkspace.GitFlowVersion(WorkingDirectory) == Models.GitFlowVersion.Next)
             {
                 var builder = new StringBuilder();
                 builder

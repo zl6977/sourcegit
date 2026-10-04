@@ -106,7 +106,7 @@ namespace SourceGit.ViewModels
                     foreach (var t in Targets)
                         builder.Append("(cherry picked from commit ").Append(t.SHA).Append(")\n");
 
-                    File.WriteAllText(Path.Combine(_repo.GitDir, "MERGE_MSG"), builder.ToString());
+                    SourceGit.Remote.RepositoryFile.WriteAllText(SourceGit.Remote.RepositoryPath.Combine(_repo.GitDir, "MERGE_MSG"), builder.ToString());
                 }
             }
 

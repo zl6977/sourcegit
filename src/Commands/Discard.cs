@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -25,9 +25,9 @@ namespace SourceGit.Commands
                             c.Index == Models.ChangeState.Added ||
                             c.Index == Models.ChangeState.Renamed)
                         {
-                            var fullPath = Path.Combine(repo, c.Path);
-                            if (Directory.Exists(fullPath))
-                                Directory.Delete(fullPath, true);
+                            var fullPath = SourceGit.Remote.RepositoryPath.Combine(repo, c.Path);
+                            if (SourceGit.Remote.RepositoryDirectory.Exists(fullPath))
+                                SourceGit.Remote.RepositoryDirectory.Delete(fullPath, true);
                         }
                     }
                 }
@@ -66,11 +66,11 @@ namespace SourceGit.Commands
                 {
                     if (c.WorkTree == Models.ChangeState.Untracked || c.WorkTree == Models.ChangeState.Added)
                     {
-                        var fullPath = Path.Combine(repo, c.Path);
-                        if (Directory.Exists(fullPath))
-                            Directory.Delete(fullPath, true);
+                        var fullPath = SourceGit.Remote.RepositoryPath.Combine(repo, c.Path);
+                        if (SourceGit.Remote.RepositoryDirectory.Exists(fullPath))
+                            SourceGit.Remote.RepositoryDirectory.Delete(fullPath, true);
                         else
-                            File.Delete(fullPath);
+                            SourceGit.Remote.RepositoryFile.Delete(fullPath);
                     }
                     else
                     {
@@ -85,10 +85,10 @@ namespace SourceGit.Commands
 
             if (restores.Count > 0)
             {
-                var pathSpecFile = Path.GetTempFileName();
-                await File.WriteAllLinesAsync(pathSpecFile, restores).ConfigureAwait(false);
+                var pathSpecFile = SourceGit.Remote.RepositoryFile.GetTempFileName(repo);
+                await SourceGit.Remote.RepositoryFile.WriteAllLinesAsync(pathSpecFile, restores).ConfigureAwait(false);
                 await new Restore(repo, pathSpecFile).Use(log).ExecAsync().ConfigureAwait(false);
-                File.Delete(pathSpecFile);
+                SourceGit.Remote.RepositoryFile.Delete(pathSpecFile);
             }
         }
     }

@@ -93,10 +93,10 @@ namespace SourceGit.ViewModels
                 _ => (head, (object)"Stash or Patch"),
             };
 
-            var workingCopyPath = Path.Combine(_repo.FullPath, _filePath);
+            var workingCopyPath = SourceGit.Remote.RepositoryPath.Combine(_repo.FullPath, _filePath);
             var workingCopyContent = string.Empty;
-            if (File.Exists(workingCopyPath))
-                workingCopyContent = File.ReadAllText(workingCopyPath);
+            if (SourceGit.Remote.RepositoryFile.Exists(workingCopyPath))
+                workingCopyContent = SourceGit.Remote.RepositoryFile.ReadAllText(workingCopyPath);
 
             if (workingCopyContent.IndexOf('\0', StringComparison.Ordinal) >= 0)
             {
@@ -196,14 +196,14 @@ namespace SourceGit.ViewModels
             try
             {
                 // Write merged content to file
-                var fullPath = Path.Combine(_repo.FullPath, _filePath);
-                await File.WriteAllTextAsync(fullPath, builder.ToString());
+                var fullPath = SourceGit.Remote.RepositoryPath.Combine(_repo.FullPath, _filePath);
+                await SourceGit.Remote.RepositoryFile.WriteAllTextAsync(fullPath, builder.ToString());
 
                 // Stage the file
-                var pathSpecFile = Path.GetTempFileName();
-                await File.WriteAllTextAsync(pathSpecFile, _filePath);
+                var pathSpecFile = SourceGit.Remote.RepositoryFile.GetTempFileName(_repo.FullPath);
+                await SourceGit.Remote.RepositoryFile.WriteAllTextAsync(pathSpecFile, _filePath);
                 await new Commands.Add(_repo.FullPath, pathSpecFile).ExecAsync();
-                File.Delete(pathSpecFile);
+                SourceGit.Remote.RepositoryFile.Delete(pathSpecFile);
 
                 _repo.MarkWorkingCopyDirtyManually();
                 return true;

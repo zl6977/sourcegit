@@ -378,7 +378,7 @@ namespace SourceGit.Models
         {
             var names = new List<string>();
             foreach (var c in context.changes)
-                names.Add(Path.GetFileName(c.Path));
+                names.Add(SourceGit.Remote.RepositoryPath.GetFileName(c.Path));
             return string.Join(", ", names);
         }
 
@@ -410,7 +410,7 @@ namespace SourceGit.Models
             var names = new List<string>();
             var max = Math.Min(count, context.changes.Count);
             for (int i = 0; i < max; i++)
-                names.Add(Path.GetFileName(context.changes[i].Path));
+                names.Add(SourceGit.Remote.RepositoryPath.GetFileName(context.changes[i].Path));
 
             sb.AppendJoin(", ", names);
             if (max < context.changes.Count)

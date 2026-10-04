@@ -80,7 +80,11 @@ namespace SourceGit.ViewModels
 
         public bool TryOpenRepositoryFromPath(string repo)
         {
-            if (!string.IsNullOrEmpty(repo) && Directory.Exists(repo))
+            if (!string.IsNullOrEmpty(repo) && !SourceGit.Remote.RepositoryPath.IsRemote(repo))
+                // Conservative normalization: user-supplied paths (dialog, drag-drop, activation) arrive in
+                // mixed slash forms; canonical local form is forward slashes. Remote URIs stay untouched.
+                repo = repo.Replace('\\', '/').TrimEnd('/').Trim();
+            if (!string.IsNullOrEmpty(repo) && SourceGit.Remote.RepositoryDirectory.Exists(repo))
             {
                 var isBare = new Commands.IsBareRepository(repo).GetResult();
                 if (isBare)
@@ -291,11 +295,11 @@ namespace SourceGit.ViewModels
 
         public void OpenRepositoryInTab(string repo, LauncherPage page)
         {
-            var normalizedPath = repo.Replace('\\', '/').TrimEnd('/');
+            var normalizedPath = SourceGit.Remote.RemoteConnections.PreferredRoute(SourceGit.Remote.RepositoryPath.StoredPath(repo), SourceGit.Remote.RemoteConnections.LoadCached());
             var node = Preferences.Instance.FindNode(normalizedPath) ?? new RepositoryNode
             {
                 Id = normalizedPath,
-                Name = Path.GetFileName(normalizedPath),
+                Name = SourceGit.Remote.RepositoryPath.GetFileName(normalizedPath),
                 Bookmark = 0,
                 IsRepository = true,
                 IsUnmanaged = true
@@ -315,7 +319,13 @@ namespace SourceGit.ViewModels
                 }
             }
 
-            if (!Directory.Exists(node.Id))
+            if (SourceGit.Remote.RepositoryPath.IsRemote(node.Id))
+            {
+                _ = OpenRemoteRepositoryAsync(node, page);
+                return;
+            }
+
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(node.Id))
             {
                 ActivePage.Notifications.Add(new Models.Notification
                 {
@@ -344,6 +354,64 @@ namespace SourceGit.ViewModels
 
             var repo = new Repository(isBare, node.Id, gitDir);
             repo.Open();
+
+            AttachRepository(node, page, repo);
+        }
+
+        private async System.Threading.Tasks.Task OpenRemoteRepositoryAsync(RepositoryNode node, LauncherPage page)
+        {
+            lock (_remoteOpeningGate)
+            {
+                if (!_remoteOpening.Add(node.Id)) return;
+            }
+
+            Models.Notification connecting = null;
+            try
+            {
+                using var cancellation = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(90));
+                SourceGit.Remote.RemoteWorkspace workspace = null;
+                Exception error = null;
+                for (var attempt = 0; attempt < 3 && workspace == null; attempt++)
+                {
+                    try
+                    {
+                        if (attempt == 0)
+                        {
+                            string name = null;
+                            foreach (var one in SourceGit.Remote.RemoteConnections.Load())
+                            {
+                                if (one.Id == SourceGit.Remote.RepositoryPath.ConnectionId(node.Id)) { name = one.Name; break; }
+                            }
+                            if (name != null) connecting = Models.Notification.Send(node.Id, "Connecting to " + name + "…", false);
+                        }
+                        workspace = await SourceGit.Remote.RemoteConnections.RestoreAsync(node.Id, cancellation.Token);
+                    }
+                    catch (Exception ex) when (attempt < 2 && ex is System.IO.IOException or System.Net.Sockets.SocketException or System.IO.EndOfStreamException)
+                    {
+                        error = ex;
+                        await System.Threading.Tasks.Task.Delay(2000, System.Threading.CancellationToken.None);
+                    }
+                }
+                if (workspace == null) throw error ?? new System.IO.IOException("Remote connection failed");
+                var info = await workspace.OpenAsync(node.Id, cancellation.Token);
+                var repo = await System.Threading.Tasks.Task.Run(() => new Repository(info.Bare, workspace.Resource(info.WorktreePath), workspace.Resource(info.GitDirectory)));
+                foreach (var existing in Pages)
+                {
+                    if (existing.Node.Id == node.Id) { ActivePage = existing; return; }
+                }
+                repo.Open();
+                AttachRepository(node, page, repo);
+            }
+            catch (Exception error) { Models.Notification.Send(node.Id, error.Message, true); }
+            finally
+            {
+                DismissNotification(connecting);
+                lock (_remoteOpeningGate) { _remoteOpening.Remove(node.Id); }
+            }
+        }
+
+        private void AttachRepository(RepositoryNode node, LauncherPage page, Repository repo)
+        {
 
             if (page == null)
             {
@@ -380,7 +448,12 @@ namespace SourceGit.ViewModels
 
         public void OpenSubRepository(LauncherPage ownerPage, string fullpath)
         {
-            var normalizedPath = fullpath.Replace('\\', '/').TrimEnd('/');
+            if (SourceGit.Remote.RepositoryPath.IsRemote(fullpath))
+            {
+                OpenRepositoryInTab(fullpath, null);
+                return;
+            }
+            var normalizedPath = SourceGit.Remote.RepositoryPath.StoredPath(fullpath);
 
             // Check if the sub-repository is already open in any of the tabs
             foreach (var one in Pages)
@@ -393,7 +466,7 @@ namespace SourceGit.ViewModels
             }
 
             // Make sure the target directory exists
-            if (!Directory.Exists(normalizedPath))
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(normalizedPath))
             {
                 ownerPage.Notifications.Add(new Models.Notification
                 {
@@ -427,7 +500,7 @@ namespace SourceGit.ViewModels
             var node = Preferences.Instance.FindNode(normalizedPath) ?? new RepositoryNode
             {
                 Id = normalizedPath,
-                Name = $"{pureOwnerName}: {Path.GetFileName(normalizedPath)}",
+                Name = $"{pureOwnerName}: {SourceGit.Remote.RepositoryPath.GetFileName(normalizedPath)}",
                 Bookmark = 0,
                 IsRepository = true,
                 IsUnmanaged = true
@@ -460,7 +533,7 @@ namespace SourceGit.ViewModels
 
             foreach (var page in Pages)
             {
-                var id = page.Node.Id.Replace('\\', '/').TrimEnd('/');
+                var id = SourceGit.Remote.RepositoryPath.StoredPath(page.Node.Id);
                 if (id.Equals(notification.Group, StringComparison.OrdinalIgnoreCase))
                 {
                     page.Notifications.Add(notification);
@@ -471,29 +544,45 @@ namespace SourceGit.ViewModels
             _activePage?.Notifications.Add(notification);
         }
 
+        // Removes a previously sent notification (by reference) from whatever page it landed on.
+        private void DismissNotification(Models.Notification notification)
+        {
+            if (notification == null) return;
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                Dispatcher.UIThread.Invoke(() => DismissNotification(notification));
+                return;
+            }
+
+            foreach (var page in Pages)
+            {
+                page.Notifications.Remove(notification);
+            }
+        }
+
         private string GetRepositoryGitDir(string repo)
         {
-            var fullpath = Path.Combine(repo, ".git");
-            if (Directory.Exists(fullpath))
+            var fullpath = SourceGit.Remote.RepositoryPath.Combine(repo, ".git");
+            if (SourceGit.Remote.RepositoryDirectory.Exists(fullpath))
             {
-                if (Directory.Exists(Path.Combine(fullpath, "refs")) &&
-                    Directory.Exists(Path.Combine(fullpath, "objects")) &&
-                    File.Exists(Path.Combine(fullpath, "HEAD")))
+                if (SourceGit.Remote.RepositoryDirectory.Exists(SourceGit.Remote.RepositoryPath.Combine(fullpath, "refs")) &&
+                    SourceGit.Remote.RepositoryDirectory.Exists(SourceGit.Remote.RepositoryPath.Combine(fullpath, "objects")) &&
+                    SourceGit.Remote.RepositoryFile.Exists(SourceGit.Remote.RepositoryPath.Combine(fullpath, "HEAD")))
                     return fullpath;
 
                 return null;
             }
 
-            if (File.Exists(fullpath))
+            if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
             {
-                var redirect = File.ReadAllText(fullpath).Trim();
+                var redirect = SourceGit.Remote.RepositoryFile.ReadAllText(fullpath).Trim();
                 if (redirect.StartsWith("gitdir: ", StringComparison.Ordinal))
                     redirect = redirect.Substring(8);
 
-                if (!Path.IsPathRooted(redirect))
-                    redirect = Path.GetFullPath(Path.Combine(repo, redirect));
+                if (!SourceGit.Remote.RepositoryPath.IsPathRooted(redirect))
+                    redirect = SourceGit.Remote.RepositoryPath.GetFullPath(SourceGit.Remote.RepositoryPath.Combine(repo, redirect));
 
-                if (Directory.Exists(redirect))
+                if (SourceGit.Remote.RepositoryDirectory.Exists(redirect))
                     return redirect;
 
                 return null;
@@ -542,6 +631,8 @@ namespace SourceGit.ViewModels
         private Workspace _activeWorkspace;
         private LauncherPage _activePage;
         private bool _ignoreIndexChange;
+        private readonly System.Collections.Generic.HashSet<string> _remoteOpening = new();
+        private readonly object _remoteOpeningGate = new();
         private string _title = string.Empty;
         private ICommandPalette _commandPalette;
         private Models.Version _newVersion = null;

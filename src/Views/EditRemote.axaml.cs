@@ -21,8 +21,8 @@ namespace SourceGit.Views
                 return;
 
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var startupDir = Path.Combine(home, ".ssh");
-            if (!Directory.Exists(startupDir))
+            var startupDir = SourceGit.Remote.RepositoryPath.Combine(home, ".ssh");
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(startupDir))
                 startupDir = home;
 
             var suggestedStartLocation = await toplevel.StorageProvider.TryGetFolderFromPathAsync(startupDir);

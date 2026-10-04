@@ -23,7 +23,7 @@ namespace SourceGit.Views
             if (sender is Button button && DataContext is ViewModels.Repository repo)
             {
                 var fullpath = repo.FullPath;
-                if (!Directory.Exists(fullpath))
+                if (!SourceGit.Remote.RepositoryDirectory.Exists(fullpath))
                     return;
 
                 var isMacOS = OperatingSystem.IsMacOS();

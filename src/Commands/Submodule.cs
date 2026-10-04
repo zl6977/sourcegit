@@ -21,9 +21,9 @@ namespace SourceGit.Commands
                 return false;
 
             if (recursive)
-                Args = $"submodule update --init --recursive -- {relativePath.Quoted()}";
+                Args = $"-c protocol.file.allow=always submodule update --init --recursive -- {relativePath.Quoted()}";
             else
-                Args = $"submodule update --init -- {relativePath.Quoted()}";
+                Args = $"-c protocol.file.allow=always submodule update --init -- {relativePath.Quoted()}";
             return await ExecAsync().ConfigureAwait(false);
         }
 
@@ -46,7 +46,7 @@ namespace SourceGit.Commands
         public async Task<bool> UpdateAsync(List<string> modules, bool init, bool recursive, bool useRemote)
         {
             var builder = new StringBuilder();
-            builder.Append("submodule update");
+            builder.Append("-c protocol.file.allow=always submodule update");
 
             if (init)
                 builder.Append(" --init");

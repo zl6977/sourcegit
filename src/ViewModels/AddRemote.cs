@@ -86,7 +86,7 @@ namespace SourceGit.ViewModels
         {
             if (ctx.ObjectInstance is AddRemote { _useSSH: true } && !string.IsNullOrEmpty(sshkey))
             {
-                if (!File.Exists(sshkey))
+                if (!SourceGit.Remote.RepositoryFile.Exists(sshkey))
                     return new ValidationResult("Given SSH private key can NOT be found!");
             }
 

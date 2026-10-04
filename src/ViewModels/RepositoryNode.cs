@@ -22,7 +22,7 @@ namespace SourceGit.ViewModels
             get => _id;
             set
             {
-                var normalized = value.Replace('\\', '/').TrimEnd('/');
+                var normalized = SourceGit.Remote.RepositoryPath.StoredPath(value);
                 SetProperty(ref _id, normalized);
             }
         }
@@ -61,7 +61,7 @@ namespace SourceGit.ViewModels
         [JsonIgnore]
         public bool IsInvalid
         {
-            get => _isRepository && !Directory.Exists(_id);
+            get => _isRepository && !SourceGit.Remote.RepositoryPath.IsRemote(_id) && !SourceGit.Remote.RepositoryDirectory.Exists(_id);
         }
 
         [JsonIgnore]
@@ -97,9 +97,21 @@ namespace SourceGit.ViewModels
                 foreach (var subNode in SubNodes)
                     subNode.Open();
             }
-            else if (Directory.Exists(_id))
+            else if (SourceGit.Remote.RepositoryPath.IsRemote(_id) || SourceGit.Remote.RepositoryDirectory.Exists(_id))
             {
                 App.GetLauncher().OpenRepositoryInTab(this, null);
+            }
+            else
+            {
+                // A history entry whose path no longer exists used to be a silent no-op; report it like the tab path does.
+                var launcher = App.GetLauncher();
+                if (launcher.ActivePage is { } page)
+                    page.Notifications.Add(new Models.Notification
+                    {
+                        Group = _id,
+                        Message = "Repository does NOT exist any more. Please remove it.",
+                        IsError = true,
+                    });
             }
         }
 
@@ -126,13 +138,13 @@ namespace SourceGit.ViewModels
 
         public void OpenInFileManager()
         {
-            if (_isRepository && Directory.Exists(_id))
+            if (_isRepository && SourceGit.Remote.RepositoryDirectory.Exists(_id))
                 Native.OS.OpenInFileManager(_id);
         }
 
         public void OpenTerminal()
         {
-            if (_isRepository && Directory.Exists(_id))
+            if (_isRepository && SourceGit.Remote.RepositoryDirectory.Exists(_id))
                 Native.OS.OpenTerminal(_id);
         }
 
@@ -147,6 +159,12 @@ namespace SourceGit.ViewModels
         {
             if (token is { IsCancellationRequested: true })
                 return;
+
+            if (SourceGit.Remote.RepositoryPath.IsRemote(_id) && !SourceGit.Remote.RemoteWorkspace.IsConnected(_id))
+            {
+                Status = null;
+                return;
+            }
 
             if (!_isRepository)
             {
@@ -165,7 +183,7 @@ namespace SourceGit.ViewModels
                 return;
             }
 
-            if (!Directory.Exists(_id))
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(_id))
             {
                 _lastUpdateStatus = DateTime.Now;
                 Status = null;
@@ -180,18 +198,22 @@ namespace SourceGit.ViewModels
             }
 
             _lastUpdateStatus = DateTime.Now;
-            Status = await new Commands.QueryRepositoryStatus(_id).GetResultAsync();
+            var status = await new Commands.QueryRepositoryStatus(_id).GetResultAsync();
+            if (status != null && status.Generation < _lastStatusGeneration)
+                return;
+            _lastStatusGeneration = status?.Generation ?? 0;
+            Status = status;
         }
 
         public void LoadMinimalInfo(string gitDir)
         {
-            var savedTo = Path.Combine(gitDir, "sourcegit.node");
-            if (!File.Exists(savedTo))
+            var savedTo = SourceGit.Remote.RepositoryPath.Combine(gitDir, "sourcegit.node");
+            if (!SourceGit.Remote.RepositoryFile.Exists(savedTo))
                 return;
 
             try
             {
-                var minimalInfo = JsonSerializer.Deserialize(File.ReadAllText(savedTo), JsonCodeGen.Default.RepositoryNodeMinimalInfo);
+                var minimalInfo = JsonSerializer.Deserialize(SourceGit.Remote.RepositoryFile.ReadAllText(savedTo), JsonCodeGen.Default.RepositoryNodeMinimalInfo);
                 if (!string.IsNullOrEmpty(minimalInfo.FriendlyName))
                     Name = minimalInfo.FriendlyName;
                 Bookmark = minimalInfo.Bookmark;
@@ -204,10 +226,10 @@ namespace SourceGit.ViewModels
 
         public void SaveMinimalInfo(string gitDir)
         {
-            if (!Directory.Exists(gitDir))
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(gitDir))
                 return;
 
-            var savedTo = Path.Combine(gitDir, "sourcegit.node");
+            var savedTo = SourceGit.Remote.RepositoryPath.Combine(gitDir, "sourcegit.node");
             var minimalInfo = new RepositoryNodeMinimalInfo
             {
                 FriendlyName = Name,
@@ -216,7 +238,7 @@ namespace SourceGit.ViewModels
 
             try
             {
-                File.WriteAllText(savedTo, JsonSerializer.Serialize(minimalInfo, JsonCodeGen.Default.RepositoryNodeMinimalInfo));
+                SourceGit.Remote.RepositoryFile.WriteAllText(savedTo, JsonSerializer.Serialize(minimalInfo, JsonCodeGen.Default.RepositoryNodeMinimalInfo));
             }
             catch
             {
@@ -232,5 +254,6 @@ namespace SourceGit.ViewModels
         private bool _isVisible = true;
         private Models.RepositoryStatus _status = null;
         private DateTime _lastUpdateStatus = DateTime.UnixEpoch.ToLocalTime();
+        private long _lastStatusGeneration;
     }
 }

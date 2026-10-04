@@ -24,7 +24,7 @@ namespace SourceGit.ViewModels
         {
             _repo = repo;
             _revision = branch.Head;
-            _saveFile = $"archive-{Path.GetFileName(branch.Name)}.zip";
+            _saveFile = $"archive-{SourceGit.Remote.RepositoryPath.GetFileName(branch.Name)}.zip";
             BasedOn = branch;
         }
 
@@ -40,7 +40,7 @@ namespace SourceGit.ViewModels
         {
             _repo = repo;
             _revision = tag.SHA;
-            _saveFile = $"archive-{Path.GetFileName(tag.Name)}.zip";
+            _saveFile = $"archive-{SourceGit.Remote.RepositoryPath.GetFileName(tag.Name)}.zip";
             BasedOn = tag;
         }
 
@@ -52,9 +52,16 @@ namespace SourceGit.ViewModels
             var log = _repo.CreateLog("Archive");
             Use(log);
 
-            var succ = await new Commands.Archive(_repo.FullPath, _revision, _saveFile)
-                .Use(log)
-                .ExecAsync();
+            var remote = SourceGit.Remote.RepositoryPath.IsRemote(_repo.FullPath);
+            var output = remote ? SourceGit.Remote.RepositoryFile.GetTempFileName(_repo.FullPath) : _saveFile;
+            bool succ;
+            try
+            {
+                succ = await new Commands.Archive(_repo.FullPath, _revision, output).Use(log).ExecAsync();
+                if (succ && remote)
+                    await Task.Run(() => SourceGit.Remote.RepositoryFile.Copy(output, _saveFile, true));
+            }
+            finally { if (remote) SourceGit.Remote.RepositoryFile.Delete(output); }
 
             log.Complete();
 

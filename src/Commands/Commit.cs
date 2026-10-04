@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -8,7 +8,7 @@ namespace SourceGit.Commands
     {
         public Commit(string repo, string message, bool signOff, bool noVerify, bool amend, bool resetAuthor)
         {
-            _tmpFile = Path.GetTempFileName();
+            _tmpFile = SourceGit.Remote.RepositoryFile.GetTempFileName(repo);
             _message = message;
 
             WorkingDirectory = repo;
@@ -40,9 +40,9 @@ namespace SourceGit.Commands
         {
             try
             {
-                await File.WriteAllTextAsync(_tmpFile, _message).ConfigureAwait(false);
+                await SourceGit.Remote.RepositoryFile.WriteAllTextAsync(_tmpFile, _message).ConfigureAwait(false);
                 var succ = await ExecAsync().ConfigureAwait(false);
-                File.Delete(_tmpFile);
+                SourceGit.Remote.RepositoryFile.Delete(_tmpFile);
                 return succ;
             }
             catch

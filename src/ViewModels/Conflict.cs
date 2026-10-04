@@ -55,7 +55,7 @@ namespace SourceGit.ViewModels
                 };
 
                 var state = Models.ConflictFileState.Unknown;
-                if ((_change.ConflictReason is Models.ConflictReason.BothAdded or Models.ConflictReason.BothModified) && !Directory.Exists(Path.Combine(_repo.FullPath, _change.Path)))
+                if ((_change.ConflictReason is Models.ConflictReason.BothAdded or Models.ConflictReason.BothModified) && !SourceGit.Remote.RepositoryDirectory.Exists(SourceGit.Remote.RepositoryPath.Combine(_repo.FullPath, _change.Path)))
                     state = await new Commands.QueryConflictFileState(repo.FullPath, change)
                         .GetResultAsync()
                         .ConfigureAwait(false);

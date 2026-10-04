@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace SourceGit.Views
 {
@@ -42,6 +43,15 @@ namespace SourceGit.Views
                 CaptionHeight = new GridLength(38);
 
             InitializeComponent();
+            SourceGit.Remote.RemoteWorkspace.InteractAsync = async request =>
+            {
+                return await Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    var dialog = new RemoteInteraction(request);
+                    return await dialog.ShowDialog<SourceGit.Contracts.InteractionReply>(this)
+                        ?? new SourceGit.Contracts.InteractionReply(request.Id, false, "");
+                });
+            };
             PositionChanged += OnPositionChanged;
 
             var layout = ViewModels.Preferences.Instance.Layout;
@@ -445,6 +455,12 @@ namespace SourceGit.Views
             }
 
             e.Handled = true;
+        }
+
+        private async void OnOpenRemoteRepositories(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            await new RemoteRepositories().ShowDialog(this);
         }
 
         private GridLength _captionHeight = new(32);

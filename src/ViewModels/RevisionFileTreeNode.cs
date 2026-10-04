@@ -13,7 +13,7 @@ namespace SourceGit.ViewModels
 
         public string Name
         {
-            get => Backend == null ? string.Empty : Path.GetFileName(Backend.Path);
+            get => Backend == null ? string.Empty : SourceGit.Remote.RepositoryPath.GetFileName(Backend.Path);
         }
 
         public bool IsFolder

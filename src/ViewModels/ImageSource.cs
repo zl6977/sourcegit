@@ -26,7 +26,7 @@ namespace SourceGit.ViewModels
 
         public static Models.ImageDecoder GetDecoder(string file)
         {
-            var ext = (Path.GetExtension(file) ?? ".invalid_img").ToLower(CultureInfo.CurrentCulture);
+            var ext = (SourceGit.Remote.RepositoryPath.GetExtension(file) ?? ".invalid_img").ToLower(CultureInfo.CurrentCulture);
 
             return ext switch
             {
@@ -40,10 +40,10 @@ namespace SourceGit.ViewModels
 
         public static async Task<ImageSource> FromFileAsync(string fullpath, Models.ImageDecoder decoder)
         {
-            if (!File.Exists(fullpath))
+            if (!SourceGit.Remote.RepositoryFile.Exists(fullpath))
                 return new ImageSource(null, 0);
 
-            await using var stream = File.OpenRead(fullpath);
+            await using var stream = SourceGit.Remote.RepositoryFile.OpenRead(fullpath);
             return await Task.Run(() => LoadFromStream(stream, decoder)).ConfigureAwait(false);
         }
 
@@ -63,8 +63,8 @@ namespace SourceGit.ViewModels
                 return new ImageSource(null, 0);
 
             var commonDir = await new Commands.QueryGitCommonDir(repo).GetResultAsync().ConfigureAwait(false);
-            var localFile = Path.Combine(commonDir, "lfs", "objects", lfs.Oid.Substring(0, 2), lfs.Oid.Substring(2, 2), lfs.Oid);
-            if (File.Exists(localFile))
+            var localFile = SourceGit.Remote.RepositoryPath.Combine(commonDir, "lfs", "objects", lfs.Oid.Substring(0, 2), lfs.Oid.Substring(2, 2), lfs.Oid);
+            if (SourceGit.Remote.RepositoryFile.Exists(localFile))
                 return await FromFileAsync(localFile, decoder).ConfigureAwait(false);
 
             await using var stream = await Commands.QueryFileContent.FromLFSAsync(repo, lfs.Oid, lfs.Size).ConfigureAwait(false);

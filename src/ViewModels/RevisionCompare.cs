@@ -159,7 +159,7 @@ namespace SourceGit.ViewModels
             if (change.Index == Models.ChangeState.Added)
             {
                 var fullpath = Native.OS.GetAbsPath(_repo.FullPath, change.Path);
-                if (File.Exists(fullpath))
+                if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
                     await new Commands.Remove(_repo.FullPath, [change.Path])
                         .Use(log)
                         .ExecAsync();
@@ -167,7 +167,7 @@ namespace SourceGit.ViewModels
             else if (change.Index == Models.ChangeState.Renamed)
             {
                 var renamed = Native.OS.GetAbsPath(_repo.FullPath, change.Path);
-                if (File.Exists(renamed))
+                if (SourceGit.Remote.RepositoryFile.Exists(renamed))
                     await new Commands.Remove(_repo.FullPath, [change.Path])
                         .Use(log)
                         .ExecAsync();
@@ -194,7 +194,7 @@ namespace SourceGit.ViewModels
             if (change.Index == Models.ChangeState.Deleted)
             {
                 var fullpath = Native.OS.GetAbsPath(_repo.FullPath, change.Path);
-                if (File.Exists(fullpath))
+                if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
                     await new Commands.Remove(_repo.FullPath, [change.Path])
                         .Use(log)
                         .ExecAsync();
@@ -202,7 +202,7 @@ namespace SourceGit.ViewModels
             else if (change.Index == Models.ChangeState.Renamed)
             {
                 var old = Native.OS.GetAbsPath(_repo.FullPath, change.OriginalPath);
-                if (File.Exists(old))
+                if (SourceGit.Remote.RepositoryFile.Exists(old))
                     await new Commands.Remove(_repo.FullPath, [change.OriginalPath])
                         .Use(log)
                         .ExecAsync();
@@ -232,13 +232,13 @@ namespace SourceGit.ViewModels
                 if (c.Index == Models.ChangeState.Added)
                 {
                     var fullpath = Native.OS.GetAbsPath(_repo.FullPath, c.Path);
-                    if (File.Exists(fullpath))
+                    if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
                         removes.Add(c.Path);
                 }
                 else if (c.Index == Models.ChangeState.Renamed)
                 {
                     var old = Native.OS.GetAbsPath(_repo.FullPath, c.Path);
-                    if (File.Exists(old))
+                    if (SourceGit.Remote.RepositoryFile.Exists(old))
                         removes.Add(c.Path);
 
                     checkouts.Add(c.OriginalPath);
@@ -275,13 +275,13 @@ namespace SourceGit.ViewModels
                 if (c.Index == Models.ChangeState.Deleted)
                 {
                     var fullpath = Native.OS.GetAbsPath(_repo.FullPath, c.Path);
-                    if (File.Exists(fullpath))
+                    if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
                         removes.Add(c.Path);
                 }
                 else if (c.Index == Models.ChangeState.Renamed)
                 {
                     var renamed = Native.OS.GetAbsPath(_repo.FullPath, c.OriginalPath);
-                    if (File.Exists(renamed))
+                    if (SourceGit.Remote.RepositoryFile.Exists(renamed))
                         removes.Add(c.OriginalPath);
 
                     checkouts.Add(c.Path);

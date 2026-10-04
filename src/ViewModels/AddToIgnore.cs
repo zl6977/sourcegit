@@ -45,17 +45,17 @@ namespace SourceGit.ViewModels
             ProgressDescription = "Adding Ignored File(s) ...";
 
             var file = _selectedStorageFile.FullPath;
-            if (!File.Exists(file))
+            if (!SourceGit.Remote.RepositoryFile.Exists(file))
             {
-                await File.WriteAllLinesAsync(file!, [_pattern]);
+                await SourceGit.Remote.RepositoryFile.WriteAllLinesAsync(file!, [_pattern]);
             }
             else
             {
-                var org = await File.ReadAllTextAsync(file);
+                var org = await SourceGit.Remote.RepositoryFile.ReadAllTextAsync(file);
                 if (!org.EndsWith('\n'))
-                    await File.AppendAllLinesAsync(file, ["", _pattern]);
+                    await SourceGit.Remote.RepositoryFile.AppendAllLinesAsync(file, ["", _pattern]);
                 else
-                    await File.AppendAllLinesAsync(file, [_pattern]);
+                    await SourceGit.Remote.RepositoryFile.AppendAllLinesAsync(file, [_pattern]);
             }
 
             _repo.MarkWorkingCopyDirtyManually();

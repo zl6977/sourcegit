@@ -36,7 +36,7 @@ namespace SourceGit.ViewModels
         public ChangeTreeNode(Models.Change c)
         {
             FullPath = c.Path;
-            DisplayName = Path.GetFileName(c.Path);
+            DisplayName = SourceGit.Remote.RepositoryPath.GetFileName(c.Path);
             Change = c;
             IsExpanded = false;
         }
@@ -44,7 +44,7 @@ namespace SourceGit.ViewModels
         public ChangeTreeNode(string path, bool isExpanded)
         {
             FullPath = path;
-            DisplayName = Path.GetFileName(path);
+            DisplayName = SourceGit.Remote.RepositoryPath.GetFileName(path);
             IsExpanded = isExpanded;
         }
 

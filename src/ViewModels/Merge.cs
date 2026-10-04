@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 
@@ -105,10 +105,10 @@ namespace SourceGit.ViewModels
 
             if (succ)
             {
-                var squashMsgFile = Path.Combine(_repo.GitDir, "SQUASH_MSG");
-                if (Mode == Models.MergeMode.Squash && File.Exists(squashMsgFile))
+                var squashMsgFile = SourceGit.Remote.RepositoryPath.Combine(_repo.GitDir, "SQUASH_MSG");
+                if (Mode == Models.MergeMode.Squash && SourceGit.Remote.RepositoryFile.Exists(squashMsgFile))
                 {
-                    var msg = await File.ReadAllTextAsync(squashMsgFile);
+                    var msg = await SourceGit.Remote.RepositoryFile.ReadAllTextAsync(squashMsgFile);
                     _repo.SetCommitMessage(msg);
                 }
 
@@ -150,7 +150,7 @@ namespace SourceGit.ViewModels
 
         private void Test()
         {
-            if (Native.OS.GitVersion < Models.GitVersions.TESTING_MERGE)
+            if (SourceGit.Remote.RemoteWorkspace.GitVersion(_repo.FullPath) < Models.GitVersions.TESTING_MERGE)
                 return;
 
             TestingState = MergeTestingState.Testing;

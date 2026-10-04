@@ -46,7 +46,7 @@ namespace SourceGit.Views
                 return;
 
             var prefilled = TxtParentFolder.Text;
-            if (!string.IsNullOrWhiteSpace(prefilled) && Directory.Exists(prefilled))
+            if (!string.IsNullOrWhiteSpace(prefilled) && SourceGit.Remote.RepositoryDirectory.Exists(prefilled))
                 options.SuggestedStartLocation = await toplevel.StorageProvider.TryGetFolderFromPathAsync(prefilled);
 
             try
@@ -74,8 +74,8 @@ namespace SourceGit.Views
                 return;
 
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var startupDir = Path.Combine(home, ".ssh");
-            if (!Directory.Exists(startupDir))
+            var startupDir = SourceGit.Remote.RepositoryPath.Combine(home, ".ssh");
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(startupDir))
                 startupDir = home;
 
             var suggestedStartLocation = await toplevel.StorageProvider.TryGetFolderFromPathAsync(startupDir);

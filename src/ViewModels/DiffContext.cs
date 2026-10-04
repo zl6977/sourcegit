@@ -207,7 +207,7 @@ namespace SourceGit.ViewModels
         {
             var oldPath = string.IsNullOrEmpty(_option.OrgPath) ? _option.Path : _option.OrgPath;
             var imgDiff = new Models.ImageDiff();
-            var fullPath = Path.Combine(_repo, _option.Path);
+            var fullPath = SourceGit.Remote.RepositoryPath.Combine(_repo, _option.Path);
 
             if (_option.Revisions.Count == 2) // Two revisions are specified, compare them
             {
@@ -268,7 +268,7 @@ namespace SourceGit.ViewModels
         {
             var oldPath = string.IsNullOrEmpty(_option.OrgPath) ? _option.Path : _option.OrgPath;
             var binaryDiff = new Models.BinaryDiff();
-            var fullPath = Path.Combine(_repo, _option.Path);
+            var fullPath = SourceGit.Remote.RepositoryPath.Combine(_repo, _option.Path);
 
             binaryDiff.Repository = _repo;
             binaryDiff.FilePath = _option.Path;
@@ -276,13 +276,13 @@ namespace SourceGit.ViewModels
             if (_option.Revisions.Count == 2) // Two revisions are specified, compare them
             {
                 if (_option.Revisions[0].Equals("-R", StringComparison.Ordinal)) // `-R` means the old side is the working tree
-                    binaryDiff.OldSize = File.Exists(fullPath) ? new FileInfo(fullPath).Length : 0;
+                    binaryDiff.OldSize = SourceGit.Remote.RepositoryFile.Exists(fullPath) ? new SourceGit.Remote.RepositoryFileInfo(fullPath).Length : 0;
                 else
                     binaryDiff.OldSize = await new Commands.QueryFileSize(_repo, oldPath, _option.Revisions[0]).GetResultAsync().ConfigureAwait(false);
 
                 if (string.IsNullOrEmpty(_option.Revisions[1])) // Empty string in the second revision means the new side is the working tree
                 {
-                    binaryDiff.NewSize = File.Exists(fullPath) ? new FileInfo(fullPath).Length : 0;
+                    binaryDiff.NewSize = SourceGit.Remote.RepositoryFile.Exists(fullPath) ? new SourceGit.Remote.RepositoryFileInfo(fullPath).Length : 0;
                     binaryDiff.NewRevision = null;
                 }
                 else
@@ -296,7 +296,7 @@ namespace SourceGit.ViewModels
                 if (!oldPath.Equals("/dev/null", StringComparison.Ordinal))
                     binaryDiff.OldSize = await new Commands.QueryFileSize(_repo, oldPath, string.Empty).GetResultAsync().ConfigureAwait(false);
 
-                binaryDiff.NewSize = File.Exists(fullPath) ? new FileInfo(fullPath).Length : 0;
+                binaryDiff.NewSize = SourceGit.Remote.RepositoryFile.Exists(fullPath) ? new SourceGit.Remote.RepositoryFileInfo(fullPath).Length : 0;
                 binaryDiff.NewRevision = null;
             }
             else // Staged change compared to the last commit (HEAD)

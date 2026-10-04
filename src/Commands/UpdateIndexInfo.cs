@@ -1,3 +1,4 @@
+using Process = SourceGit.Remote.GitProcess;
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -53,7 +54,7 @@ namespace SourceGit.Commands
             var starter = new ProcessStartInfo();
             starter.WorkingDirectory = _repo;
             starter.FileName = Native.OS.GitExecutable;
-            starter.Arguments = "-c core.editor=true update-index --index-info";
+            starter.Arguments = SourceGit.Remote.RepositoryPath.SafeOwnershipArg(_repo) + "-c core.editor=true update-index --index-info";
             starter.UseShellExecute = false;
             starter.CreateNoWindow = true;
             starter.WindowStyle = ProcessWindowStyle.Hidden;

@@ -27,7 +27,7 @@ namespace SourceGit.Models
                 try
                 {
                     _singletonLock = new FileStream(_lockFilePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-                    File.SetUnixFileMode(_lockFilePath, File.GetUnixFileMode(_lockFilePath) | UnixFileMode.StickyBit);
+                    SourceGit.Remote.RepositoryFile.SetUnixFileMode(_lockFilePath, SourceGit.Remote.RepositoryFile.GetUnixFileMode(_lockFilePath) | UnixFileMode.StickyBit);
                     IsFirstInstance = true;
                 }
                 catch
@@ -47,7 +47,7 @@ namespace SourceGit.Models
             {
                 try
                 {
-                    _singletonLock = File.Open(_lockFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                    _singletonLock = SourceGit.Remote.RepositoryFile.Open(_lockFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
                     IsFirstInstance = true;
                 }
                 catch
@@ -102,31 +102,31 @@ namespace SourceGit.Models
             _cancellationTokenSource?.Cancel();
             _singletonLock?.Dispose();
 
-            if (IsFirstInstance && File.Exists(_lockFilePath))
-                File.Delete(_lockFilePath);
+            if (IsFirstInstance && SourceGit.Remote.RepositoryFile.Exists(_lockFilePath))
+                SourceGit.Remote.RepositoryFile.Delete(_lockFilePath);
         }
 
         private LockFile GetLockFilePath()
         {
             // On Windows and macOS, we can use the cache directory for the lock file.
             if (!OperatingSystem.IsLinux())
-                return new LockFile(Path.Combine(Native.OS.BasicDirectories.CacheDir, "process.lock"), false);
+                return new LockFile(SourceGit.Remote.RepositoryPath.Combine(Native.OS.BasicDirectories.CacheDir, "process.lock"), false);
 
             // On Linux, we should first check if the app is running in portable mode.
             var appImage = Environment.GetEnvironmentVariable("APPIMAGE");
-            if (!string.IsNullOrEmpty(appImage) && File.Exists(appImage))
+            if (!string.IsNullOrEmpty(appImage) && SourceGit.Remote.RepositoryFile.Exists(appImage))
             {
-                var portableDir = Path.Combine(Path.GetDirectoryName(appImage)!, "data");
-                if (Directory.Exists(portableDir))
-                    return new LockFile(Path.Combine(portableDir, "process.lock"), false);
+                var portableDir = SourceGit.Remote.RepositoryPath.Combine(SourceGit.Remote.RepositoryPath.GetDirectoryName(appImage)!, "data");
+                if (SourceGit.Remote.RepositoryDirectory.Exists(portableDir))
+                    return new LockFile(SourceGit.Remote.RepositoryPath.Combine(portableDir, "process.lock"), false);
             }
 
             // If not in portable mode, we should use the XDG_RUNTIME_DIR environment variable for the lock file.
             var runtimeDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
-            if (string.IsNullOrEmpty(runtimeDir) || !Directory.Exists(runtimeDir))
-                return new LockFile(Path.Combine(Native.OS.BasicDirectories.CacheDir, "process.lock"), false);
+            if (string.IsNullOrEmpty(runtimeDir) || !SourceGit.Remote.RepositoryDirectory.Exists(runtimeDir))
+                return new LockFile(SourceGit.Remote.RepositoryPath.Combine(Native.OS.BasicDirectories.CacheDir, "process.lock"), false);
 
-            return new LockFile(Path.Combine(runtimeDir, "sourcegit.instance.lock"), true);
+            return new LockFile(SourceGit.Remote.RepositoryPath.Combine(runtimeDir, "sourcegit.instance.lock"), true);
         }
 
         private string GetPipeName()
@@ -171,7 +171,7 @@ namespace SourceGit.Models
         private record LockFile(string Path, bool NeedChangePermissions);
 
         private string _lockFilePath = null;
-        private FileStream _singletonLock = null;
+        private Stream _singletonLock = null;
         private NamedPipeServerStream _server = null;
         private CancellationTokenSource _cancellationTokenSource = null;
     }

@@ -5,23 +5,55 @@ namespace SourceGit.Commands
 {
     public class QuerySingleCommit : Command
     {
+        private readonly string _sha;
         public QuerySingleCommit(string repo, string sha)
         {
             WorkingDirectory = repo;
             Context = repo;
+            _sha = sha;
             Args = $"show --no-show-signature --decorate=full --format=%H%n%P%n%D%n%aN±%aE%n%at%n%cN±%cE%n%ct%n%s -s {sha}";
         }
 
         public Models.Commit GetResult()
         {
+            if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory)) return GetResultAsync().GetAwaiter().GetResult();
             var rs = ReadToEnd();
             return Parse(rs);
         }
 
         public async Task<Models.Commit> GetResultAsync()
         {
+            if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
+            {
+                try
+                {
+                    var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(WorkingDirectory);
+                    var handle = await workspace.OpenTransientAsync(WorkingDirectory, CancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var info = await workspace.Client.GetCommitAsync(handle.Id, _sha, CancellationToken).ConfigureAwait(false);
+                        return Map(info);
+                    }
+                    finally { await workspace.ReleaseTransientAsync(handle.Id).ConfigureAwait(false); }
+                }
+                catch { return null; }
+            }
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             return Parse(rs);
+        }
+
+        private static Models.Commit Map(SourceGit.Contracts.CommitInfo info)
+        {
+            var commit = new Models.Commit();
+            commit.SHA = info.Id;
+            commit.Parents.AddRange(info.Parents);
+            if (info.Decorations != null) commit.ParseDecorators(info.Decorations);
+            commit.Author = Models.User.FindOrAdd(info.Author + "±" + info.AuthorEmail);
+            commit.AuthorTime = (ulong)info.AuthorTime;
+            commit.Committer = Models.User.FindOrAdd(info.Committer + "±" + info.CommitterEmail);
+            commit.CommitterTime = (ulong)info.CommitTime;
+            commit.Subject = info.Subject;
+            return commit;
         }
 
         private Models.Commit Parse(Result rs)

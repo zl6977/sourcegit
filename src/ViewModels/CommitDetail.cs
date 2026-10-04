@@ -253,7 +253,7 @@ namespace SourceGit.ViewModels
             if (change.Index == Models.ChangeState.Deleted)
             {
                 var fullpath = Native.OS.GetAbsPath(_repo.FullPath, change.Path);
-                if (File.Exists(fullpath))
+                if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
                     await new Commands.Remove(_repo.FullPath, [change.Path])
                         .Use(log)
                         .ExecAsync();
@@ -261,7 +261,7 @@ namespace SourceGit.ViewModels
             else if (change.Index == Models.ChangeState.Renamed)
             {
                 var old = Native.OS.GetAbsPath(_repo.FullPath, change.OriginalPath);
-                if (File.Exists(old))
+                if (SourceGit.Remote.RepositoryFile.Exists(old))
                     await new Commands.Remove(_repo.FullPath, [change.OriginalPath])
                         .Use(log)
                         .ExecAsync();
@@ -287,7 +287,7 @@ namespace SourceGit.ViewModels
             if (change.Index == Models.ChangeState.Added)
             {
                 var fullpath = Native.OS.GetAbsPath(_repo.FullPath, change.Path);
-                if (File.Exists(fullpath))
+                if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
                     await new Commands.Remove(_repo.FullPath, [change.Path])
                         .Use(log)
                         .ExecAsync();
@@ -295,7 +295,7 @@ namespace SourceGit.ViewModels
             else if (change.Index == Models.ChangeState.Renamed)
             {
                 var renamed = Native.OS.GetAbsPath(_repo.FullPath, change.Path);
-                if (File.Exists(renamed))
+                if (SourceGit.Remote.RepositoryFile.Exists(renamed))
                     await new Commands.Remove(_repo.FullPath, [change.Path])
                         .Use(log)
                         .ExecAsync();
@@ -324,13 +324,13 @@ namespace SourceGit.ViewModels
                 if (c.Index == Models.ChangeState.Deleted)
                 {
                     var fullpath = Native.OS.GetAbsPath(_repo.FullPath, c.Path);
-                    if (File.Exists(fullpath))
+                    if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
                         removes.Add(c.Path);
                 }
                 else if (c.Index == Models.ChangeState.Renamed)
                 {
                     var old = Native.OS.GetAbsPath(_repo.FullPath, c.OriginalPath);
-                    if (File.Exists(old))
+                    if (SourceGit.Remote.RepositoryFile.Exists(old))
                         removes.Add(c.OriginalPath);
 
                     checkouts.Add(c.Path);
@@ -366,13 +366,13 @@ namespace SourceGit.ViewModels
                 if (c.Index == Models.ChangeState.Added)
                 {
                     var fullpath = Native.OS.GetAbsPath(_repo.FullPath, c.Path);
-                    if (File.Exists(fullpath))
+                    if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
                         removes.Add(c.Path);
                 }
                 else if (c.Index == Models.ChangeState.Renamed)
                 {
                     var renamed = Native.OS.GetAbsPath(_repo.FullPath, c.Path);
-                    if (File.Exists(renamed))
+                    if (SourceGit.Remote.RepositoryFile.Exists(renamed))
                         removes.Add(c.Path);
 
                     checkouts.Add(c.OriginalPath);
@@ -430,9 +430,9 @@ namespace SourceGit.ViewModels
         public async Task OpenRevisionFileAsync(string file, Models.ExternalTool tool)
         {
             var fullPath = Native.OS.GetAbsPath(_repo.FullPath, file);
-            var fileName = Path.GetFileNameWithoutExtension(fullPath) ?? "";
-            var fileExt = Path.GetExtension(fullPath) ?? "";
-            var tmpFile = Path.Combine(Path.GetTempPath(), $"{fileName}~{_commit.SHA.AsSpan(0, 10)}{fileExt}");
+            var fileName = SourceGit.Remote.RepositoryPath.GetFileNameWithoutExtension(fullPath) ?? "";
+            var fileExt = SourceGit.Remote.RepositoryPath.GetExtension(fullPath) ?? "";
+            var tmpFile = SourceGit.Remote.RepositoryPath.Combine(Path.GetTempPath(), $"{fileName}~{_commit.SHA.AsSpan(0, 10)}{fileExt}");
 
             await Commands.SaveRevisionFile
                 .RunAsync(_repo.FullPath, _commit.SHA, file, tmpFile)
@@ -715,7 +715,7 @@ namespace SourceGit.ViewModels
 
         private async Task SetViewingCommitAsync(Models.Object file)
         {
-            var submoduleRoot = Path.Combine(_repo.FullPath, file.Path).Replace('\\', '/').TrimEnd('/');
+            var submoduleRoot = SourceGit.Remote.RepositoryPath.Combine(_repo.FullPath, file.Path).Replace('\\', '/').TrimEnd('/');
             ViewRevisionFileContent = await new Commands.QuerySubmoduleRevision(submoduleRoot, file.SHA).GetResultAsync();
         }
 

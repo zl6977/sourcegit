@@ -90,7 +90,7 @@ namespace SourceGit
 
     public static class DirectoryInfoExtension
     {
-        public static void WalkFiles(this DirectoryInfo dir, Action<string> onFile, int maxDepth = 4)
+        public static void WalkFiles(this SourceGit.Remote.RepositoryDirectoryInfo dir, Action<string> onFile, int maxDepth = 4)
         {
             try
             {

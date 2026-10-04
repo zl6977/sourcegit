@@ -30,7 +30,7 @@ namespace SourceGit.ViewModels
         {
             Keys = new AvaloniaList<Models.SSHKeyPair>();
 
-            var sshDir = new DirectoryInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh"));
+            var sshDir = new SourceGit.Remote.RepositoryDirectoryInfo(SourceGit.Remote.RepositoryPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh"));
             if (sshDir.Exists)
             {
                 var files = sshDir.GetFiles("*.pub");
@@ -39,7 +39,7 @@ namespace SourceGit.ViewModels
                 foreach (var file in files)
                 {
                     var privateKeyPath = file.FullName.Substring(0, file.FullName.Length - 4);
-                    if (File.Exists(privateKeyPath))
+                    if (SourceGit.Remote.RepositoryFile.Exists(privateKeyPath))
                         keys.Add(new(privateKeyPath, file.FullName));
                 }
 
@@ -81,10 +81,10 @@ namespace SourceGit.ViewModels
 
             try
             {
-                if (File.Exists(key.PrivateKeyPath))
-                    File.Delete(key.PrivateKeyPath);
-                if (File.Exists(key.PublicKeyPath))
-                    File.Delete(key.PublicKeyPath);
+                if (SourceGit.Remote.RepositoryFile.Exists(key.PrivateKeyPath))
+                    SourceGit.Remote.RepositoryFile.Delete(key.PrivateKeyPath);
+                if (SourceGit.Remote.RepositoryFile.Exists(key.PublicKeyPath))
+                    SourceGit.Remote.RepositoryFile.Delete(key.PublicKeyPath);
 
                 var idx = Keys.IndexOf(key);
                 if (idx >= 0)

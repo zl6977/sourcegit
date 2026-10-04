@@ -1,3 +1,4 @@
+using Process = SourceGit.Remote.GitProcess;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -158,6 +159,19 @@ namespace SourceGit.Commands
 
         protected ProcessStartInfo CreateGitStartInfo(bool redirect)
         {
+            if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
+            {
+                var remote = new ProcessStartInfo("sourcegit-server")
+                {
+                    WorkingDirectory = WorkingDirectory,
+                    Arguments = Args,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                remote.Environment["SOURCEGIT_REMOTE_EDITOR"] = Editor.ToString();
+                remote.Environment["SOURCEGIT_REMOTE_SSHKEY"] = SSHKey;
+                return remote;
+            }
             var useSetSid = CancellationToken.CanBeCanceled && Native.OS.SupportSetSid();
             var selfExecFile = Environment.ProcessPath;
             var builder = new StringBuilder(2048);
@@ -168,7 +182,8 @@ namespace SourceGit.Commands
             builder
                 .Append("--no-pager -c core.quotepath=off -c credential.helper=")
                 .Append(Native.OS.CredentialHelper)
-                .Append(' ');
+                .Append(' ')
+                .Append(SourceGit.Remote.RepositoryPath.SafeOwnershipArg(WorkingDirectory));
 
             switch (Editor)
             {

@@ -75,9 +75,9 @@ namespace SourceGit.ViewModels
                 return;
 
             var fullPath = Native.OS.GetAbsPath(_repo, _file);
-            var fileName = Path.GetFileNameWithoutExtension(fullPath) ?? "";
-            var fileExt = Path.GetExtension(fullPath) ?? "";
-            var tmpFile = Path.Combine(Path.GetTempPath(), $"{fileName}~{_revision.SHA.AsSpan(0, 10)}{fileExt}");
+            var fileName = SourceGit.Remote.RepositoryPath.GetFileNameWithoutExtension(fullPath) ?? "";
+            var fileExt = SourceGit.Remote.RepositoryPath.GetExtension(fullPath) ?? "";
+            var tmpFile = SourceGit.Remote.RepositoryPath.Combine(Path.GetTempPath(), $"{fileName}~{_revision.SHA.AsSpan(0, 10)}{fileExt}");
 
             await Commands.SaveRevisionFile
                 .RunAsync(_repo, _revision.SHA, _file, tmpFile)
@@ -153,7 +153,7 @@ namespace SourceGit.ViewModels
 
             if (obj.Type == Models.ObjectType.Commit)
             {
-                var submoduleRoot = Path.Combine(_repo, _file).Replace('\\', '/').TrimEnd('/');
+                var submoduleRoot = SourceGit.Remote.RepositoryPath.Combine(_repo, _file).Replace('\\', '/').TrimEnd('/');
                 var module = await new Commands.QuerySubmoduleRevision(submoduleRoot, obj.SHA).GetResultAsync().ConfigureAwait(false);
                 return new FileHistoriesRevisionFile(_file, module);
             }

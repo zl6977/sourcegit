@@ -1,3 +1,4 @@
+using Process = SourceGit.Remote.GitProcess;
 ﻿using System;
 using System.Diagnostics;
 
@@ -18,6 +19,12 @@ namespace SourceGit.Commands
             if (tool == null)
             {
                 RaiseException("Invalid diff/merge tool in preference setting!");
+                return;
+            }
+
+            if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
+            {
+                _ = OpenRemoteAsync(tool);
                 return;
             }
 
@@ -42,6 +49,23 @@ namespace SourceGit.Commands
             {
                 RaiseException(ex.Message);
             }
+        }
+
+        private async System.Threading.Tasks.Task OpenRemoteAsync(Models.DiffMergeTool tool)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(tool.Cmd))
+                    await SourceGit.Remote.RemoteExternalTools.DiffAsync(WorkingDirectory, _option, tool).ConfigureAwait(false);
+                else
+                {
+                    if (!CheckGitConfiguration()) return;
+                    Editor = EditorType.None;
+                    Args = $"difftool -g --no-prompt {_option}";
+                    await ExecAsync().ConfigureAwait(false);
+                }
+            }
+            catch (Exception error) { RaiseException(error.Message); }
         }
 
         private bool CheckGitConfiguration()

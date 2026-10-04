@@ -87,7 +87,7 @@ namespace SourceGit.Models
             if (OperatingSystem.IsWindows())
                 return Finder.Split(';', StringSplitOptions.RemoveEmptyEntries);
 
-            return [Path.GetFileName(Finder)];
+            return [SourceGit.Remote.RepositoryPath.GetFileName(Finder)];
         }
     }
 

@@ -15,7 +15,7 @@ namespace SourceGit.Commands
             if (isShared)
             {
                 var storage = $"{repo}/.issuetracker";
-                _isStorageFileExists = File.Exists(storage);
+                _isStorageFileExists = SourceGit.Remote.RepositoryFile.Exists(storage);
                 _baseArg = $"config -f {storage.Quoted()}";
             }
             else

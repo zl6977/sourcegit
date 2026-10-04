@@ -59,6 +59,16 @@
 	<Folder Name="/src/">
 		<Project Path="src/SourceGit.csproj" />
 	</Folder>
+	<Folder Name="/modules/">
+		<Project Path="modules/SourceGit.Contracts/SourceGit.Contracts.csproj" />
+		<Project Path="modules/SourceGit.Core/SourceGit.Core.csproj" />
+		<Project Path="modules/SourceGit.Server/SourceGit.Server.csproj" />
+		<Project Path="modules/SourceGit.RemoteClient/SourceGit.RemoteClient.csproj" />
+	</Folder>
+	<Folder Name="/tests/">
+		<Project Path="tests/SourceGit.Remote.Tests/SourceGit.Remote.Tests.csproj" />
+		<Project Path="tests/SourceGit.GuiRemote.Tests/SourceGit.GuiRemote.Tests.csproj" />
+	</Folder>
 
 	<Folder Name="/files/">
 		<File Path=".editorconfig"/>

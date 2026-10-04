@@ -1,3 +1,4 @@
+using Process = SourceGit.Remote.GitProcess;
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,7 +11,7 @@ namespace SourceGit.Commands
     {
         public static async Task<bool> ProcessLocalChangesAsync(string repo, List<Models.Change> changes, bool isUnstaged, string saveTo)
         {
-            await using (var sw = File.Create(saveTo))
+            await using (var sw = SourceGit.Remote.RepositoryFile.Create(saveTo))
             {
                 foreach (var change in changes)
                 {
@@ -24,7 +25,7 @@ namespace SourceGit.Commands
 
         public static async Task<bool> ProcessRevisionCompareChangesAsync(string repo, List<Models.Change> changes, string baseRevision, string targetRevision, string saveTo)
         {
-            await using (var sw = File.Create(saveTo))
+            await using (var sw = SourceGit.Remote.RepositoryFile.Create(saveTo))
             {
                 foreach (var change in changes)
                 {
@@ -38,7 +39,7 @@ namespace SourceGit.Commands
 
         public static async Task<bool> ProcessStashChangesAsync(string repo, List<Models.DiffOption> opts, string saveTo)
         {
-            await using (var sw = File.Create(saveTo))
+            await using (var sw = SourceGit.Remote.RepositoryFile.Create(saveTo))
             {
                 foreach (var opt in opts)
                 {
@@ -49,12 +50,12 @@ namespace SourceGit.Commands
             return true;
         }
 
-        private static async Task<bool> ProcessSingleChangeAsync(string repo, Models.DiffOption opt, FileStream writer)
+        private static async Task<bool> ProcessSingleChangeAsync(string repo, Models.DiffOption opt, Stream writer)
         {
             var starter = new ProcessStartInfo();
             starter.WorkingDirectory = repo;
             starter.FileName = Native.OS.GitExecutable;
-            starter.Arguments = $"diff --no-color --no-ext-diff --ignore-cr-at-eol --unified=4 {opt}";
+            starter.Arguments = SourceGit.Remote.RepositoryPath.SafeOwnershipArg(repo) + $"diff --no-color --no-ext-diff --ignore-cr-at-eol --unified=4 {opt}";
             starter.UseShellExecute = false;
             starter.CreateNoWindow = true;
             starter.WindowStyle = ProcessWindowStyle.Hidden;

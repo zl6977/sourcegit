@@ -46,10 +46,10 @@ namespace SourceGit.Native
 
             // AppImage supports portable mode
             var appImage = Environment.GetEnvironmentVariable("APPIMAGE");
-            if (!string.IsNullOrEmpty(appImage) && File.Exists(appImage))
+            if (!string.IsNullOrEmpty(appImage) && SourceGit.Remote.RepositoryFile.Exists(appImage))
             {
-                var portableDir = Path.Combine(Path.GetDirectoryName(appImage)!, "data");
-                if (Directory.Exists(portableDir))
+                var portableDir = SourceGit.Remote.RepositoryPath.Combine(SourceGit.Remote.RepositoryPath.GetDirectoryName(appImage)!, "data");
+                if (SourceGit.Remote.RepositoryDirectory.Exists(portableDir))
                 {
                     dirs.ConfigDir = portableDir;
                     dirs.CacheDir = portableDir;
@@ -58,28 +58,28 @@ namespace SourceGit.Native
             }
 
             // XDG Base Directory Specification: https://specifications.freedesktop.org/basedir/latest/
-            dirs.ConfigDir = GetXdgDirectory("XDG_CONFIG_HOME", Path.Combine(home, ".config"), "SourceGit");
-            dirs.CacheDir = GetXdgDirectory("XDG_CACHE_HOME", Path.Combine(home, ".cache"), "SourceGit");
+            dirs.ConfigDir = GetXdgDirectory("XDG_CONFIG_HOME", SourceGit.Remote.RepositoryPath.Combine(home, ".config"), "SourceGit");
+            dirs.CacheDir = GetXdgDirectory("XDG_CACHE_HOME", SourceGit.Remote.RepositoryPath.Combine(home, ".cache"), "SourceGit");
 
             // If the app basic dirs already exist, we can skip the migration step
-            if (Directory.Exists(dirs.ConfigDir) && Directory.Exists(dirs.CacheDir))
+            if (SourceGit.Remote.RepositoryDirectory.Exists(dirs.ConfigDir) && SourceGit.Remote.RepositoryDirectory.Exists(dirs.CacheDir))
                 return dirs;
 
             // Create the config and cache directories if they don't exist
-            if (!Directory.Exists(dirs.ConfigDir))
-                Directory.CreateDirectory(dirs.ConfigDir);
-            if (!Directory.Exists(dirs.CacheDir))
-                Directory.CreateDirectory(dirs.CacheDir);
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(dirs.ConfigDir))
+                SourceGit.Remote.RepositoryDirectory.CreateDirectory(dirs.ConfigDir);
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(dirs.CacheDir))
+                SourceGit.Remote.RepositoryDirectory.CreateDirectory(dirs.CacheDir);
 
             // Migrate legacy data dir: ~/.sourcegit to XDG standard directories
-            var legacyDir = Path.Combine(home, ".sourcegit");
-            if (Directory.Exists(legacyDir))
+            var legacyDir = SourceGit.Remote.RepositoryPath.Combine(home, ".sourcegit");
+            if (SourceGit.Remote.RepositoryDirectory.Exists(legacyDir))
             {
                 try
                 {
-                    File.Copy(Path.Combine(legacyDir, "preference.json"), Path.Combine(dirs.ConfigDir, "preference.json"), true);
-                    Directory.Move(Path.Combine(legacyDir, "avatars"), Path.Combine(dirs.CacheDir, "avatars"));
-                    Directory.Delete(legacyDir, true);
+                    SourceGit.Remote.RepositoryFile.Copy(SourceGit.Remote.RepositoryPath.Combine(legacyDir, "preference.json"), SourceGit.Remote.RepositoryPath.Combine(dirs.ConfigDir, "preference.json"), true);
+                    SourceGit.Remote.RepositoryDirectory.Move(SourceGit.Remote.RepositoryPath.Combine(legacyDir, "avatars"), SourceGit.Remote.RepositoryPath.Combine(dirs.CacheDir, "avatars"));
+                    SourceGit.Remote.RepositoryDirectory.Delete(legacyDir, true);
                 }
                 catch
                 {
@@ -111,7 +111,7 @@ namespace SourceGit.Native
             finder.VSCodeInsiders(() => FindExecutable("code-insiders"));
             finder.VSCodium(() => FindExecutable("codium"));
             finder.Cursor(() => FindExecutable("cursor"));
-            finder.FindJetBrainsFromToolbox(() => Path.Combine(localAppDataDir, "JetBrains/Toolbox"));
+            finder.FindJetBrainsFromToolbox(() => SourceGit.Remote.RepositoryPath.Combine(localAppDataDir, "JetBrains/Toolbox"));
             finder.SublimeText(() => FindExecutable("subl"));
             finder.Zed(() =>
             {
@@ -131,14 +131,14 @@ namespace SourceGit.Native
 
         public void OpenInFileManager(string path)
         {
-            if (Directory.Exists(path))
+            if (SourceGit.Remote.RepositoryDirectory.Exists(path))
             {
                 Process.Start("xdg-open", path.Quoted());
             }
             else
             {
-                var dir = Path.GetDirectoryName(path);
-                if (Directory.Exists(dir))
+                var dir = SourceGit.Remote.RepositoryPath.GetDirectoryName(path);
+                if (SourceGit.Remote.RepositoryDirectory.Exists(dir))
                     Process.Start("xdg-open", dir.Quoted());
             }
         }
@@ -216,22 +216,22 @@ namespace SourceGit.Native
             var paths = pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
             foreach (var path in paths)
             {
-                var test = Path.Combine(path, filename);
-                if (File.Exists(test))
+                var test = SourceGit.Remote.RepositoryPath.Combine(path, filename);
+                if (SourceGit.Remote.RepositoryFile.Exists(test))
                     return test;
             }
 
-            var local = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", filename);
-            return File.Exists(local) ? local : string.Empty;
+            var local = SourceGit.Remote.RepositoryPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", filename);
+            return SourceGit.Remote.RepositoryFile.Exists(local) ? local : string.Empty;
         }
 
         private string GetXdgDirectory(string envVar, string fallback, string subDirName)
         {
             var dir = Environment.GetEnvironmentVariable(envVar);
-            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
-                return Path.Combine(dir, subDirName);
+            if (!string.IsNullOrEmpty(dir) && SourceGit.Remote.RepositoryDirectory.Exists(dir))
+                return SourceGit.Remote.RepositoryPath.Combine(dir, subDirName);
 
-            return Path.Combine(fallback, subDirName);
+            return SourceGit.Remote.RepositoryPath.Combine(fallback, subDirName);
         }
     }
 }

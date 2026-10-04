@@ -11,6 +11,8 @@ namespace SourceGit.Models
         public List<string> Revisions => _revisions;
         public string Path => _path;
         public string OrgPath => _orgPath;
+        public bool IgnorePaths => _ignorePaths;
+        public string IndexBaseRevision => _extra.StartsWith("--cached ", StringComparison.Ordinal) ? _extra[9..].Trim() : "HEAD";
 
         /// <summary>
         ///     Only used for working copy changes

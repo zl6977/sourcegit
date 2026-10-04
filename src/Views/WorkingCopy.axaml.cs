@@ -107,7 +107,7 @@ namespace SourceGit.Views
                 {
                     var change = changes[0];
                     var fullpath = Native.OS.GetAbsPath(vm.Repository.FullPath, change.Path);
-                    if (File.Exists(fullpath))
+                    if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
                         Native.OS.OpenWithDefaultEditor(fullpath);
                     e.Handled = true;
                 }
@@ -163,7 +163,7 @@ namespace SourceGit.Views
                 {
                     var change = changes[0];
                     var fullpath = Native.OS.GetAbsPath(vm.Repository.FullPath, change.Path);
-                    if (File.Exists(fullpath))
+                    if (SourceGit.Remote.RepositoryFile.Exists(fullpath))
                         Native.OS.OpenWithDefaultEditor(fullpath);
                     e.Handled = true;
                 }
@@ -322,7 +322,7 @@ namespace SourceGit.Views
                     var explore = new MenuItem();
                     explore.Header = App.Text("RevealFile");
                     explore.Icon = this.CreateMenuIcon("Icons.Explore");
-                    explore.IsEnabled = Path.Exists(absPath);
+                    explore.IsEnabled = SourceGit.Remote.RepositoryPath.Exists(absPath);
                     explore.Click += (_, e) =>
                     {
                         Native.OS.OpenInFileManager(absPath);
@@ -379,7 +379,7 @@ namespace SourceGit.Views
                     menu.Items.Add(useTheirs);
                     menu.Items.Add(useMine);
 
-                    if (change.ConflictReason is Models.ConflictReason.BothAdded or Models.ConflictReason.BothModified && !Directory.Exists(path))
+                    if (change.ConflictReason is Models.ConflictReason.BothAdded or Models.ConflictReason.BothModified && !SourceGit.Remote.RepositoryDirectory.Exists(path))
                     {
                         var mergeBuiltin = new MenuItem();
                         mergeBuiltin.Header = App.Text("ChangeCM.Merge");
@@ -488,7 +488,7 @@ namespace SourceGit.Views
                     menu.Items.Add(assumeUnchanged);
                     menu.Items.Add(new MenuItem() { Header = "-" });
 
-                    var extension = Path.GetExtension(change.Path);
+                    var extension = SourceGit.Remote.RepositoryPath.GetExtension(change.Path);
                     var hasExtra = false;
                     if (selection.IsSingleFolder)
                     {
@@ -543,7 +543,7 @@ namespace SourceGit.Views
                             byExtensionInSameFolder.IsVisible = !isRooted;
                             byExtensionInSameFolder.Click += (_, e) =>
                             {
-                                var dir = Path.GetDirectoryName(change.Path)!.Replace('\\', '/').TrimEnd('/');
+                                var dir = SourceGit.Remote.RepositoryPath.GetDirectoryName(change.Path)!.Replace('\\', '/').TrimEnd('/');
                                 if (repo.CanCreatePopup())
                                     repo.ShowPopup(new ViewModels.AddToIgnore(repo, $"{dir}/*{extension}"));
                                 e.Handled = true;
@@ -557,7 +557,7 @@ namespace SourceGit.Views
                             untrackedInSameFolder.Header = App.Text("WorkingCopy.AddToGitIgnore.UntrackedInSameFolder");
                             untrackedInSameFolder.Click += (_, e) =>
                             {
-                                var dir = Path.GetDirectoryName(change.Path)!.Replace('\\', '/').TrimEnd('/');
+                                var dir = SourceGit.Remote.RepositoryPath.GetDirectoryName(change.Path)!.Replace('\\', '/').TrimEnd('/');
                                 if (repo.CanCreatePopup())
                                     repo.ShowPopup(new ViewModels.AddToIgnore(repo, $"{dir}/"));
                                 e.Handled = true;
@@ -569,7 +569,7 @@ namespace SourceGit.Views
                         hasExtra = true;
                     }
 
-                    if (!selection.HasFolder && File.Exists(path) && repo.IsLFSEnabled())
+                    if (!selection.HasFolder && SourceGit.Remote.RepositoryFile.Exists(path) && repo.IsLFSEnabled())
                     {
                         var lfs = new MenuItem();
                         lfs.Header = App.Text("GitLFS");
@@ -578,7 +578,7 @@ namespace SourceGit.Views
                         var isLFSFiltered = new Commands.IsLFSFiltered(repo.FullPath, change.Path).GetResult();
                         if (!isLFSFiltered)
                         {
-                            var filename = Path.GetFileName(change.Path);
+                            var filename = SourceGit.Remote.RepositoryPath.GetFileName(change.Path);
                             var lfsTrackThisFile = new MenuItem();
                             lfsTrackThisFile.Header = App.Text("GitLFS.Track", filename);
                             lfsTrackThisFile.Click += async (_, e) =>
@@ -801,11 +801,11 @@ namespace SourceGit.Views
 
                 if (selection.IsSingleFolder)
                 {
-                    var dir = Path.Combine(repo.FullPath, selection.SingleFolderPath);
+                    var dir = SourceGit.Remote.RepositoryPath.Combine(repo.FullPath, selection.SingleFolderPath);
                     var explore = new MenuItem();
                     explore.Header = App.Text("RevealFile");
                     explore.Icon = this.CreateMenuIcon("Icons.Explore");
-                    explore.IsEnabled = Directory.Exists(dir);
+                    explore.IsEnabled = SourceGit.Remote.RepositoryDirectory.Exists(dir);
                     explore.Click += (_, e) =>
                     {
                         Native.OS.OpenInFileManager(dir);
@@ -1004,10 +1004,10 @@ namespace SourceGit.Views
                 {
                     var absPath = selection.IsSingleFolder ? Native.OS.GetAbsPath(repo.FullPath, selection.SingleFolderPath) : path;
                     var explore = new MenuItem();
-                    explore.IsEnabled = File.Exists(path) || Directory.Exists(path);
+                    explore.IsEnabled = SourceGit.Remote.RepositoryFile.Exists(path) || SourceGit.Remote.RepositoryDirectory.Exists(path);
                     explore.Header = App.Text("RevealFile");
                     explore.Icon = this.CreateMenuIcon("Icons.Explore");
-                    explore.IsEnabled = Path.Exists(absPath);
+                    explore.IsEnabled = SourceGit.Remote.RepositoryPath.Exists(absPath);
                     explore.Click += (_, e) =>
                     {
                         Native.OS.OpenInFileManager(absPath);
@@ -1075,7 +1075,7 @@ namespace SourceGit.Views
                 menu.Items.Add(patch);
                 menu.Items.Add(new MenuItem() { Header = "-" });
 
-                if (!selection.HasFolder && File.Exists(path) && repo.IsLFSEnabled())
+                if (!selection.HasFolder && SourceGit.Remote.RepositoryFile.Exists(path) && repo.IsLFSEnabled())
                 {
                     var lfs = new MenuItem();
                     lfs.Header = App.Text("GitLFS");
@@ -1221,7 +1221,7 @@ namespace SourceGit.Views
                 {
                     var dir = Native.OS.GetAbsPath(repo.FullPath, selection.SingleFolderPath);
                     var explore = new MenuItem();
-                    explore.IsEnabled = Directory.Exists(dir);
+                    explore.IsEnabled = SourceGit.Remote.RepositoryDirectory.Exists(dir);
                     explore.Header = App.Text("RevealFile");
                     explore.Icon = this.CreateMenuIcon("Icons.Explore");
                     explore.Click += (_, e) =>
@@ -1342,7 +1342,7 @@ namespace SourceGit.Views
             var openWith = new MenuItem();
             openWith.Header = App.Text("Open");
             openWith.Icon = this.CreateMenuIcon("Icons.OpenWith");
-            openWith.IsEnabled = File.Exists(fullpath);
+            openWith.IsEnabled = SourceGit.Remote.RepositoryFile.Exists(fullpath);
             if (openWith.IsEnabled)
             {
                 var defaultEditor = new MenuItem();

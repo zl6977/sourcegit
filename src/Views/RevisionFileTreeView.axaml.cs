@@ -199,7 +199,7 @@ namespace SourceGit.Views
                             {
                                 var folder = selected[0];
                                 var folderPath = folder is { Path: { IsAbsoluteUri: true } path } ? path.LocalPath : folder.Path.ToString();
-                                var saveTo = Path.Combine(folderPath, Path.GetFileName(file.Path)!);
+                                var saveTo = SourceGit.Remote.RepositoryPath.Combine(folderPath, SourceGit.Remote.RepositoryPath.GetFileName(file.Path)!);
                                 await detail.SaveRevisionFileAsync(file, saveTo);
                             }
                         }
@@ -523,7 +523,7 @@ namespace SourceGit.Views
             var explore = new MenuItem();
             explore.Header = App.Text("RevealFile");
             explore.Icon = this.CreateMenuIcon("Icons.Explore");
-            explore.IsEnabled = Directory.Exists(fullPath);
+            explore.IsEnabled = SourceGit.Remote.RepositoryDirectory.Exists(fullPath);
             explore.Click += (_, ev) =>
             {
                 Native.OS.OpenInFileManager(fullPath);
@@ -632,7 +632,7 @@ namespace SourceGit.Views
                     {
                         var folder = selected[0];
                         var folderPath = folder is { Path: { IsAbsoluteUri: true } path } ? path.LocalPath : folder.Path.ToString();
-                        var saveTo = Path.Combine(folderPath, Path.GetFileName(file.Path)!);
+                        var saveTo = SourceGit.Remote.RepositoryPath.Combine(folderPath, SourceGit.Remote.RepositoryPath.GetFileName(file.Path)!);
                         await vm.SaveRevisionFileAsync(file, saveTo);
                     }
                 }
@@ -647,7 +647,7 @@ namespace SourceGit.Views
             var explore = new MenuItem();
             explore.Header = App.Text("RevealFile");
             explore.Icon = this.CreateMenuIcon("Icons.Explore");
-            explore.IsEnabled = File.Exists(fullPath) || Directory.Exists(fullPath);
+            explore.IsEnabled = SourceGit.Remote.RepositoryFile.Exists(fullPath) || SourceGit.Remote.RepositoryDirectory.Exists(fullPath);
             explore.Click += (_, ev) =>
             {
                 Native.OS.OpenInFileManager(fullPath);
@@ -696,7 +696,7 @@ namespace SourceGit.Views
                 menu.Items.Add(resetToThisRevision);
                 menu.Items.Add(new MenuItem() { Header = "-" });
 
-                if (repo.Remotes.Count > 0 && File.Exists(fullPath) && repo.IsLFSEnabled())
+                if (repo.Remotes.Count > 0 && SourceGit.Remote.RepositoryFile.Exists(fullPath) && repo.IsLFSEnabled())
                 {
                     var lfs = new MenuItem();
                     lfs.Header = App.Text("GitLFS");

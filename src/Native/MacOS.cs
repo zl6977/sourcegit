@@ -20,7 +20,7 @@ namespace SourceGit.Native
 
         public MacOS()
         {
-            _setsidExecutable = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath), "setsid");
+            _setsidExecutable = SourceGit.Remote.RepositoryPath.Combine(SourceGit.Remote.RepositoryPath.GetDirectoryName(Environment.ProcessPath), "setsid");
         }
 
         public void SetupApp(AppBuilder builder)
@@ -37,10 +37,10 @@ namespace SourceGit.Native
             else if (!path.Contains("/opt/homebrew/", StringComparison.Ordinal))
                 path = "/opt/homebrew/bin:/opt/homebrew/sbin:" + path;
 
-            var customPathFile = Path.Combine(OS.BasicDirectories.ConfigDir, "PATH");
-            if (File.Exists(customPathFile))
+            var customPathFile = SourceGit.Remote.RepositoryPath.Combine(OS.BasicDirectories.ConfigDir, "PATH");
+            if (SourceGit.Remote.RepositoryFile.Exists(customPathFile))
             {
-                var env = File.ReadAllText(customPathFile).Trim();
+                var env = SourceGit.Remote.RepositoryFile.ReadAllText(customPathFile).Trim();
                 if (!string.IsNullOrEmpty(env))
                     path = env;
             }
@@ -58,12 +58,12 @@ namespace SourceGit.Native
         public OS.Directories GetOrCreateDirectories()
         {
             var dirs = new OS.Directories();
-            var appDataDir = Path.Combine(
+            var appDataDir = SourceGit.Remote.RepositoryPath.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "SourceGit");
 
-            if (!Directory.Exists(appDataDir))
-                Directory.CreateDirectory(appDataDir);
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(appDataDir))
+                SourceGit.Remote.RepositoryDirectory.CreateDirectory(appDataDir);
 
             dirs.ConfigDir = appDataDir;
             dirs.CacheDir = appDataDir;
@@ -80,7 +80,7 @@ namespace SourceGit.Native
             };
 
             foreach (var path in gitPathVariants)
-                if (File.Exists(path))
+                if (SourceGit.Remote.RepositoryFile.Exists(path))
                     return path;
 
             return string.Empty;
@@ -99,9 +99,9 @@ namespace SourceGit.Native
             finder.VSCodeInsiders(() => "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code");
             finder.VSCodium(() => "/Applications/VSCodium.app/Contents/Resources/app/bin/codium");
             finder.Cursor(() => "/Applications/Cursor.app/Contents/Resources/app/bin/cursor");
-            finder.FindJetBrainsFromToolbox(() => Path.Combine(home, "Library/Application Support/JetBrains/Toolbox"));
+            finder.FindJetBrainsFromToolbox(() => SourceGit.Remote.RepositoryPath.Combine(home, "Library/Application Support/JetBrains/Toolbox"));
             finder.SublimeText(() => "/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl");
-            finder.Zed(() => File.Exists("/usr/local/bin/zed") ? "/usr/local/bin/zed" : "/Applications/Zed.app/Contents/MacOS/cli");
+            finder.Zed(() => SourceGit.Remote.RepositoryFile.Exists("/usr/local/bin/zed") ? "/usr/local/bin/zed" : "/Applications/Zed.app/Contents/MacOS/cli");
             return finder.Tools;
         }
 
@@ -112,9 +112,9 @@ namespace SourceGit.Native
 
         public void OpenInFileManager(string path)
         {
-            if (Directory.Exists(path))
+            if (SourceGit.Remote.RepositoryDirectory.Exists(path))
                 Process.Start("open", path.Quoted());
-            else if (File.Exists(path))
+            else if (SourceGit.Remote.RepositoryFile.Exists(path))
                 Process.Start("open", $"{path.Quoted()} -R");
         }
 
@@ -132,7 +132,7 @@ namespace SourceGit.Native
 
         public bool SupportSetSid()
         {
-            return File.Exists(_setsidExecutable);
+            return SourceGit.Remote.RepositoryFile.Exists(_setsidExecutable);
         }
 
         public string GetSetSidExecutable()

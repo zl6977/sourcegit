@@ -26,7 +26,7 @@ namespace SourceGit.Models
         public string ReleasePrefix { get; set; } = string.Empty;
         public string HotfixPrefix { get; set; } = string.Empty;
 
-        public void Parse(Dictionary<string, string> config)
+        public void Parse(Dictionary<string, string> config, GitFlowVersion? version = null)
         {
             // Reset to default values
             ProductionBranch = string.Empty;
@@ -36,7 +36,7 @@ namespace SourceGit.Models
             HotfixPrefix = string.Empty;
 
             // Try to parse `git-flow-next` style configuration first if the `git-flow-next` is installed.
-            if (Native.OS.GitFlowVersion == GitFlowVersion.Next &&
+            if ((version ?? Native.OS.GitFlowVersion) == GitFlowVersion.Next &&
                 config.TryGetValue("gitflow.initialized", out var initialized) &&
                 initialized.Equals("true", StringComparison.OrdinalIgnoreCase))
             {

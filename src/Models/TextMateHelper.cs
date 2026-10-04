@@ -38,7 +38,7 @@ namespace SourceGit.Models
 
         public static string GetScope(string file, RegistryOptions reg)
         {
-            var extension = Path.GetExtension(file);
+            var extension = SourceGit.Remote.RepositoryPath.GetExtension(file);
             if (extension == ".h")
                 extension = ".cpp";
             else if (extension is ".resx" or ".plist" or ".manifest" or ".sln" or ".slnx")

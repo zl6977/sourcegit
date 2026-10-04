@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -65,7 +65,7 @@ namespace SourceGit.ViewModels
             {
                 if (OnlyStaged)
                 {
-                    if (Native.OS.GitVersion >= Models.GitVersions.STASH_PUSH_ONLY_STAGED)
+                    if (SourceGit.Remote.RemoteWorkspace.GitVersion(_repo.FullPath) >= Models.GitVersions.STASH_PUSH_ONLY_STAGED)
                     {
                         succ = await new Commands.Stash(_repo.FullPath)
                             .Use(log)
@@ -116,19 +116,19 @@ namespace SourceGit.ViewModels
                 return true;
 
             var succ = false;
-            if (Native.OS.GitVersion >= Models.GitVersions.STASH_PUSH_WITH_PATHSPECFILE)
+            if (SourceGit.Remote.RemoteWorkspace.GitVersion(_repo.FullPath) >= Models.GitVersions.STASH_PUSH_WITH_PATHSPECFILE)
             {
                 var paths = new List<string>();
                 foreach (var c in changes)
                     paths.Add(c.Path);
 
-                var pathSpecFile = Path.GetTempFileName();
-                await File.WriteAllLinesAsync(pathSpecFile, paths);
+                var pathSpecFile = SourceGit.Remote.RepositoryFile.GetTempFileName(_repo.FullPath);
+                await SourceGit.Remote.RepositoryFile.WriteAllLinesAsync(pathSpecFile, paths);
                 succ = await new Commands.Stash(_repo.FullPath)
                     .Use(log)
                     .PushAsync(Message, pathSpecFile, keepIndex)
                     .ConfigureAwait(false);
-                File.Delete(pathSpecFile);
+                SourceGit.Remote.RepositoryFile.Delete(pathSpecFile);
             }
             else
             {

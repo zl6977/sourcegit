@@ -38,6 +38,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="SourceGit.GuiRemote.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <AvaloniaResource Include="App.ico" />
     <AvaloniaResource Include="Resources/Fonts/*" />
     <AvaloniaResource Include="Resources/Grammars/*" />
@@ -62,6 +66,8 @@
     <PackageReference Include="StbImageSharp" Version="2.30.15" />
 
     <ProjectReference Include="../depends/AvaloniaEdit/src/AvaloniaEdit.TextMate/AvaloniaEdit.TextMate.csproj" />
+    <ProjectReference Include="../modules/SourceGit.Contracts/SourceGit.Contracts.csproj" />
+    <ProjectReference Include="../modules/SourceGit.RemoteClient/SourceGit.RemoteClient.csproj" />
   </ItemGroup>
 
   <ItemGroup>

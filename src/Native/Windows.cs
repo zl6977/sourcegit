@@ -58,20 +58,20 @@ namespace SourceGit.Native
         {
             var dirs = new OS.Directories();
             var execFile = Environment.ProcessPath;
-            var portableDir = Path.Combine(Path.GetDirectoryName(execFile)!, "data");
-            if (Directory.Exists(portableDir))
+            var portableDir = SourceGit.Remote.RepositoryPath.Combine(SourceGit.Remote.RepositoryPath.GetDirectoryName(execFile)!, "data");
+            if (SourceGit.Remote.RepositoryDirectory.Exists(portableDir))
             {
                 dirs.ConfigDir = portableDir;
                 dirs.CacheDir = portableDir;
             }
             else
             {
-                var appDataDir = Path.Combine(
+                var appDataDir = SourceGit.Remote.RepositoryPath.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                     "SourceGit");
 
-                if (!Directory.Exists(appDataDir))
-                    Directory.CreateDirectory(appDataDir);
+                if (!SourceGit.Remote.RepositoryDirectory.Exists(appDataDir))
+                    SourceGit.Remote.RepositoryDirectory.CreateDirectory(appDataDir);
 
                 dirs.ConfigDir = appDataDir;
                 dirs.CacheDir = appDataDir;
@@ -88,7 +88,7 @@ namespace SourceGit.Native
 
             var git = reg.OpenSubKey(@"SOFTWARE\GitForWindows");
             if (git?.GetValue("InstallPath") is string installPath)
-                return Path.Combine(installPath, "bin", "git.exe");
+                return SourceGit.Remote.RepositoryPath.Combine(installPath, "bin", "git.exe");
 
             var builder = new StringBuilder("git.exe", 259);
             if (!PathFindOnPath(builder, null))
@@ -109,9 +109,9 @@ namespace SourceGit.Native
                     if (string.IsNullOrEmpty(OS.GitExecutable))
                         break;
 
-                    var binDir = Path.GetDirectoryName(OS.GitExecutable)!;
-                    var bash = Path.GetFullPath(Path.Combine(binDir, "..", "git-bash.exe"));
-                    if (!File.Exists(bash))
+                    var binDir = SourceGit.Remote.RepositoryPath.GetDirectoryName(OS.GitExecutable)!;
+                    var bash = SourceGit.Remote.RepositoryPath.GetFullPath(SourceGit.Remote.RepositoryPath.Combine(binDir, "..", "git-bash.exe"));
+                    if (!SourceGit.Remote.RepositoryFile.Exists(bash))
                         break;
 
                     return bash;
@@ -124,7 +124,7 @@ namespace SourceGit.Native
                     if (pwsh != null)
                     {
                         var path = pwsh.GetValue(null) as string;
-                        if (File.Exists(path))
+                        if (SourceGit.Remote.RepositoryFile.Exists(path))
                             return path;
                     }
 
@@ -154,8 +154,8 @@ namespace SourceGit.Native
             finder.VSCodeInsiders(FindVSCodeInsiders);
             finder.VSCodium(FindVSCodium);
             FindVisualStudio(finder);
-            finder.Cursor(() => Path.Combine(localAppDataDir, @"Programs\Cursor\Cursor.exe"));
-            finder.FindJetBrainsFromToolbox(() => Path.Combine(localAppDataDir, @"JetBrains\Toolbox"));
+            finder.Cursor(() => SourceGit.Remote.RepositoryPath.Combine(localAppDataDir, @"Programs\Cursor\Cursor.exe"));
+            finder.FindJetBrainsFromToolbox(() => SourceGit.Remote.RepositoryPath.Combine(localAppDataDir, @"JetBrains\Toolbox"));
             finder.SublimeText(FindSublimeText);
             finder.Zed(FindZed);
             return finder.Tools;
@@ -175,7 +175,7 @@ namespace SourceGit.Native
             var cwd = string.IsNullOrEmpty(workdir) ? home : workdir;
             var terminal = OS.ShellOrTerminal;
 
-            if (!File.Exists(terminal))
+            if (!SourceGit.Remote.RepositoryFile.Exists(terminal))
             {
                 Models.Notification.Send(workdir, "Terminal is not specified! Please confirm that the correct shell/terminal has been configured.", true);
                 return;
@@ -190,9 +190,9 @@ namespace SourceGit.Native
 
         public void OpenInFileManager(string path)
         {
-            if (File.Exists(path))
+            if (SourceGit.Remote.RepositoryFile.Exists(path))
             {
-                var pidl = ILCreateFromPathW(new FileInfo(path).FullName);
+                var pidl = ILCreateFromPathW(new SourceGit.Remote.RepositoryFileInfo(path).FullName);
 
                 try
                 {
@@ -206,7 +206,7 @@ namespace SourceGit.Native
                 return;
             }
 
-            var dir = new DirectoryInfo(path).FullName + Path.DirectorySeparatorChar;
+            var dir = new SourceGit.Remote.RepositoryDirectoryInfo(path).FullName + Path.DirectorySeparatorChar;
             Process.Start(new ProcessStartInfo(dir)
             {
                 UseShellExecute = true,
@@ -216,7 +216,7 @@ namespace SourceGit.Native
 
         public void OpenWithDefaultEditor(string file)
         {
-            var info = new FileInfo(file);
+            var info = new SourceGit.Remote.RepositoryFileInfo(file);
             var start = new ProcessStartInfo("cmd", $"""/c start "" {info.FullName.Quoted()}""");
             start.CreateNoWindow = true;
             Process.Start(start);
@@ -260,7 +260,7 @@ namespace SourceGit.Native
         #region HELPER_METHODS
         private List<Models.ExternalTool.LaunchOption> GenerateVSProjectLaunchOptions(string path)
         {
-            var root = new DirectoryInfo(path);
+            var root = new SourceGit.Remote.RepositoryDirectoryInfo(path);
             if (!root.Exists)
                 return null;
 
@@ -360,7 +360,7 @@ namespace SourceGit.Native
             if (sublime != null)
             {
                 var icon = sublime.GetValue("DisplayIcon") as string;
-                return Path.Combine(Path.GetDirectoryName(icon)!, "subl.exe");
+                return SourceGit.Remote.RepositoryPath.Combine(SourceGit.Remote.RepositoryPath.GetDirectoryName(icon)!, "subl.exe");
             }
 
             // Sublime Text 3
@@ -368,7 +368,7 @@ namespace SourceGit.Native
             if (sublime3 != null)
             {
                 var icon = sublime3.GetValue("DisplayIcon") as string;
-                return Path.Combine(Path.GetDirectoryName(icon)!, "subl.exe");
+                return SourceGit.Remote.RepositoryPath.Combine(SourceGit.Remote.RepositoryPath.GetDirectoryName(icon)!, "subl.exe");
             }
 
             return string.Empty;
@@ -377,7 +377,7 @@ namespace SourceGit.Native
         private void FindVisualStudio(Models.ExternalToolsFinder finder)
         {
             var vswhere = Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe");
-            if (!File.Exists(vswhere))
+            if (!SourceGit.Remote.RepositoryFile.Exists(vswhere))
                 return;
 
             var startInfo = new ProcessStartInfo();

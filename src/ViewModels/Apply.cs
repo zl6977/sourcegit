@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Threading.Tasks;
@@ -63,7 +63,7 @@ namespace SourceGit.ViewModels
             if (string.IsNullOrEmpty(file))
                 return new ValidationResult("Please select a patch file!!!");
 
-            if (!File.Exists(file))
+            if (!SourceGit.Remote.RepositoryFile.Exists(file))
                 return new ValidationResult($"File '{file}' can NOT be found!!!");
 
             return ValidationResult.Success;
@@ -75,6 +75,7 @@ namespace SourceGit.ViewModels
             ProgressDescription = "Apply patch...";
 
             var finalPatchFile = _patchFile;
+            var temporaryPatch = false;
             if (_fromClipboard)
             {
                 if (Clipboard == null)
@@ -90,8 +91,16 @@ namespace SourceGit.ViewModels
                     return false;
                 }
 
-                finalPatchFile = Path.GetTempFileName();
-                File.WriteAllText(finalPatchFile, content);
+                finalPatchFile = SourceGit.Remote.RepositoryFile.GetTempFileName(_repo.FullPath);
+                SourceGit.Remote.RepositoryFile.WriteAllText(finalPatchFile, content);
+                temporaryPatch = true;
+            }
+            else if (SourceGit.Remote.RepositoryPath.IsRemote(_repo.FullPath) && !SourceGit.Remote.RepositoryPath.IsRemote(finalPatchFile))
+            {
+                var uploaded = SourceGit.Remote.RepositoryFile.GetTempFileName(_repo.FullPath);
+                await Task.Run(() => SourceGit.Remote.RepositoryFile.Copy(finalPatchFile, uploaded, true));
+                finalPatchFile = uploaded;
+                temporaryPatch = true;
             }
 
             var log = _repo.CreateLog("Apply Patch");
@@ -104,8 +113,8 @@ namespace SourceGit.ViewModels
 
             log.Complete();
 
-            if (_fromClipboard)
-                File.Delete(finalPatchFile);
+            if (temporaryPatch)
+                SourceGit.Remote.RepositoryFile.Delete(finalPatchFile);
 
             return succ;
         }

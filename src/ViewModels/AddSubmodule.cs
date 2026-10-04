@@ -52,11 +52,11 @@ namespace SourceGit.ViewModels
             if (string.IsNullOrEmpty(relativePath))
             {
                 if (_url.EndsWith("/.git", StringComparison.Ordinal))
-                    relativePath = Path.GetFileName(Path.GetDirectoryName(_url));
+                    relativePath = SourceGit.Remote.RepositoryPath.GetFileName(SourceGit.Remote.RepositoryPath.GetDirectoryName(_url));
                 else if (_url.EndsWith(".git", StringComparison.Ordinal))
-                    relativePath = Path.GetFileNameWithoutExtension(_url);
+                    relativePath = SourceGit.Remote.RepositoryPath.GetFileNameWithoutExtension(_url);
                 else
-                    relativePath = Path.GetFileName(_url);
+                    relativePath = SourceGit.Remote.RepositoryPath.GetFileName(_url);
             }
 
             var succ = await new Commands.Submodule(_repo.FullPath)

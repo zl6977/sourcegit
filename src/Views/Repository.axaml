@@ -530,7 +530,7 @@
                                     Data="{StaticResource Icons.Folder.Open}"/>
                               <TextBlock Grid.Row="1" Grid.Column="3"
                                          Margin="6,0,0,0"
-                                         Text="{Binding FullPath, Mode=OneWay}"/>
+                                         Text="{Binding FullPath, Mode=OneWay, Converter={x:Static c:PathConverters.RemoteDisplayPath}}"/>
 
                               <TextBlock Grid.Row="2" Grid.Column="0"
                                          Classes="info_label"

@@ -1,3 +1,4 @@
+using Process = SourceGit.Remote.GitProcess;
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;

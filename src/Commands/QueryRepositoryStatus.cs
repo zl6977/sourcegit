@@ -17,6 +17,28 @@ namespace SourceGit.Commands
 
         public async Task<Models.RepositoryStatus> GetResultAsync()
         {
+            if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
+            {
+                try
+                {
+                    var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(WorkingDirectory);
+                    var handle = await workspace.OpenTransientAsync(WorkingDirectory, CancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var snapshot = await workspace.Client.GetStatusAsync(handle.Id).ConfigureAwait(false);
+                        var remote = new Models.RepositoryStatus();
+                        remote.CurrentBranch = snapshot.Branch ?? (string.IsNullOrEmpty(snapshot.HeadOid) || snapshot.HeadOid.Length <= 10 ? "-" : $"({snapshot.HeadOid[..10]})");
+                        remote.LocalChanges = snapshot.Changes.Length;
+                        remote.Ahead = snapshot.Ahead;
+                        remote.Behind = snapshot.Behind;
+                        remote.Generation = snapshot.Generation;
+                        return remote;
+                    }
+                    finally { await workspace.ReleaseTransientAsync(handle.Id).ConfigureAwait(false); }
+                }
+                catch { return null; }
+            }
+
             Args = "status --porcelain=v2 -b -uall --ignore-submodules=dirty";
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             if (!rs.IsSuccess)
@@ -36,17 +58,20 @@ namespace SourceGit.Commands
             else
                 status.CurrentBranch = head;
 
-            if (count >= 4)
+            var changesCount = 0;
+            for (var n = 2; n < lines.Length; n++)
             {
-                var changesCount = count - 3;
-                if (lines[3].StartsWith("# branch.ab ", StringComparison.Ordinal))
+                var line = lines[n];
+                if (line.StartsWith("#", StringComparison.Ordinal))
                 {
-                    ParseTrackStatus(status, lines[3].Substring(12).Trim());
-                    changesCount--;
+                    if (line.StartsWith("# branch.ab ", StringComparison.Ordinal))
+                        ParseTrackStatus(status, line.Substring(12).Trim());
+                    continue;
                 }
-
-                status.LocalChanges = changesCount;
+                changesCount++;
             }
+
+            status.LocalChanges = changesCount;
 
             return status;
         }

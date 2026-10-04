@@ -28,7 +28,10 @@ namespace SourceGit.Commands
                 {
                     if (line.StartsWith("worktree ", StringComparison.Ordinal))
                     {
-                        last = new Models.Worktree() { FullPath = line.Substring(9).Trim() };
+                        var path = line.Substring(9).Trim();
+                        if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
+                            path = SourceGit.Remote.RepositoryPath.Remote(SourceGit.Remote.RepositoryPath.ConnectionId(WorkingDirectory), path);
+                        last = new Models.Worktree() { FullPath = path };
                         worktrees.Add(last);
                         continue;
                     }
@@ -84,7 +87,7 @@ namespace SourceGit.Commands
             builder.Append("worktree add ");
 
             if (tracking)
-                builder.Append("--track -b ").Append(string.IsNullOrEmpty(name) ? Path.GetFileName(fullpath) : name).Append(' ');
+                builder.Append("--track -b ").Append(string.IsNullOrEmpty(name) ? SourceGit.Remote.RepositoryPath.GetFileName(fullpath) : name).Append(' ');
             else if (!string.IsNullOrEmpty(name))
                 builder.Append("-b ").Append(name).Append(' ');
 

@@ -22,8 +22,8 @@ namespace SourceGit.Models
         {
             try
             {
-                if (!string.IsNullOrEmpty(storageFile) && File.Exists(storageFile))
-                    return JsonSerializer.Deserialize(File.ReadAllText(storageFile), JsonCodeGen.Default.ListConventionalCommitType) ?? [];
+                if (!string.IsNullOrEmpty(storageFile) && SourceGit.Remote.RepositoryFile.Exists(storageFile))
+                    return JsonSerializer.Deserialize(SourceGit.Remote.RepositoryFile.ReadAllText(storageFile), JsonCodeGen.Default.ListConventionalCommitType) ?? [];
             }
             catch
             {

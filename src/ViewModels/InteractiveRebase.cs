@@ -356,7 +356,7 @@ namespace SourceGit.ViewModels
         {
             using var lockWatcher = _repo.LockWatcher();
 
-            var saveFile = Path.Combine(_repo.GitDir, "sourcegit.interactive_rebase");
+            var saveFile = SourceGit.Remote.RepositoryPath.Combine(_repo.GitDir, "sourcegit.interactive_rebase");
             var collection = new Models.InteractiveRebaseJobCollection();
             collection.OrigHead = _repo.CurrentBranch.Head;
             collection.Onto = On.SHA;
@@ -384,7 +384,7 @@ namespace SourceGit.ViewModels
                     pending = item;
             }
 
-            await using (var stream = File.Create(saveFile))
+            await using (var stream = SourceGit.Remote.RepositoryFile.Create(saveFile))
             {
                 await JsonSerializer.SerializeAsync(stream, collection, JsonCodeGen.Default.InteractiveRebaseJobCollection);
             }

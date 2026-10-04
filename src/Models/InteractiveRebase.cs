@@ -65,7 +65,7 @@ namespace SourceGit.Models
 
         public void WriteCommitMessage(string doneFile, string msgFile)
         {
-            var done = File.ReadAllText(doneFile).Trim().Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            var done = SourceGit.Remote.RepositoryFile.ReadAllText(doneFile).Trim().Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
             if (done.Length == 0)
                 return;
 
@@ -79,7 +79,7 @@ namespace SourceGit.Models
             {
                 if (job.SHA.StartsWith(sha))
                 {
-                    File.WriteAllText(msgFile, job.Message);
+                    SourceGit.Remote.RepositoryFile.WriteAllText(msgFile, job.Message);
                     return;
                 }
             }

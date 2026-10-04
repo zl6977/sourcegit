@@ -44,9 +44,9 @@ namespace SourceGit.Models
 
         public void Start()
         {
-            _storePath = Path.Combine(Native.OS.BasicDirectories.CacheDir, "avatars");
-            if (!Directory.Exists(_storePath))
-                Directory.CreateDirectory(_storePath);
+            _storePath = SourceGit.Remote.RepositoryPath.Combine(Native.OS.BasicDirectories.CacheDir, "avatars");
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(_storePath))
+                SourceGit.Remote.RepositoryDirectory.CreateDirectory(_storePath);
 
             LoadDefaultAvatar("noreply@github.com", "github.png");
             LoadDefaultAvatar("unrealbot@epicgames.com", "unreal.png");
@@ -87,7 +87,7 @@ namespace SourceGit.Models
                         url = $"https://avatars.githubusercontent.com/{githubUser}";
                     }
 
-                    var localFile = Path.Combine(_storePath, md5);
+                    var localFile = SourceGit.Remote.RepositoryPath.Combine(_storePath, md5);
                     Bitmap img = null;
                     try
                     {
@@ -96,13 +96,13 @@ namespace SourceGit.Models
                         {
                             using (var stream = rsp.Content.ReadAsStream())
                             {
-                                using (var writer = File.Create(localFile))
+                                using (var writer = SourceGit.Remote.RepositoryFile.Create(localFile))
                                 {
                                     stream.CopyTo(writer);
                                 }
                             }
 
-                            using (var reader = File.OpenRead(localFile))
+                            using (var reader = SourceGit.Remote.RepositoryFile.OpenRead(localFile))
                             {
                                 img = Bitmap.DecodeToWidth(reader, 128);
                             }
@@ -148,9 +148,9 @@ namespace SourceGit.Models
 
                 _cache.Remove(email);
 
-                var localFile = Path.Combine(_storePath, GetEmailHash(email));
-                if (File.Exists(localFile))
-                    File.Delete(localFile);
+                var localFile = SourceGit.Remote.RepositoryPath.Combine(_storePath, GetEmailHash(email));
+                if (SourceGit.Remote.RepositoryFile.Exists(localFile))
+                    SourceGit.Remote.RepositoryFile.Delete(localFile);
 
                 NotifyResourceChanged(email, null);
             }
@@ -159,12 +159,12 @@ namespace SourceGit.Models
                 if (_cache.TryGet(email, out var value))
                     return value;
 
-                var localFile = Path.Combine(_storePath, GetEmailHash(email));
-                if (File.Exists(localFile))
+                var localFile = SourceGit.Remote.RepositoryPath.Combine(_storePath, GetEmailHash(email));
+                if (SourceGit.Remote.RepositoryFile.Exists(localFile))
                 {
                     try
                     {
-                        using (var stream = File.OpenRead(localFile))
+                        using (var stream = SourceGit.Remote.RepositoryFile.OpenRead(localFile))
                         {
                             var img = Bitmap.DecodeToWidth(stream, 128);
                             _cache.AddOrUpdate(email, img);
@@ -192,7 +192,7 @@ namespace SourceGit.Models
             {
                 Bitmap image;
 
-                using (var stream = File.OpenRead(file))
+                using (var stream = SourceGit.Remote.RepositoryFile.OpenRead(file))
                 {
                     image = Bitmap.DecodeToWidth(stream, 128);
                 }
@@ -204,8 +204,8 @@ namespace SourceGit.Models
                     _requesting.Remove(email);
                 }
 
-                var store = Path.Combine(_storePath, GetEmailHash(email));
-                File.Copy(file, store, true);
+                var store = SourceGit.Remote.RepositoryPath.Combine(_storePath, GetEmailHash(email));
+                SourceGit.Remote.RepositoryFile.Copy(file, store, true);
                 NotifyResourceChanged(email, image);
             }
             catch

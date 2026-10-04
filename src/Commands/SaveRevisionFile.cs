@@ -1,3 +1,4 @@
+using Process = SourceGit.Remote.GitProcess;
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
@@ -9,9 +10,9 @@ namespace SourceGit.Commands
     {
         public static async Task RunAsync(string repo, string revision, string file, string saveTo)
         {
-            var dir = Path.GetDirectoryName(saveTo) ?? string.Empty;
-            if (!Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
+            var dir = SourceGit.Remote.RepositoryPath.GetDirectoryName(saveTo) ?? string.Empty;
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(dir))
+                SourceGit.Remote.RepositoryDirectory.CreateDirectory(dir);
 
             var isLFSFiltered = await new IsLFSFiltered(repo, revision, file).GetResultAsync().ConfigureAwait(false);
             if (isLFSFiltered)
@@ -30,7 +31,7 @@ namespace SourceGit.Commands
             var starter = new ProcessStartInfo();
             starter.WorkingDirectory = repo;
             starter.FileName = Native.OS.GitExecutable;
-            starter.Arguments = args;
+            starter.Arguments = SourceGit.Remote.RepositoryPath.SafeOwnershipArg(repo) + args;
             starter.UseShellExecute = false;
             starter.CreateNoWindow = true;
             starter.WindowStyle = ProcessWindowStyle.Hidden;
@@ -38,7 +39,7 @@ namespace SourceGit.Commands
             starter.RedirectStandardOutput = true;
             starter.RedirectStandardError = true;
 
-            await using (var sw = File.Create(outputFile))
+            await using (var sw = SourceGit.Remote.RepositoryFile.Create(outputFile))
             {
                 try
                 {

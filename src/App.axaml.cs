@@ -135,12 +135,12 @@ namespace SourceGit
                 app._themeOverrides = null;
             }
 
-            if (!string.IsNullOrEmpty(themeOverridesFile) && File.Exists(themeOverridesFile))
+            if (!string.IsNullOrEmpty(themeOverridesFile) && SourceGit.Remote.RepositoryFile.Exists(themeOverridesFile))
             {
                 try
                 {
                     var resDic = new ResourceDictionary();
-                    using var stream = File.OpenRead(themeOverridesFile);
+                    using var stream = SourceGit.Remote.RepositoryFile.OpenRead(themeOverridesFile);
                     var overrides = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.ThemeOverrides);
                     foreach (var kv in overrides.BasicColors)
                     {
@@ -287,19 +287,19 @@ namespace SourceGit
                 return false;
 
             var file = args[1].Replace('\\', '/').Trim('\"').Trim();
-            var filename = Path.GetFileName(file);
+            var filename = SourceGit.Remote.RepositoryPath.GetFileName(file);
             if (!filename.Equals("git-rebase-todo", StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            var dirInfo = new DirectoryInfo(Path.GetDirectoryName(file)!);
+            var dirInfo = new SourceGit.Remote.RepositoryDirectoryInfo(SourceGit.Remote.RepositoryPath.GetDirectoryName(file)!);
             if (!dirInfo.Exists || !dirInfo.Name.Equals("rebase-merge", StringComparison.Ordinal))
                 return true;
 
-            var jobsFile = Path.Combine(dirInfo.Parent!.FullName, "sourcegit.interactive_rebase");
-            if (!File.Exists(jobsFile))
+            var jobsFile = SourceGit.Remote.RepositoryPath.Combine(dirInfo.Parent!.FullName, "sourcegit.interactive_rebase");
+            if (!SourceGit.Remote.RepositoryFile.Exists(jobsFile))
                 return true;
 
-            using var stream = File.OpenRead(jobsFile);
+            using var stream = SourceGit.Remote.RepositoryFile.OpenRead(jobsFile);
             var collection = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.InteractiveRebaseJobCollection);
             collection.WriteTodoList(file);
             exitCode = 0;
@@ -316,21 +316,21 @@ namespace SourceGit
             exitCode = 0;
 
             var file = args[1].Replace('\\', '/').Trim('\"').Trim();
-            var filename = Path.GetFileName(file);
+            var filename = SourceGit.Remote.RepositoryPath.GetFileName(file);
             if (!filename.Equals("COMMIT_EDITMSG", StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            var gitDir = Path.GetDirectoryName(file)!;
-            var origHeadFile = Path.Combine(gitDir, "rebase-merge", "orig-head");
-            var ontoFile = Path.Combine(gitDir, "rebase-merge", "onto");
-            var doneFile = Path.Combine(gitDir, "rebase-merge", "done");
-            var jobsFile = Path.Combine(gitDir, "sourcegit.interactive_rebase");
-            if (!File.Exists(ontoFile) || !File.Exists(origHeadFile) || !File.Exists(doneFile) || !File.Exists(jobsFile))
+            var gitDir = SourceGit.Remote.RepositoryPath.GetDirectoryName(file)!;
+            var origHeadFile = SourceGit.Remote.RepositoryPath.Combine(gitDir, "rebase-merge", "orig-head");
+            var ontoFile = SourceGit.Remote.RepositoryPath.Combine(gitDir, "rebase-merge", "onto");
+            var doneFile = SourceGit.Remote.RepositoryPath.Combine(gitDir, "rebase-merge", "done");
+            var jobsFile = SourceGit.Remote.RepositoryPath.Combine(gitDir, "sourcegit.interactive_rebase");
+            if (!SourceGit.Remote.RepositoryFile.Exists(ontoFile) || !SourceGit.Remote.RepositoryFile.Exists(origHeadFile) || !SourceGit.Remote.RepositoryFile.Exists(doneFile) || !SourceGit.Remote.RepositoryFile.Exists(jobsFile))
                 return true;
 
-            var origHead = File.ReadAllText(origHeadFile).Trim();
-            var onto = File.ReadAllText(ontoFile).Trim();
-            using var stream = File.OpenRead(jobsFile);
+            var origHead = SourceGit.Remote.RepositoryFile.ReadAllText(origHeadFile).Trim();
+            var onto = SourceGit.Remote.RepositoryFile.ReadAllText(ontoFile).Trim();
+            using var stream = SourceGit.Remote.RepositoryFile.OpenRead(jobsFile);
             var collection = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.InteractiveRebaseJobCollection);
             if (collection.Onto.StartsWith(onto, StringComparison.OrdinalIgnoreCase) && collection.OrigHead.StartsWith(origHead, StringComparison.OrdinalIgnoreCase))
                 collection.WriteCommitMessage(doneFile, file);
@@ -344,8 +344,8 @@ namespace SourceGit
             if (args is not { Length: > 1 } || !args[0].Equals("--history", StringComparison.Ordinal))
                 return false;
 
-            var fullPath = Path.GetFullPath(args[1].Replace('\\', '/').Trim('\"').Trim());
-            var dir = Path.GetDirectoryName(fullPath);
+            var fullPath = SourceGit.Remote.RepositoryPath.GetFullPath(args[1].Replace('\\', '/').Trim('\"').Trim());
+            var dir = SourceGit.Remote.RepositoryPath.GetDirectoryName(fullPath);
 
             var test = new Commands.QueryRepositoryRootPath(dir).GetResult();
             if (!test.IsSuccess || string.IsNullOrEmpty(test.StdOut))
@@ -359,15 +359,15 @@ namespace SourceGit
             Models.AvatarManager.Instance.Start();
 
             var repo = test.StdOut.Trim();
-            var relativePath = Path.GetRelativePath(repo, fullPath).Replace('\\', '/');
-            if (File.Exists(fullPath))
+            var relativePath = SourceGit.Remote.RepositoryPath.GetRelativePath(repo, fullPath).Replace('\\', '/');
+            if (SourceGit.Remote.RepositoryFile.Exists(fullPath))
             {
                 desktop.MainWindow = new Views.FileHistories()
                 {
                     DataContext = new ViewModels.FileHistories(repo, relativePath)
                 };
             }
-            else if (Directory.Exists(fullPath))
+            else if (SourceGit.Remote.RepositoryDirectory.Exists(fullPath))
             {
                 desktop.MainWindow = new Views.DirHistories()
                 {
@@ -389,8 +389,8 @@ namespace SourceGit
             if (args is not { Length: > 1 } || !args[0].Equals("--blame", StringComparison.Ordinal))
                 return false;
 
-            var file = Path.GetFullPath(args[1].Replace('\\', '/').Trim('\"').Trim());
-            var dir = Path.GetDirectoryName(file);
+            var file = SourceGit.Remote.RepositoryPath.GetFullPath(args[1].Replace('\\', '/').Trim('\"').Trim());
+            var dir = SourceGit.Remote.RepositoryPath.GetDirectoryName(file);
 
             var test = new Commands.QueryRepositoryRootPath(dir).GetResult();
             if (!test.IsSuccess || string.IsNullOrEmpty(test.StdOut))
@@ -409,7 +409,7 @@ namespace SourceGit
                 return true;
             }
 
-            var relFile = Path.GetRelativePath(repo, file);
+            var relFile = SourceGit.Remote.RepositoryPath.GetRelativePath(repo, file);
             var viewer = new Views.Blame()
             {
                 DataContext = new ViewModels.Blame(repo, relFile, head)
@@ -425,7 +425,7 @@ namespace SourceGit
                 return false;
 
             var file = args[1].Replace('\\', '/').Trim('\"').Trim();
-            if (!File.Exists(file))
+            if (!SourceGit.Remote.RepositoryFile.Exists(file))
             {
                 desktop.Shutdown(-1);
                 return true;
@@ -464,8 +464,8 @@ namespace SourceGit
                 if (!string.IsNullOrEmpty(arg))
                 {
                     arg = arg.Replace('\\', '/').TrimEnd('/').Trim('\"').Trim();
-                    if (arg.Length > 0 && !Path.IsPathFullyQualified(arg))
-                        arg = Path.GetFullPath(arg);
+                    if (arg.Length > 0 && !SourceGit.Remote.RepositoryPath.IsPathFullyQualified(arg))
+                        arg = SourceGit.Remote.RepositoryPath.GetFullPath(arg);
                 }
 
                 _ipcChannel.SendToFirstInstance(arg);
@@ -489,7 +489,7 @@ namespace SourceGit
             if (desktop.Args is { Length: 1 })
             {
                 var arg = desktop.Args[0].Replace('\\', '/').TrimEnd('/').Trim('\"').Trim();
-                if (Directory.Exists(arg))
+                if (SourceGit.Remote.RepositoryDirectory.Exists(arg))
                     startupRepo = arg;
             }
 

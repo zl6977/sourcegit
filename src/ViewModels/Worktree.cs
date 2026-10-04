@@ -24,13 +24,13 @@ namespace SourceGit.ViewModels
         public string FullPath => Backend.FullPath;
         public string Head => Backend.Head;
 
-        public Worktree(DirectoryInfo repo, Models.Worktree wt, bool isMain, bool isLast)
+        public Worktree(SourceGit.Remote.RepositoryDirectoryInfo repo, Models.Worktree wt, bool isMain, bool isLast)
         {
             Backend = wt;
             IsMain = isMain;
             IsCurrent = IsCurrentWorktree(repo, wt);
             IsLast = isLast;
-            DisplayPath = IsCurrent ? string.Empty : Path.GetRelativePath(repo.FullName, wt.FullPath);
+            DisplayPath = IsCurrent ? string.Empty : SourceGit.Remote.RepositoryPath.GetRelativePath(repo.FullName, wt.FullPath);
             Name = GenerateName();
             Branch = GenerateBranchName();
             IsLocked = wt.IsLocked;
@@ -41,7 +41,7 @@ namespace SourceGit.ViewModels
             if (worktrees is not { Count: > 1 })
                 return [];
 
-            var repoDir = new DirectoryInfo(repo);
+            var repoDir = new SourceGit.Remote.RepositoryDirectoryInfo(repo);
             var nodes = new List<Worktree>();
             nodes.Add(new(repoDir, worktrees[0], true, false));
             for (int i = 1; i < worktrees.Count; i++)
@@ -55,21 +55,21 @@ namespace SourceGit.ViewModels
             if (string.IsNullOrEmpty(branch.WorktreePath))
                 return false;
 
-            var wtDir = new DirectoryInfo(Backend.FullPath);
-            var test = new DirectoryInfo(branch.WorktreePath);
+            var wtDir = new SourceGit.Remote.RepositoryDirectoryInfo(Backend.FullPath);
+            var test = new SourceGit.Remote.RepositoryDirectoryInfo(branch.WorktreePath);
             return test.FullName.Equals(wtDir.FullName, StringComparison.Ordinal);
         }
 
-        private bool IsCurrentWorktree(DirectoryInfo repo, Models.Worktree wt)
+        private bool IsCurrentWorktree(SourceGit.Remote.RepositoryDirectoryInfo repo, Models.Worktree wt)
         {
-            var wtDir = new DirectoryInfo(wt.FullPath);
+            var wtDir = new SourceGit.Remote.RepositoryDirectoryInfo(wt.FullPath);
             return wtDir.FullName.Equals(repo.FullName, StringComparison.Ordinal);
         }
 
         private string GenerateName()
         {
             if (IsMain)
-                return Path.GetFileName(Backend.FullPath);
+                return SourceGit.Remote.RepositoryPath.GetFileName(Backend.FullPath);
 
             if (Backend.IsDetached)
                 return $"detached HEAD at {Backend.Head.AsSpan(10)}";

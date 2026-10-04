@@ -66,13 +66,13 @@ namespace SourceGit.Commands
 
         public string Get(string key)
         {
-            Args = $"config {key}";
+            Args = $"config --get {key}";
             return ReadToEnd().StdOut.Trim();
         }
 
         public async Task<string> GetAsync(string key)
         {
-            Args = $"config {key}";
+            Args = $"config --get {key}";
 
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             return rs.StdOut.Trim();

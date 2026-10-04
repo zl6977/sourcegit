@@ -104,12 +104,12 @@ namespace SourceGit.ViewModels
             if (HasErrors)
                 return null;
 
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
-            if (!Directory.Exists(dir))
+            var dir = SourceGit.Remote.RepositoryPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(dir))
             {
                 try
                 {
-                    Directory.CreateDirectory(dir);
+                    SourceGit.Remote.RepositoryDirectory.CreateDirectory(dir);
                 }
                 catch (Exception e)
                 {
@@ -120,7 +120,7 @@ namespace SourceGit.ViewModels
 
             var type = _type?.Cmdline ?? "-t ed25519";
             var passphrase = _usePassphrase ? _passphrase : string.Empty;
-            var keyFile = Path.Combine(dir, _name);
+            var keyFile = SourceGit.Remote.RepositoryPath.Combine(dir, _name);
             var start = new ProcessStartInfo();
             start.FileName = "ssh-keygen";
             start.Arguments = $"-q {type} -N {passphrase.Quoted()} -C {_email.Quoted()} -f {keyFile.Quoted()}";
@@ -140,7 +140,7 @@ namespace SourceGit.ViewModels
             }
 
             var publicKeyFile = keyFile + ".pub";
-            if (File.Exists(keyFile) && File.Exists(publicKeyFile))
+            if (SourceGit.Remote.RepositoryFile.Exists(keyFile) && SourceGit.Remote.RepositoryFile.Exists(publicKeyFile))
                 return new Models.SSHKeyPair(keyFile, publicKeyFile);
 
             ErrorMessage = "Failed to generate SSH key: Key files not found.";

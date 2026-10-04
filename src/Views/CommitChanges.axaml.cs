@@ -79,7 +79,7 @@ namespace SourceGit.Views
             var explore = new MenuItem();
             explore.Header = App.Text("RevealFile");
             explore.Icon = this.CreateMenuIcon("Icons.Explore");
-            explore.IsEnabled = Directory.Exists(fullPath);
+            explore.IsEnabled = SourceGit.Remote.RepositoryDirectory.Exists(fullPath);
             explore.Click += (_, ev) =>
             {
                 Native.OS.OpenInFileManager(fullPath);

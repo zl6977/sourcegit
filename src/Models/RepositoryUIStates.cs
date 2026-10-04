@@ -245,11 +245,23 @@ namespace SourceGit.Models
 
         public static RepositoryUIStates Load(string gitDir)
         {
-            var fileInfo = new FileInfo(Path.Combine(gitDir, "sourcegit.uistates"));
+            if (SourceGit.Remote.RepositoryPath.IsRemote(gitDir))
+            {
+                var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(gitDir)));
+                var store = System.IO.Path.Combine(Native.OS.BasicDirectories.ConfigDir, "remote-ui");
+                System.IO.Directory.CreateDirectory(store);
+                var local = System.IO.Path.Combine(store, key + ".json");
+                RepositoryUIStates remoteStates;
+                try { remoteStates = System.IO.File.Exists(local) ? JsonSerializer.Deserialize(System.IO.File.ReadAllText(local), JsonCodeGen.Default.RepositoryUIStates) ?? new() : new(); }
+                catch { remoteStates = new(); }
+                remoteStates._file = local;
+                return remoteStates;
+            }
+            var fileInfo = new SourceGit.Remote.RepositoryFileInfo(SourceGit.Remote.RepositoryPath.Combine(gitDir, "sourcegit.uistates"));
             var fullpath = fileInfo.FullName;
 
             RepositoryUIStates states;
-            if (!File.Exists(fullpath))
+            if (!SourceGit.Remote.RepositoryFile.Exists(fullpath))
             {
                 states = new RepositoryUIStates();
             }
@@ -257,7 +269,7 @@ namespace SourceGit.Models
             {
                 try
                 {
-                    using var stream = File.OpenRead(fullpath);
+                    using var stream = SourceGit.Remote.RepositoryFile.OpenRead(fullpath);
                     states = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.RepositoryUIStates);
                 }
                 catch
@@ -276,8 +288,8 @@ namespace SourceGit.Models
             {
                 var content = JsonSerializer.Serialize(this, JsonCodeGen.Default.RepositoryUIStates);
                 var tmpfile = $"{_file}.tmp";
-                File.WriteAllText(tmpfile, content);
-                File.Move(tmpfile, _file, true);
+                SourceGit.Remote.RepositoryFile.WriteAllText(tmpfile, content);
+                SourceGit.Remote.RepositoryFile.Move(tmpfile, _file, true);
             }
             catch
             {
@@ -470,11 +482,11 @@ namespace SourceGit.Models
 
             builder.Append("--branches ");
 
-            var isInProgress = File.Exists(Path.Combine(gitDir, "CHERRY_PICK_HEAD")) ||
-                Directory.Exists(Path.Combine(gitDir, "rebase-merge")) ||
-                Directory.Exists(Path.Combine(gitDir, "rebase-apply")) ||
-                File.Exists(Path.Combine(gitDir, "REVERT_HEAD")) ||
-                File.Exists(Path.Combine(gitDir, "MERGE_HEAD"));
+            var isInProgress = SourceGit.Remote.RepositoryFile.Exists(SourceGit.Remote.RepositoryPath.Combine(gitDir, "CHERRY_PICK_HEAD")) ||
+                SourceGit.Remote.RepositoryDirectory.Exists(SourceGit.Remote.RepositoryPath.Combine(gitDir, "rebase-merge")) ||
+                SourceGit.Remote.RepositoryDirectory.Exists(SourceGit.Remote.RepositoryPath.Combine(gitDir, "rebase-apply")) ||
+                SourceGit.Remote.RepositoryFile.Exists(SourceGit.Remote.RepositoryPath.Combine(gitDir, "REVERT_HEAD")) ||
+                SourceGit.Remote.RepositoryFile.Exists(SourceGit.Remote.RepositoryPath.Combine(gitDir, "MERGE_HEAD"));
             if (isInProgress)
                 builder.Append("HEAD ");
 

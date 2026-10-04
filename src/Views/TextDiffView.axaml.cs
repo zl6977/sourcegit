@@ -957,8 +957,8 @@ namespace SourceGit.Views
             var tmpFile = Path.GetTempFileName();
             patch.Generate(tmpFile, false);
 
-            var patchText = File.ReadAllText(tmpFile);
-            File.Delete(tmpFile);
+            var patchText = SourceGit.Remote.RepositoryFile.ReadAllText(tmpFile);
+            SourceGit.Remote.RepositoryFile.Delete(tmpFile);
             await this.CopyTextAsync(patchText);
         }
 
@@ -1606,7 +1606,7 @@ namespace SourceGit.Views
 
             vm.BlockNavigation.UpdateByChunk(chunk);
             repo.MarkWorkingCopyDirtyManually();
-            File.Delete(tmpFile);
+            SourceGit.Remote.RepositoryFile.Delete(tmpFile);
         }
 
         private async void OnUnstageChunk(object _1, RoutedEventArgs _2)
@@ -1632,7 +1632,7 @@ namespace SourceGit.Views
 
             vm.BlockNavigation.UpdateByChunk(chunk);
             repo.MarkWorkingCopyDirtyManually();
-            File.Delete(tmpFile);
+            SourceGit.Remote.RepositoryFile.Delete(tmpFile);
         }
 
         private async void OnDiscardChunk(object _1, RoutedEventArgs _2)
@@ -1658,7 +1658,7 @@ namespace SourceGit.Views
 
             vm.BlockNavigation.UpdateByChunk(chunk);
             repo.MarkWorkingCopyDirtyManually();
-            File.Delete(tmpFile);
+            SourceGit.Remote.RepositoryFile.Delete(tmpFile);
         }
 
         private ViewModels.TextDiffSelectedChunk _selectedChunk = null;

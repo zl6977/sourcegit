@@ -209,7 +209,7 @@ namespace SourceGit.Views
                     menu.Items.Add(new MenuItem() { Header = "-" });
                     menu.Items.Add(delete);
                 }
-                else if (Directory.Exists(node.Id))
+                else if (SourceGit.Remote.RepositoryPath.IsRemote(node.Id) || SourceGit.Remote.RepositoryDirectory.Exists(node.Id))
                 {
                     var open = new MenuItem();
                     open.Header = App.Text("Welcome.OpenOrInit");
@@ -336,10 +336,10 @@ namespace SourceGit.Views
                 foreach (var item in items)
                 {
                     var root = item.Path.LocalPath;
-                    if (!Directory.Exists(root))
+                    if (!SourceGit.Remote.RepositoryDirectory.Exists(root))
                     {
-                        if (File.Exists(root))
-                            root = Path.GetDirectoryName(root);
+                        if (SourceGit.Remote.RepositoryFile.Exists(root))
+                            root = SourceGit.Remote.RepositoryPath.GetDirectoryName(root);
                         else
                             continue;
                     }
@@ -417,10 +417,10 @@ namespace SourceGit.Views
                 foreach (var item in items)
                 {
                     var root = item.Path.LocalPath;
-                    if (!Directory.Exists(root))
+                    if (!SourceGit.Remote.RepositoryDirectory.Exists(root))
                     {
-                        if (File.Exists(root))
-                            root = Path.GetDirectoryName(root);
+                        if (SourceGit.Remote.RepositoryFile.Exists(root))
+                            root = SourceGit.Remote.RepositoryPath.GetDirectoryName(root);
                         else
                             continue;
                     }

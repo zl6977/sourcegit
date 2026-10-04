@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 
@@ -86,7 +86,7 @@ namespace SourceGit.ViewModels
 
         private void Test()
         {
-            if (Native.OS.GitVersion < Models.GitVersions.REPLAY)
+            if (SourceGit.Remote.RemoteWorkspace.GitVersion(_repo.FullPath) < Models.GitVersions.REPLAY)
                 return;
 
             var head = Current.Head;

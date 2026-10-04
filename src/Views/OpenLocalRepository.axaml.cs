@@ -26,11 +26,11 @@ namespace SourceGit.Views
             var preference = ViewModels.Preferences.Instance;
             var workspace = preference.GetActiveWorkspace();
             var initDir = workspace.DefaultCloneDir;
-            if (string.IsNullOrEmpty(initDir) || !Directory.Exists(initDir))
+            if (string.IsNullOrEmpty(initDir) || !SourceGit.Remote.RepositoryDirectory.Exists(initDir))
                 initDir = preference.GitDefaultCloneDir;
 
             var options = new FolderPickerOpenOptions() { AllowMultiple = false };
-            if (Directory.Exists(initDir))
+            if (SourceGit.Remote.RepositoryDirectory.Exists(initDir))
             {
                 var folder = await topLevel.StorageProvider.TryGetFolderFromPathAsync(initDir);
                 options.SuggestedStartLocation = folder;

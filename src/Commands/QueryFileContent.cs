@@ -1,3 +1,4 @@
+using Process = SourceGit.Remote.GitProcess;
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
@@ -12,7 +13,7 @@ namespace SourceGit.Commands
             var starter = new ProcessStartInfo();
             starter.WorkingDirectory = repo;
             starter.FileName = Native.OS.GitExecutable;
-            starter.Arguments = $"show {revision}:{file.Quoted()}";
+            starter.Arguments = SourceGit.Remote.RepositoryPath.SafeOwnershipArg(repo) + $"show {revision}:{file.Quoted()}";
             starter.UseShellExecute = false;
             starter.CreateNoWindow = true;
             starter.WindowStyle = ProcessWindowStyle.Hidden;
@@ -39,7 +40,7 @@ namespace SourceGit.Commands
             var starter = new ProcessStartInfo();
             starter.WorkingDirectory = repo;
             starter.FileName = Native.OS.GitExecutable;
-            starter.Arguments = "lfs smudge";
+            starter.Arguments = SourceGit.Remote.RepositoryPath.SafeOwnershipArg(repo) + "lfs smudge";
             starter.UseShellExecute = false;
             starter.CreateNoWindow = true;
             starter.WindowStyle = ProcessWindowStyle.Hidden;

@@ -45,7 +45,7 @@ namespace SourceGit.ViewModels
 
         public static ValidationResult ValidateRepoPath(string folder, ValidationContext _)
         {
-            if (!Directory.Exists(folder))
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(folder))
                 return new ValidationResult("Given path can NOT be found");
             return ValidationResult.Success;
         }
@@ -62,7 +62,7 @@ namespace SourceGit.ViewModels
 
                 if (!string.IsNullOrEmpty(defaultCloneDir))
                 {
-                    var normalizedParentFolder = new DirectoryInfo(RepoPath).Parent!.FullName.Replace('\\', '/').TrimEnd('/') + "/";
+                    var normalizedParentFolder = new SourceGit.Remote.RepositoryDirectoryInfo(RepoPath).Parent!.FullName.Replace('\\', '/').TrimEnd('/') + "/";
                     var normalizedDefaultCloneDir = defaultCloneDir.Replace('\\', '/').TrimEnd('/') + "/";
                     if (normalizedParentFolder.Length > normalizedDefaultCloneDir.Length &&
                         normalizedParentFolder.StartsWith(normalizedDefaultCloneDir, StringComparison.Ordinal))

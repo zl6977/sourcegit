@@ -10,6 +10,7 @@ namespace SourceGit.Commands
         private const string PREFIX_REMOTE = "refs/remotes/";
         private const string PREFIX_DETACHED_AT = "(HEAD detached at";
         private const string PREFIX_DETACHED_FROM = "(HEAD detached from";
+        public long Generation { get; private set; }
 
         public QueryBranches(string repo)
         {
@@ -21,6 +22,42 @@ namespace SourceGit.Commands
         public async Task<List<Models.Branch>> GetResultAsync()
         {
             var branches = new List<Models.Branch>();
+            if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
+            {
+                try
+                {
+                    var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(WorkingDirectory);
+                    var handle = await workspace.OpenTransientAsync(WorkingDirectory, CancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var snapshot = await workspace.Client.GetRefsAsync(handle.Id, CancellationToken).ConfigureAwait(false);
+                        Generation = snapshot.Generation;
+                        var remoteRefs = new Dictionary<string, Models.Branch>();
+                        foreach (var info in snapshot.Refs)
+                        {
+                            var b = MapBranch(info);
+                            if (b != null)
+                            {
+                                branches.Add(b);
+                                if (!b.IsLocal) remoteRefs.Add(b.FullName, b);
+                            }
+                        }
+                        if (snapshot.IsDetachedHead)
+                        {
+                            var pseudoName = "(HEAD detached at " + snapshot.DetachedOid + ")";
+                            branches.Insert(0, new Models.Branch() { Name = pseudoName, FullName = pseudoName, IsDetachedHead = true, IsCurrent = true, Head = snapshot.DetachedOid });
+                        }
+                        foreach (var b in branches)
+                        {
+                            if (b.IsLocal && !string.IsNullOrEmpty(b.Upstream) && !remoteRefs.ContainsKey(b.Upstream))
+                                b.IsUpstreamGone = true;
+                        }
+                        return branches;
+                    }
+                    finally { await workspace.ReleaseTransientAsync(handle.Id).ConfigureAwait(false); }
+                }
+                catch { return branches; }
+            }
             var rs = await ReadToEndAsync().ConfigureAwait(false);
             if (!rs.IsSuccess)
                 return branches;
@@ -58,6 +95,49 @@ namespace SourceGit.Commands
             }
 
             return branches;
+        }
+        private static Models.Branch MapBranch(SourceGit.Contracts.RefInfo info)
+        {
+            var refName = info.Name;
+            if (refName.EndsWith("/HEAD", StringComparison.Ordinal))
+                return null;
+
+            var branch = new Models.Branch
+            {
+                FullName = refName,
+                CommitterDate = (ulong)info.CommitterDate,
+                Head = info.ObjectId,
+                IsCurrent = info.Head,
+                Upstream = info.Upstream,
+                IsUpstreamGone = false,
+                WorktreePath = info.WorktreePath ?? string.Empty,
+                Ahead = new List<string>(new string[info.Ahead]),
+                Behind = new List<string>(new string[info.Behind]),
+            };
+
+            if (refName.StartsWith(PREFIX_LOCAL, StringComparison.Ordinal))
+            {
+                branch.Name = refName.Substring(PREFIX_LOCAL.Length);
+                branch.IsLocal = true;
+            }
+            else if (refName.StartsWith(PREFIX_REMOTE, StringComparison.Ordinal))
+            {
+                var name = refName.Substring(PREFIX_REMOTE.Length);
+                var nameParts = name.Split('/', 2);
+                if (nameParts.Length != 2)
+                    return null;
+
+                branch.Remote = nameParts[0];
+                branch.Name = nameParts[1];
+                branch.IsLocal = false;
+            }
+            else
+            {
+                branch.Name = refName;
+                branch.IsLocal = true;
+            }
+
+            return branch;
         }
 
         private Models.Branch ParseLine(string line, HashSet<string> mismatched)

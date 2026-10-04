@@ -60,7 +60,7 @@ namespace SourceGit.Models
             return url.StartsWith("file://", StringComparison.Ordinal) ||
                 url.StartsWith("./", StringComparison.Ordinal) ||
                 url.StartsWith("../", StringComparison.Ordinal) ||
-                Directory.Exists(url);
+                SourceGit.Remote.RepositoryDirectory.Exists(url);
         }
 
         public bool TryGetVisitURL(out string url)

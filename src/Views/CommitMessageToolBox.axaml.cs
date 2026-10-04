@@ -532,7 +532,7 @@ namespace SourceGit.Views
 
                     if (!string.IsNullOrEmpty(gitTemplate))
                     {
-                        if (!Path.IsPathRooted(gitTemplate))
+                        if (!SourceGit.Remote.RepositoryPath.IsPathRooted(gitTemplate))
                             gitTemplate = Native.OS.GetAbsPath(repo.FullPath, gitTemplate);
 
                         var friendlyName = gitTemplate;
@@ -552,8 +552,8 @@ namespace SourceGit.Views
                         gitTemplateItem.Icon = icon;
                         gitTemplateItem.Click += (_, ev) =>
                         {
-                            if (File.Exists(gitTemplate))
-                                vm.CommitMessage = File.ReadAllText(gitTemplate);
+                            if (SourceGit.Remote.RepositoryFile.Exists(gitTemplate))
+                                vm.CommitMessage = SourceGit.Remote.RepositoryFile.ReadAllText(gitTemplate);
                             ev.Handled = true;
                         };
                         menu.Items.Add(gitTemplateItem);

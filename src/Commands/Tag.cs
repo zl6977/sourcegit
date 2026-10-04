@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -31,13 +31,13 @@ namespace SourceGit.Commands
 
             if (!string.IsNullOrEmpty(message))
             {
-                string tmp = Path.GetTempFileName();
-                await File.WriteAllTextAsync(tmp, message);
+                string tmp = SourceGit.Remote.RepositoryFile.GetTempFileName(WorkingDirectory);
+                await SourceGit.Remote.RepositoryFile.WriteAllTextAsync(tmp, message);
                 builder.Append(" -F ").Append(tmp.Quoted());
 
                 Args = builder.ToString();
                 var succ = await ExecAsync().ConfigureAwait(false);
-                File.Delete(tmp);
+                SourceGit.Remote.RepositoryFile.Delete(tmp);
                 return succ;
             }
 

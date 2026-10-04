@@ -168,12 +168,12 @@ namespace SourceGit.Native
             if (ex == null)
                 return;
 
-            var crashDir = Path.Combine(BasicDirectories.CacheDir, "crashes");
-            if (!Directory.Exists(crashDir))
-                Directory.CreateDirectory(crashDir);
+            var crashDir = SourceGit.Remote.RepositoryPath.Combine(BasicDirectories.CacheDir, "crashes");
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(crashDir))
+                SourceGit.Remote.RepositoryDirectory.CreateDirectory(crashDir);
 
             var time = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            var file = Path.Combine(crashDir, $"{time}.log");
+            var file = SourceGit.Remote.RepositoryPath.Combine(crashDir, $"{time}.log");
             using var writer = new StreamWriter(file);
             writer.WriteLine($"Crash::: {ex.GetType().FullName}: {ex.Message}");
             writer.WriteLine();
@@ -213,7 +213,7 @@ namespace SourceGit.Native
             if (ExternalMergerType < 0 || ExternalMergerType >= Models.ExternalMerger.Supported.Count)
                 return null;
 
-            if (ExternalMergerType != 0 && (string.IsNullOrEmpty(ExternalMergerExecFile) || !File.Exists(ExternalMergerExecFile)))
+            if (ExternalMergerType != 0 && (string.IsNullOrEmpty(ExternalMergerExecFile) || !SourceGit.Remote.RepositoryFile.Exists(ExternalMergerExecFile)))
                 return null;
 
             return new Models.DiffMergeTool(ExternalMergerExecFile, onlyDiff ? ExternalDiffArgs : ExternalMergeArgs);
@@ -227,7 +227,7 @@ namespace SourceGit.Native
                 var externalTool = ExternalTools.Find(x => x.Name.Equals(merger.Name, StringComparison.Ordinal));
                 if (externalTool != null)
                     ExternalMergerExecFile = externalTool.ExecFile;
-                else if (!OperatingSystem.IsWindows() && File.Exists(merger.Finder))
+                else if (!OperatingSystem.IsWindows() && SourceGit.Remote.RepositoryFile.Exists(merger.Finder))
                     ExternalMergerExecFile = merger.Finder;
                 else
                     ExternalMergerExecFile = string.Empty;
@@ -245,6 +245,11 @@ namespace SourceGit.Native
 
         public static void OpenInFileManager(string path)
         {
+            if (Remote.RepositoryPath.IsRemote(path))
+            {
+                Models.Notification.Send(path, "Cannot open the file manager for a remote repository", true);
+                return;
+            }
             _backend.OpenInFileManager(path);
         }
 
@@ -272,7 +277,9 @@ namespace SourceGit.Native
 
         public static void OpenTerminal(string workdir)
         {
-            if (string.IsNullOrEmpty(ShellOrTerminal))
+            if (Remote.RepositoryPath.IsRemote(workdir))
+                Models.Notification.Send(workdir, "Cannot open a local terminal for a remote repository", true);
+            else if (string.IsNullOrEmpty(ShellOrTerminal))
                 Models.Notification.Send(workdir, "Terminal is not specified! Please confirm that the correct shell/terminal has been configured.", true);
             else
                 _backend.OpenTerminal(workdir, ShellOrTerminalArgs);
@@ -280,12 +287,38 @@ namespace SourceGit.Native
 
         public static void OpenWithDefaultEditor(string file)
         {
+            if (Remote.RepositoryPath.IsRemote(file))
+            {
+                var tmpFile = DownloadRemoteFileForEditor(file);
+                if (tmpFile != null) _backend.OpenWithDefaultEditor(tmpFile);
+                return;
+            }
             _backend.OpenWithDefaultEditor(file);
+        }
+
+        internal static string DownloadRemoteFileForEditor(string file)
+        {
+            try
+            {
+                var name = Remote.RepositoryPath.GetFileNameWithoutExtension(file);
+                var ext = Remote.RepositoryPath.GetExtension(file);
+                var tmpFile = Path.Combine(Path.GetTempPath(), $"sourcegit-{name}~{Guid.NewGuid():N}{ext}");
+                using (var input = Remote.RepositoryFile.OpenRead(file))
+                using (var output = File.Create(tmpFile))
+                    input.CopyTo(output);
+                return tmpFile;
+            }
+            catch (Exception error)
+            {
+                Models.Notification.Send(file, "Failed to download the remote file for the editor: " + error.Message, true);
+                return null;
+            }
         }
 
         public static string GetAbsPath(string root, string sub)
         {
-            var fullpath = Path.Combine(root, sub);
+            var fullpath = SourceGit.Remote.RepositoryPath.Combine(root, sub);
+            if (Remote.RepositoryPath.IsRemote(root)) return fullpath;
             if (OperatingSystem.IsWindows())
                 return fullpath.Replace('/', '\\');
 
@@ -320,9 +353,11 @@ namespace SourceGit.Native
             _backend.TerminateProcess(proc);
         }
 
+        public static void TerminateProcess(Remote.GitProcess proc) => proc.Terminate();
+
         private static void UpdateGitVersion()
         {
-            if (string.IsNullOrEmpty(_gitExecutable) || !File.Exists(_gitExecutable))
+            if (string.IsNullOrEmpty(_gitExecutable) || !SourceGit.Remote.RepositoryFile.Exists(_gitExecutable))
             {
                 GitVersionString = string.Empty;
                 GitVersion = new Version(0, 0, 0);

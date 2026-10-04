@@ -226,6 +226,17 @@ namespace SourceGit.ViewModels
 
             log.AppendLine($"$ {CustomAction.Executable} {cmdline}\n");
 
+            if (SourceGit.Remote.RepositoryPath.IsRemote(_repo.FullPath))
+            {
+                if (CustomAction.WaitForExit)
+                {
+                    var success = await RunRemoteAsync(cmdline, log);
+                    log.Complete();
+                    return success;
+                }
+                _ = RunRemoteDetachedAsync(cmdline, log);
+                return true;
+            }
             if (CustomAction.WaitForExit)
                 await RunAsync(cmdline, log);
             else
@@ -237,7 +248,9 @@ namespace SourceGit.ViewModels
 
         private string PrepareStringByTarget(string org)
         {
-            var repoPath = OperatingSystem.IsWindows() ? _repo.FullPath.Replace("/", "\\") : _repo.FullPath;
+            var repoPath = SourceGit.Remote.RepositoryPath.IsRemote(_repo.FullPath)
+                ? SourceGit.Remote.RemoteWorkspace.ForPath(_repo.FullPath).ExecutionPath(_repo.FullPath)
+                : OperatingSystem.IsWindows() ? _repo.FullPath.Replace("/", "\\") : _repo.FullPath;
             org = org.Replace("${REPO}", repoPath);
 
             if (Target is Models.Branch { IsDetachedHead: false } targetBranch)
@@ -275,6 +288,28 @@ namespace SourceGit.ViewModels
             {
                 _repo.SendNotification(e.Message, true);
             }
+        }
+
+        private async Task RunRemoteDetachedAsync(string args, CommandLog log)
+        {
+            try { await RunRemoteAsync(args, log); }
+            finally { log.Complete(); }
+        }
+
+        private async Task<bool> RunRemoteAsync(string args, Models.ICommandLog log)
+        {
+            try
+            {
+                var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(_repo.FullPath);
+                var executable = workspace.Environment.OS.StartsWith("Microsoft Windows", StringComparison.OrdinalIgnoreCase)
+                    ? CustomAction.Executable.Quoted()
+                    : "'" + CustomAction.Executable.Replace("'", "'\"'\"'") + "'";
+                var result = await workspace.ExecuteCustomAsync(_repo.FullPath, executable + " " + args, line => log?.AppendLine(line));
+                if (result.ExitCode != 0) _repo.SendNotification(result.Error, true);
+                _repo.RefreshAll();
+                return result.ExitCode == 0;
+            }
+            catch (Exception error) { _repo.SendNotification(error.Message, true); return false; }
         }
 
         private async Task RunAsync(string args, Models.ICommandLog log)

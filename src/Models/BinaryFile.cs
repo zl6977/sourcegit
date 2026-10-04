@@ -15,10 +15,10 @@ namespace SourceGit.Models
             _filePath = file;
             _needDeleteFile = needDeleteFile;
 
-            if (File.Exists(_filePath))
+            if (SourceGit.Remote.RepositoryFile.Exists(_filePath))
             {
-                _size = new FileInfo(_filePath).Length;
-                _reader = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read, BUFFER_SIZE, FileOptions.RandomAccess);
+                _size = new SourceGit.Remote.RepositoryFileInfo(_filePath).Length;
+                _reader = SourceGit.Remote.RepositoryFile.OpenRead(_filePath);
                 _readedStart = 0;
                 _readedEnd = Math.Min(_size, BUFFER_SIZE);
 
@@ -35,8 +35,8 @@ namespace SourceGit.Models
             _reader?.Dispose();
             _reader = null;
 
-            if (_needDeleteFile && File.Exists(_filePath))
-                File.Delete(_filePath);
+            if (_needDeleteFile && SourceGit.Remote.RepositoryFile.Exists(_filePath))
+                SourceGit.Remote.RepositoryFile.Delete(_filePath);
         }
 
         public ArraySegment<byte> Read(long offset, long length)
@@ -66,7 +66,7 @@ namespace SourceGit.Models
 
         private string _filePath = string.Empty;
         private bool _needDeleteFile = false;
-        private FileStream _reader = null;
+        private Stream _reader = null;
         private long _size = 0;
         private long _readedStart = 0;
         private long _readedEnd = 0;

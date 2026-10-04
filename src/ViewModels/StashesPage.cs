@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -247,7 +247,7 @@ namespace SourceGit.ViewModels
                     opts.Add(new Models.DiffOption(_selectedStash.Parents[0], _selectedStash.SHA, c));
             }
 
-            var saveTo = Path.GetTempFileName();
+            var saveTo = SourceGit.Remote.RepositoryFile.GetTempFileName(_repo.FullPath);
             var succ = await Commands.SaveChangesAsPatch.ProcessStashChangesAsync(_repo.FullPath, opts, saveTo);
             if (!succ)
                 return;
@@ -258,7 +258,7 @@ namespace SourceGit.ViewModels
                 .ExecAsync();
 
             log.Complete();
-            File.Delete(saveTo);
+            SourceGit.Remote.RepositoryFile.Delete(saveTo);
         }
 
         private void RefreshVisible()

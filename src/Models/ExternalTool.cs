@@ -56,7 +56,7 @@ namespace SourceGit.Models
 
         public void Launch(string args)
         {
-            if (File.Exists(ExecFile))
+            if (SourceGit.Remote.RepositoryFile.Exists(ExecFile))
             {
                 Process.Start(new ProcessStartInfo()
                 {
@@ -121,12 +121,12 @@ namespace SourceGit.Models
 
         public ExternalToolsFinder()
         {
-            var customPathsConfig = Path.Combine(Native.OS.BasicDirectories.ConfigDir, "external_editors.json");
+            var customPathsConfig = SourceGit.Remote.RepositoryPath.Combine(Native.OS.BasicDirectories.ConfigDir, "external_editors.json");
             try
             {
-                if (File.Exists(customPathsConfig))
+                if (SourceGit.Remote.RepositoryFile.Exists(customPathsConfig))
                 {
-                    using var stream = File.OpenRead(customPathsConfig);
+                    using var stream = SourceGit.Remote.RepositoryFile.OpenRead(customPathsConfig);
                     _customization = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.ExternalToolCustomization);
                 }
             }
@@ -143,14 +143,14 @@ namespace SourceGit.Models
             if (_customization.Excludes.Contains(name))
                 return;
 
-            if (_customization.Tools.TryGetValue(name, out var customPath) && File.Exists(customPath))
+            if (_customization.Tools.TryGetValue(name, out var customPath) && SourceGit.Remote.RepositoryFile.Exists(customPath))
             {
                 Tools.Add(new ExternalTool(name, icon, customPath, optionsGenerator, supportOpenFolder));
             }
             else
             {
                 var path = finder();
-                if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                if (!string.IsNullOrEmpty(path) && SourceGit.Remote.RepositoryFile.Exists(path))
                     Tools.Add(new ExternalTool(name, icon, path, optionsGenerator, supportOpenFolder));
             }
         }
@@ -188,12 +188,12 @@ namespace SourceGit.Models
         public void FindJetBrainsFromToolbox(Func<string> platformFinder)
         {
             var supported = new List<string> { "AI", "CL", "DB", "DL", "DS", "GO", "IC", "IU", "JB", "PC", "PS", "PY", "QA", "QD", "RD", "RM", "RR", "WRS", "WS" };
-            var state = Path.Combine(platformFinder(), "state.json");
-            if (File.Exists(state))
+            var state = SourceGit.Remote.RepositoryPath.Combine(platformFinder(), "state.json");
+            if (SourceGit.Remote.RepositoryFile.Exists(state))
             {
                 try
                 {
-                    using var stream = File.OpenRead(state);
+                    using var stream = SourceGit.Remote.RepositoryFile.OpenRead(state);
                     var stateData = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.JetBrainsState);
                     foreach (var tool in stateData.Tools)
                     {
@@ -203,7 +203,7 @@ namespace SourceGit.Models
                         Tools.Add(new ExternalTool(
                             $"{tool.DisplayName} {tool.DisplayVersion}",
                             $"JetBrains/{tool.ProductCode}",
-                            Path.Combine(tool.InstallLocation, tool.LaunchCommand),
+                            SourceGit.Remote.RepositoryPath.Combine(tool.InstallLocation, tool.LaunchCommand),
                             null,
                             true));
                     }
@@ -217,7 +217,7 @@ namespace SourceGit.Models
 
         private List<ExternalTool.LaunchOption> GenerateVSCodeLaunchOptions(string path)
         {
-            var root = new DirectoryInfo(path);
+            var root = new SourceGit.Remote.RepositoryDirectoryInfo(path);
             if (!root.Exists)
                 return null;
 

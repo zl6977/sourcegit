@@ -36,7 +36,7 @@ namespace SourceGit.ViewModels
         {
             _repo = repo;
             _remoteBranch = remoteBranch;
-            _worktreePath = Path.Combine(repo.GetRecommandedWorktreeDir(), remoteBranch.Name.Replace('/', '-').Replace('\\', '-'));
+            _worktreePath = SourceGit.Remote.RepositoryPath.Combine(repo.GetRecommandedWorktreeDir(), remoteBranch.Name.Replace('/', '-').Replace('\\', '-'));
             _branchName = remoteBranch.Name;
             _tracking = true;
         }
@@ -49,8 +49,8 @@ namespace SourceGit.ViewModels
             if (string.IsNullOrEmpty(path))
                 return new ValidationResult("Worktree path is required!");
 
-            var fullPath = Path.IsPathRooted(path) ? path : Path.Combine(creator._repo.FullPath, path);
-            var info = new DirectoryInfo(fullPath);
+            var fullPath = SourceGit.Remote.RepositoryPath.IsPathRooted(path) ? path : SourceGit.Remote.RepositoryPath.Combine(creator._repo.FullPath, path);
+            var info = new SourceGit.Remote.RepositoryDirectoryInfo(fullPath);
             if (info.Exists)
             {
                 var files = info.GetFiles();
@@ -70,7 +70,7 @@ namespace SourceGit.ViewModels
             if (ctx.ObjectInstance is not CheckoutRemoteBranchAsWorktree creator)
                 return new ValidationResult("Missing runtime context to checkout branch as worktree!");
 
-            var test = !string.IsNullOrEmpty(name) ? name : Path.GetFileName(creator._worktreePath.TrimEnd('/').TrimEnd('\\'));
+            var test = !string.IsNullOrEmpty(name) ? name : SourceGit.Remote.RepositoryPath.GetFileName(creator._worktreePath.TrimEnd('/').TrimEnd('\\'));
             if (!Models.RefName.IsValidBranchName(test))
                 return new ValidationResult($"{test} is not a valid branch name!");
 

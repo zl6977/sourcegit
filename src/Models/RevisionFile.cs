@@ -31,7 +31,7 @@ namespace SourceGit.Models
         {
             Image = img;
             FileSize = size;
-            ImageType = Path.GetExtension(file)!.Substring(1).ToUpper(CultureInfo.CurrentCulture);
+            ImageType = SourceGit.Remote.RepositoryPath.GetExtension(file)!.Substring(1).ToUpper(CultureInfo.CurrentCulture);
         }
     }
 

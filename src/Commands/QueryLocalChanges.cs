@@ -1,3 +1,4 @@
+using Process = SourceGit.Remote.GitProcess;
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
@@ -10,11 +11,15 @@ namespace SourceGit.Commands
     {
         [GeneratedRegex(@"^(\s?[\w\?]{1,4})\s+(.+)$")]
         private static partial Regex REG_FORMAT();
+        private readonly bool _includeUntracked;
+        private readonly bool _noOptionalLocks;
 
         public QueryLocalChanges(string repo, bool includeUntracked = true, bool noOptionalLocks = true)
         {
             WorkingDirectory = repo;
             Context = repo;
+            _includeUntracked = includeUntracked;
+            _noOptionalLocks = noOptionalLocks;
 
             var builder = new StringBuilder();
             if (noOptionalLocks)
@@ -26,9 +31,32 @@ namespace SourceGit.Commands
 
             Args = builder.ToString();
         }
+        public long Generation { get; private set; }
 
         public async Task<List<Models.Change>> GetResultAsync()
         {
+            if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
+            {
+                try
+                {
+                    var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(WorkingDirectory);
+                    var handle = await workspace.OpenTransientAsync(WorkingDirectory, CancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var snapshot = await workspace.Client.GetStatusAsync(handle.Id, _noOptionalLocks, CancellationToken).ConfigureAwait(false);
+                        Generation = snapshot.Generation;
+                        var remote = new List<Models.Change>();
+                        foreach (var info in snapshot.Changes)
+                        {
+                            if (!_includeUntracked && info.WorkingTreeStatus == "?") continue;
+                            remote.Add(MapChange(info));
+                        }
+                        return remote;
+                    }
+                    finally { await workspace.ReleaseTransientAsync(handle.Id).ConfigureAwait(false); }
+                }
+                catch { return new List<Models.Change>(); }
+            }
             var outs = new List<Models.Change>();
 
             try
@@ -193,6 +221,42 @@ namespace SourceGit.Commands
 
             return outs;
         }
+        private static Models.Change MapChange(SourceGit.Contracts.ChangeInfo info)
+        {
+            var change = new Models.Change() { Path = info.Path, OriginalPath = info.OriginalPath ?? string.Empty };
+            if (info.Conflict)
+            {
+                var conflictPair = info.IndexStatus + info.WorkingTreeStatus;
+                change.ConflictReason = conflictPair switch
+                {
+                    "DD" => Models.ConflictReason.BothDeleted,
+                    "AU" => Models.ConflictReason.AddedByUs,
+                    "UD" => Models.ConflictReason.DeletedByThem,
+                    "UA" => Models.ConflictReason.AddedByThem,
+                    "DU" => Models.ConflictReason.DeletedByUs,
+                    "AA" => Models.ConflictReason.BothAdded,
+                    _ => Models.ConflictReason.BothModified,
+                };
+                change.Set(Models.ChangeState.None, Models.ChangeState.Conflicted);
+            }
+            else
+            {
+                change.Set(MapState(info.IndexStatus), MapState(info.WorkingTreeStatus));
+            }
+            return change;
+        }
+        private static Models.ChangeState MapState(string status) => status.Length > 0 ? status[0] switch
+        {
+            'M' => Models.ChangeState.Modified,
+            'T' => Models.ChangeState.TypeChanged,
+            'A' => Models.ChangeState.Added,
+            'D' => Models.ChangeState.Deleted,
+            'R' => Models.ChangeState.Renamed,
+            'C' => Models.ChangeState.Copied,
+            'U' => Models.ChangeState.Conflicted,
+            '?' => Models.ChangeState.Untracked,
+            _ => Models.ChangeState.None,
+        } : Models.ChangeState.None;
 
         private class CapturedProcess
         {

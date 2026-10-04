@@ -62,12 +62,12 @@ namespace SourceGit.Models
 
         public static RepositorySettings Get(string gitCommonDir)
         {
-            var fileInfo = new FileInfo(Path.Combine(gitCommonDir, "sourcegit.settings"));
+            var fileInfo = new SourceGit.Remote.RepositoryFileInfo(SourceGit.Remote.RepositoryPath.Combine(gitCommonDir, "sourcegit.settings"));
             var fullpath = fileInfo.FullName;
             if (_cache.TryGetValue(fullpath, out var setting))
                 return setting;
 
-            if (!File.Exists(fullpath))
+            if (!SourceGit.Remote.RepositoryFile.Exists(fullpath))
             {
                 setting = new();
             }
@@ -75,7 +75,7 @@ namespace SourceGit.Models
             {
                 try
                 {
-                    using var stream = File.OpenRead(fullpath);
+                    using var stream = SourceGit.Remote.RepositoryFile.OpenRead(fullpath);
                     setting = JsonSerializer.Deserialize(stream, JsonCodeGen.Default.RepositorySettings);
                 }
                 catch
@@ -105,8 +105,8 @@ namespace SourceGit.Models
                 if (!hash.Equals(_orgHash, StringComparison.Ordinal))
                 {
                     var tmpfile = $"{_file}.tmp";
-                    File.WriteAllText(tmpfile, content);
-                    File.Move(tmpfile, _file, true);
+                    SourceGit.Remote.RepositoryFile.WriteAllText(tmpfile, content);
+                    SourceGit.Remote.RepositoryFile.Move(tmpfile, _file, true);
                     _orgHash = hash;
                 }
             }

@@ -9,6 +9,7 @@ namespace SourceGit.Commands
         {
             WorkingDirectory = repo;
             Context = repo;
+            _rawFile = file;
             _file = string.IsNullOrEmpty(file) ? string.Empty : file.Quoted();
         }
 
@@ -19,6 +20,12 @@ namespace SourceGit.Commands
             {
                 RaiseException("Invalid diff/merge tool in preference setting!");
                 return false;
+            }
+
+            if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory) && !string.IsNullOrEmpty(tool.Cmd))
+            {
+                try { return await SourceGit.Remote.RemoteExternalTools.MergeAsync(WorkingDirectory, _rawFile, tool).ConfigureAwait(false); }
+                catch (Exception error) { RaiseException(error.Message); return false; }
             }
 
             if (string.IsNullOrEmpty(tool.Cmd))
@@ -61,5 +68,6 @@ namespace SourceGit.Commands
         }
 
         private string _file;
+        private readonly string _rawFile;
     }
 }

@@ -21,7 +21,7 @@ namespace SourceGit.ViewModels
 
                 _instance = Load();
                 _instance._isLoading = false;
-
+                _instance.MigrateWslUncNodes();
                 _instance.PrepareGit();
                 _instance.PrepareShellOrTerminal();
                 _instance.PrepareExternalDiffMergeTool();
@@ -249,15 +249,17 @@ namespace SourceGit.ViewModels
 
         public bool EnableAutoFetch
         {
-            get;
-            set;
-        } = false;
+            get => _enableAutoFetch;
+            set => SetProperty(ref _enableAutoFetch, value);
+        }
 
         public int AutoFetchInterval
         {
-            get;
-            set;
-        } = 10;
+            get => _autoFetchInterval;
+            set => SetProperty(ref _autoFetchInterval, value);
+        }
+        private bool _enableAutoFetch;
+        private int _autoFetchInterval = 10;
 
         public bool IgnoreWhitespaceChangesInDiff
         {
@@ -477,12 +479,13 @@ namespace SourceGit.ViewModels
         public void SetCanModify()
         {
             _isReadonly = false;
+            MigrateWslUncNodes();
         }
 
         public bool IsGitConfigured()
         {
             var path = GitInstallPath;
-            return !string.IsNullOrEmpty(path) && File.Exists(path);
+            return !string.IsNullOrEmpty(path) && SourceGit.Remote.RepositoryFile.Exists(path);
         }
 
         public bool ShouldCheck4UpdateOnStartup()
@@ -536,7 +539,14 @@ namespace SourceGit.ViewModels
 
         public RepositoryNode FindNode(string id)
         {
-            return FindNodeRecursive(id, RepositoryNodes);
+            var node = FindNodeRecursive(id, RepositoryNodes);
+            if (node != null) return node;
+            // The same physical WSL repository is reachable by two routes (local //wsl.localhost UNC and a
+            // sourcegit-remote:// URI on a WSL connection): the history keeps one node, whatever route it
+            // was first added through, so the second route opens the existing entry instead of a duplicate.
+            var twin = SourceGit.Remote.RemoteConnections.WslTwinId(id, SourceGit.Remote.RemoteConnections.LoadCached());
+            if (twin != null) return FindNodeRecursive(twin, RepositoryNodes);
+            return null;
         }
 
         public RepositoryNode FindOrCreateGroupRecursive(string path)
@@ -555,15 +565,15 @@ namespace SourceGit.ViewModels
 
         public RepositoryNode FindOrAddNodeByRepositoryPath(string repo, RepositoryNode parent, bool shouldMoveNode, bool save = true)
         {
-            var normalized = repo.Replace('\\', '/').TrimEnd('/');
+            var normalized = SourceGit.Remote.RemoteConnections.PreferredRoute(SourceGit.Remote.RepositoryPath.StoredPath(repo), SourceGit.Remote.RemoteConnections.LoadCached());
 
-            var node = FindNodeRecursive(normalized, RepositoryNodes);
+            var node = FindNode(normalized);
             if (node == null)
             {
                 node = new RepositoryNode()
                 {
                     Id = normalized,
-                    Name = Path.GetFileName(normalized),
+                    Name = SourceGit.Remote.RepositoryPath.GetFileName(normalized),
                     Bookmark = 0,
                     IsRepository = true,
                 };
@@ -577,6 +587,69 @@ namespace SourceGit.ViewModels
 
             return node;
         }
+        // One-time-per-install migration: existing WSL UNC history nodes resolve to their remote-URI
+        // route when a saved WSL connection covers the distro, so the repositories open through the
+        // server (event-driven refresh) instead of the UNC share (no file-watcher notifications).
+        private void MigrateWslUncNodes()
+        {
+            if (_isReadonly) return;   // save is blocked in read-only mode; SetCanModify retries
+            var remap = PlanWslRouteMigration(RepositoryNodes, SourceGit.Remote.RemoteConnections.LoadCached());
+            if (remap == null || remap.Count == 0) return;
+
+            foreach (var (node, container) in AllNodes(RepositoryNodes))
+            {
+                if (!remap.TryGetValue(node.Id, out var twin)) continue;
+                var existing = FindNode(twin);
+                if (existing != null && existing != node)
+                {
+                    // A node on the remote route already exists: keep it, drop this UNC copy.
+                    existing.SubNodes.AddRange(node.SubNodes);
+                    container.Remove(node);
+                }
+                else
+                {
+                    node.Id = twin;
+                }
+            }
+
+            foreach (var workspace in Workspaces)
+                for (var i = 0; i < workspace.Repositories.Count; i++)
+                    if (remap.TryGetValue(workspace.Repositories[i], out var twin)) workspace.Repositories[i] = twin;
+
+            var configDir = Native.OS.BasicDirectories.ConfigDir;
+            var finalFile = SourceGit.Remote.RepositoryPath.Combine(configDir, "preference.json");
+            var backup = SourceGit.Remote.RepositoryPath.Combine(configDir, "preference.json.bak-wslroute");
+            if (System.IO.File.Exists(finalFile) && !System.IO.File.Exists(backup))
+                System.IO.File.Copy(finalFile, backup, false);
+            Save();
+        }
+
+        // Pure plan for the migration: old node Id → remote-URI twin for every WSL UNC node whose distro
+        // has a saved WSL connection. Null when nothing changes.
+        internal static Dictionary<string, string> PlanWslRouteMigration(List<RepositoryNode> nodes, SourceGit.RemoteClient.ConnectionOptions[] options)
+        {
+            Dictionary<string, string> remap = null;
+            foreach (var (node, container) in AllNodes(nodes))
+            {
+                if (!SourceGit.Remote.RepositoryPath.IsWslUnc(node.Id)) continue;
+                var twin = SourceGit.Remote.RemoteConnections.PreferredRoute(node.Id, options);
+                if (twin == node.Id) continue;
+                remap ??= new Dictionary<string, string>();
+                remap[node.Id] = twin;
+            }
+            return remap;
+        }
+
+        private static IEnumerable<(RepositoryNode node, List<RepositoryNode> container)> AllNodes(List<RepositoryNode> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                yield return (node, nodes);
+                foreach (var sub in AllNodes(node.SubNodes))
+                    yield return sub;
+            }
+        }
+
 
         public void MoveNode(RepositoryNode node, RepositoryNode to, bool save)
         {
@@ -635,23 +708,23 @@ namespace SourceGit.ViewModels
             if (_isLoading || _isReadonly)
                 return;
 
-            var tmpfile = Path.Combine(Native.OS.BasicDirectories.ConfigDir, "preference_tmp.json");
+            var tmpfile = SourceGit.Remote.RepositoryPath.Combine(Native.OS.BasicDirectories.ConfigDir, "preference_tmp.json");
             var content = JsonSerializer.Serialize(this, JsonCodeGen.Default.Preferences);
-            File.WriteAllText(tmpfile, content);
+            SourceGit.Remote.RepositoryFile.WriteAllText(tmpfile, content);
 
-            var finalFile = Path.Combine(Native.OS.BasicDirectories.ConfigDir, "preference.json");
-            File.Move(tmpfile, finalFile, true);
+            var finalFile = SourceGit.Remote.RepositoryPath.Combine(Native.OS.BasicDirectories.ConfigDir, "preference.json");
+            SourceGit.Remote.RepositoryFile.Move(tmpfile, finalFile, true);
         }
 
         private static Preferences Load()
         {
-            var path = Path.Combine(Native.OS.BasicDirectories.ConfigDir, "preference.json");
-            if (!File.Exists(path))
+            var path = SourceGit.Remote.RepositoryPath.Combine(Native.OS.BasicDirectories.ConfigDir, "preference.json");
+            if (!SourceGit.Remote.RepositoryFile.Exists(path))
                 return new Preferences();
 
             try
             {
-                using var stream = File.OpenRead(path);
+                using var stream = SourceGit.Remote.RepositoryFile.OpenRead(path);
                 return JsonSerializer.Deserialize(stream, JsonCodeGen.Default.Preferences);
             }
             catch
@@ -663,7 +736,7 @@ namespace SourceGit.ViewModels
         private void PrepareGit()
         {
             var path = Native.OS.GitExecutable;
-            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            if (string.IsNullOrEmpty(path) || !SourceGit.Remote.RepositoryFile.Exists(path))
                 GitInstallPath = Native.OS.FindGitExecutable();
         }
 

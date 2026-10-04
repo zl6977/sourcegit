@@ -24,7 +24,7 @@ namespace SourceGit.ViewModels
         public AddWorktree(Repository repo)
         {
             _repo = repo;
-            _worktreePath = Path.Combine(repo.GetRecommandedWorktreeDir(), "new-worktree");
+            _worktreePath = SourceGit.Remote.RepositoryPath.Combine(repo.GetRecommandedWorktreeDir(), "new-worktree");
         }
 
         public static ValidationResult ValidateWorktreePath(string path, ValidationContext ctx)
@@ -35,8 +35,8 @@ namespace SourceGit.ViewModels
             if (string.IsNullOrEmpty(path))
                 return new ValidationResult("Worktree path is required!");
 
-            var fullPath = Path.IsPathRooted(path) ? path : Path.Combine(creator._repo.FullPath, path);
-            var info = new DirectoryInfo(fullPath);
+            var fullPath = SourceGit.Remote.RepositoryPath.IsPathRooted(path) ? path : SourceGit.Remote.RepositoryPath.Combine(creator._repo.FullPath, path);
+            var info = new SourceGit.Remote.RepositoryDirectoryInfo(fullPath);
             if (info.Exists)
             {
                 var files = info.GetFiles();
@@ -56,7 +56,7 @@ namespace SourceGit.ViewModels
             if (ctx.ObjectInstance is not AddWorktree creator)
                 return new ValidationResult("Missing runtime context to add worktree!");
 
-            var test = !string.IsNullOrEmpty(name) ? name : Path.GetFileName(creator._worktreePath.TrimEnd('/').TrimEnd('\\'));
+            var test = !string.IsNullOrEmpty(name) ? name : SourceGit.Remote.RepositoryPath.GetFileName(creator._worktreePath.TrimEnd('/').TrimEnd('\\'));
             if (!Models.RefName.IsValidBranchName(test))
                 return new ValidationResult($"{test} is not a valid branch name!");
 

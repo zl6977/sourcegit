@@ -13,9 +13,9 @@ namespace SourceGit.Commands
 
         public bool GetResult()
         {
-            if (!Directory.Exists(Path.Combine(WorkingDirectory, "refs")) ||
-                !Directory.Exists(Path.Combine(WorkingDirectory, "objects")) ||
-                !File.Exists(Path.Combine(WorkingDirectory, "HEAD")))
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(SourceGit.Remote.RepositoryPath.Combine(WorkingDirectory, "refs")) ||
+                !SourceGit.Remote.RepositoryDirectory.Exists(SourceGit.Remote.RepositoryPath.Combine(WorkingDirectory, "objects")) ||
+                !SourceGit.Remote.RepositoryFile.Exists(SourceGit.Remote.RepositoryPath.Combine(WorkingDirectory, "HEAD")))
                 return false;
 
             var rs = ReadToEnd();
@@ -24,9 +24,9 @@ namespace SourceGit.Commands
 
         public async Task<bool> GetResultAsync()
         {
-            if (!Directory.Exists(Path.Combine(WorkingDirectory, "refs")) ||
-                !Directory.Exists(Path.Combine(WorkingDirectory, "objects")) ||
-                !File.Exists(Path.Combine(WorkingDirectory, "HEAD")))
+            if (!SourceGit.Remote.RepositoryDirectory.Exists(SourceGit.Remote.RepositoryPath.Combine(WorkingDirectory, "refs")) ||
+                !SourceGit.Remote.RepositoryDirectory.Exists(SourceGit.Remote.RepositoryPath.Combine(WorkingDirectory, "objects")) ||
+                !SourceGit.Remote.RepositoryFile.Exists(SourceGit.Remote.RepositoryPath.Combine(WorkingDirectory, "HEAD")))
                 return false;
 
             var rs = await ReadToEndAsync().ConfigureAwait(false);
