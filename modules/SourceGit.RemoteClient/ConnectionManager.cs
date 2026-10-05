@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using SourceGit.Contracts;
 
@@ -29,12 +28,20 @@ public sealed class ConnectionManager : IAsyncDisposable
     private static readonly string GuiOwner = Guid.NewGuid().ToString("N");
     private static readonly string GuiRecovery = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     private readonly string _owner = GuiOwner;
+    private readonly OperationTracker _operations = new();
     private readonly string _recovery = GuiRecovery;
     private Process? _tunnel;
-    private Process? _localServer;
+    private LocalServerLauncher? _localLauncher;
     private CancellationTokenSource _lifetime = new();
+    private readonly CancellationToken _lifetimeToken;
+    private Task? _reconnectTask;
     private readonly SemaphoreSlim _connectGate = new(1);
+    private readonly object _lifecycleGate = new();
+    private TaskCompletionSource<RemoteRepositoryClient> _recovered = NewRecovery();
+    private Task? _disposeTask;
+    private static TaskCompletionSource<RemoteRepositoryClient> NewRecovery() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     private bool _reconnecting;
+    private readonly TimeSpan _recoveryTimeout;
     private string _runtime = "linux-x64";
     public RemoteRepositoryClient? Client { get; private set; }
     public string State { get; private set; } = "Disconnected";
@@ -42,178 +49,313 @@ public sealed class ConnectionManager : IAsyncDisposable
     public event Action<string>? StateChanged;
     public event Action<RemoteRepositoryClient, bool>? Connected;
     public ConnectionOptions Options => _options;
-    public ConnectionManager(ConnectionOptions options) { _options = options; }
-    private void SetState(string state) { State = state; StateChanged?.Invoke(state); Log(state, state); }
+    internal Func<CancellationToken, Task>? BeforeClientInstalled { get; set; }
+    internal Func<Task>? BeforeRecoveryRetired { get; set; }
+    internal Action<LocalServerLauncher>? ConfigureLocalLauncher { get; set; }
+    public ConnectionManager(ConnectionOptions options) : this(options, TimeSpan.FromMinutes(5)) { }
+    internal ConnectionManager(ConnectionOptions options, TimeSpan recoveryTimeout)
+    {
+        if (recoveryTimeout <= TimeSpan.Zero || recoveryTimeout.TotalMilliseconds > uint.MaxValue - 1) throw new ArgumentOutOfRangeException(nameof(recoveryTimeout));
+        _options = options; _lifetimeToken = _lifetime.Token; _recoveryTimeout = recoveryTimeout;
+    }
+    private void SetState(string state) { if (Volatile.Read(ref _disposed) != 0) return; State = state; StateChanged?.Invoke(state); Log(state, state); }
     private void Log(string stage, string message) => Diagnostic?.Invoke(new ConnectionDiagnostic(DateTime.UtcNow, stage, message));
     public async Task<RemoteRepositoryClient> ConnectAsync(CancellationToken cancellation = default)
     {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, _lifetime.Token);
-        SetState("Connecting");
+        CancellationTokenSource connectionCancellation;
+        lock (_lifecycleGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed != 0, this);
+            connectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation, _lifetimeToken);
+        }
+        using var linked = connectionCancellation;
         await _connectGate.WaitAsync(linked.Token).ConfigureAwait(false);
+        var previousInstance = Client?.InstanceId;
         try
         {
+            linked.Token.ThrowIfCancellationRequested();
+            lock (_lifecycleGate)
+                if (_recovered.Task.IsCompleted && Client is not { IsDisconnected: false }) _recovered = NewRecovery();
+            SetState("Connecting");
+            ServerDeployer? deployer = null;
+            ServerDeployment? discoveredDeployment = null;
+            var upgradeRequired = false;
             ServerRecord record;
             if (_options.Kind.Equals("Local", StringComparison.OrdinalIgnoreCase)) record = await StartLocal(linked.Token).ConfigureAwait(false);
             else
             {
-                var environment = await RunRemote("uname -s; uname -m; command -v git; command -v tar; command -v sha256sum", null, linked.Token).ConfigureAwait(false);
+                var environment = await RunRemote("uname -s; uname -m; uname -r; command -v git; command -v tar; command -v sha256sum; command -v flock; command -v setsid; command -v nohup", null, linked.Token).ConfigureAwait(false);
                 var lines = environment.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (lines.Length < 5 || lines[0] != "Linux") throw new IOException("Remote Linux, Git, tar and sha256sum are required");
+                if (lines.Length < 9 || lines[0] != "Linux") throw new IOException("Remote Linux 5.4+, Git, tar, sha256sum, flock, setsid and nohup are required");
                 if (lines[1] is not ("x86_64" or "aarch64")) throw new IOException("Unsupported remote architecture: " + lines[1]);
+                var kernel = lines[2].Split('.');
+                if (kernel.Length < 2 || !int.TryParse(kernel[0], out var major) || !int.TryParse(kernel[1], out var minor) || major < 5 || major == 5 && minor < 4)
+                    throw new IOException("Linux 5.4+ is required for stable pidfd descendant cleanup; detected " + lines[2]);
                 _runtime = lines[1] == "aarch64" ? "linux-arm64" : "linux-x64";
                 Log("Environment", "Linux " + lines[1] + "; Git detected");
-                record = await Bootstrap(linked.Token).ConfigureAwait(false);
+                SetState("Installing");
+                deployer = new ServerDeployer(RunRemote);
+                var package = _options.PackagePath ?? Path.Combine(AppContext.BaseDirectory, "server", "sourcegit-server-" + _runtime + ".tar.gz");
+                await deployer.InstallAsync(package, _options.PackageSha256, linked.Token).ConfigureAwait(false);
+                SetState("Starting");
+                var deployment = await deployer.StartAsync(linked.Token).ConfigureAwait(false);
+                discoveredDeployment = deployment;
+                record = deployment.Record;
+                upgradeRequired = deployment.UpgradeRequired;
             }
-            var port = record.Port;
-            // Same live instance: the reconnect loop or a second caller raced us; reuse the current channel instead of tunneling again.
-            if (Client is { IsDisconnected: false } live && live.InstanceId == record.InstanceId) return live;
-            if (_options.Kind.Equals("Ssh", StringComparison.OrdinalIgnoreCase))
+            for (var upgradeAttempt = 0; ; upgradeAttempt++)
             {
-                SetState("Opening tunnel");
-                using (var free = new TcpListener(IPAddress.Loopback, 0)) { free.Start(); port = ((IPEndPoint)free.LocalEndpoint).Port; }
-                var start = SshStart();
-                start.ArgumentList.Add("-N");
-                foreach (var arg in SshOptions("ExitOnForwardFailure=yes", "ServerAliveInterval=15", "ServerAliveCountMax=3")) start.ArgumentList.Add(arg);
-                start.ArgumentList.Add("-L"); start.ArgumentList.Add($"127.0.0.1:{port}:127.0.0.1:{record.Port}");
-                if (!string.IsNullOrEmpty(_options.User)) { start.ArgumentList.Add("-l"); start.ArgumentList.Add(_options.User); }
-                start.ArgumentList.Add("--"); start.ArgumentList.Add(_options.Target);
-                // Kill, not just dispose: Process.Dispose does not terminate a running tunnel, and a leaked ssh process keeps its -L forwarding alive.
-                if (_tunnel != null)
+                var existing = Client is { IsDisconnected: false } live && live.InstanceId == record.InstanceId ? live : null;
+                if (!upgradeRequired && existing != null) { linked.Token.ThrowIfCancellationRequested(); SetState("Connected"); return existing; }
+                var client = existing ?? await OpenChannelAsync(record, linked.Token).ConfigureAwait(false);
+                if (upgradeRequired)
                 {
-                    try { if (!_tunnel.HasExited) _tunnel.Kill(true); } catch (InvalidOperationException) { }
-                    _tunnel.Dispose();
+                    if (upgradeAttempt != 0)
+                    {
+                        if (client != Client) await client.DisposeAsync().ConfigureAwait(false);
+                        throw new IOException("Server upgrade did not select the installed package");
+                    }
+                    await ShutdownForUpgradeAsync(client, linked.Token).ConfigureAwait(false);
+                    SetState("Starting");
+                    using var deadline = CancellationTokenSource.CreateLinkedTokenSource(linked.Token);
+                    deadline.CancelAfter(TimeSpan.FromSeconds(15));
+                    var deployment = await deployer!.StartAsync(deadline.Token, discoveredDeployment).ConfigureAwait(false);
+                    if (deployment.Record.InstanceId == record.InstanceId) throw new IOException("Authenticated upgrade returned the old server instance");
+                    discoveredDeployment = deployment;
+                    record = deployment.Record;
+                    upgradeRequired = deployment.UpgradeRequired;
+                    continue;
                 }
-                _tunnel = Process.Start(start) ?? throw new IOException("Cannot start SSH tunnel");
-                _ = DrainTunnel(_tunnel);
+                var changed = previousInstance != client.InstanceId;
+                if (BeforeClientInstalled != null)
+                {
+                    try { await BeforeClientInstalled(linked.Token).ConfigureAwait(false); }
+                    catch { await client.DisposeAsync().ConfigureAwait(false); throw; }
+                }
+                if (Client != null) { Client.Disconnected -= OnDisconnected; await Client.DisposeAsync().ConfigureAwait(false); }
+                lock (_lifecycleGate)
+                {
+                    if (_disposed == 0 && !linked.IsCancellationRequested)
+                    {
+                        Client = client;
+                        client.RecoveryClient = WaitForRecoveredClient;
+                        client.Disconnected += OnDisconnected;
+                        SetState("Connected");
+                        // StateChanged is user code and may reenter Dispose.
+                        if (_disposed == 0)
+                        {
+                            _recovered.TrySetResult(client);
+                            Connected?.Invoke(client, changed);
+                            if (_disposed == 0) return client;
+                        }
+                    }
+                }
+                await client.DisposeAsync().ConfigureAwait(false);
+                linked.Token.ThrowIfCancellationRequested();
+                throw new ObjectDisposedException(nameof(ConnectionManager));
             }
-            SetState("Synchronizing");
-            var client = new RemoteRepositoryClient(_owner, _recovery);
+        }
+        catch (Exception ex)
+        {
+            SetState(Client is { IsDisconnected: false } ? "Connected" : "Failed");
+            lock (_lifecycleGate)
+                if (!_reconnecting && _disposed == 0 && State == "Failed") _recovered.TrySetException(ex);
+            Log("Error", ex.Message); throw;
+        }
+        finally { _connectGate.Release(); }
+    }
+    private async Task<RemoteRepositoryClient> OpenChannelAsync(ServerRecord record, CancellationToken cancellation)
+    {
+        var port = record.Port;
+        if (_options.Kind.Equals("Ssh", StringComparison.OrdinalIgnoreCase))
+        {
+            SetState("Opening tunnel");
+            using (var free = new TcpListener(IPAddress.Loopback, 0)) { free.Start(); port = ((IPEndPoint)free.LocalEndpoint).Port; }
+            var start = SshStart();
+            start.ArgumentList.Add("-N");
+            foreach (var arg in SshOptions("ExitOnForwardFailure=yes", "ServerAliveInterval=15", "ServerAliveCountMax=3")) start.ArgumentList.Add(arg);
+            start.ArgumentList.Add("-L"); start.ArgumentList.Add($"127.0.0.1:{port}:127.0.0.1:{record.Port}");
+            if (!string.IsNullOrEmpty(_options.User)) { start.ArgumentList.Add("-l"); start.ArgumentList.Add(_options.User); }
+            start.ArgumentList.Add("--"); start.ArgumentList.Add(_options.Target);
+            // Kill, not just dispose: Process.Dispose does not terminate a running tunnel, and a leaked ssh process keeps its -L forwarding alive.
+            if (_tunnel != null)
+            {
+                try { if (!_tunnel.HasExited) _tunnel.Kill(true); } catch (InvalidOperationException) { }
+                _tunnel.Dispose();
+            }
+            _tunnel = Process.Start(start) ?? throw new IOException("Cannot start SSH tunnel");
+            _ = DrainTunnel(_tunnel);
+        }
+        SetState("Synchronizing");
+        var client = new RemoteRepositoryClient(_owner, _recovery, operations: _operations);
+        try
+        {
             Exception? failure = null;
             for (var attempt = 0; attempt < 50; attempt++)
             {
-                try { await client.ConnectAsync("127.0.0.1", port, record.Token, linked.Token).ConfigureAwait(false); failure = null; break; }
+                try { await client.ConnectAsync("127.0.0.1", port, record.Token, cancellation).ConfigureAwait(false); failure = null; break; }
                 catch (SocketException ex)
-                { failure = ex; Log("Connecting", "connect attempt " + (attempt + 1) + "/50 failed: " + ex.Message); await client.DisposeAsync().ConfigureAwait(false); client = new RemoteRepositoryClient(_owner, _recovery); await Task.Delay(100, linked.Token).ConfigureAwait(false); }
+                { failure = ex; Log("Connecting", "connect attempt " + (attempt + 1) + "/50 failed: " + ex.Message); await client.DisposeAsync().ConfigureAwait(false); client = new RemoteRepositoryClient(_owner, _recovery, operations: _operations); await Task.Delay(100, cancellation).ConfigureAwait(false); }
             }
             if (failure != null) throw new IOException("Remote localhost is unreachable. Check WSL 2 localhost forwarding or SSH tunnel diagnostics.", failure);
             if (client.InstanceId != record.InstanceId) { await client.DisposeAsync().ConfigureAwait(false); throw new IOException("Server instance mismatch; SSH target may route to another host"); }
-            var changed = Client?.InstanceId != client.InstanceId;
-            if (Client != null) await Client.DisposeAsync().ConfigureAwait(false);
-            Client = client;
-            client.RecoveryClient = WaitForRecoveredClient;
-            client.Disconnected += OnDisconnected;
-            SetState("Connected"); Connected?.Invoke(client, changed);
             return client;
         }
-        catch (Exception ex) { SetState("Failed"); Log("Error", ex.Message); throw; }
-        finally { _connectGate.Release(); }
+        catch { await client.DisposeAsync().ConfigureAwait(false); throw; }
+    }
+    internal async Task ShutdownForUpgradeAsync(RemoteRepositoryClient client, CancellationToken cancellation = default)
+    {
+        // An intentional EOF can arrive before the Shutdown reply continuation.
+        // Suppress its handler before sending, rather than after acceptance.
+        client.Disconnected -= OnDisconnected;
+        try
+        {
+            // Handshake enforces ownership; rejection leaves the current client usable.
+            await client.ShutdownAsync(cancellation).ConfigureAwait(false);
+        }
+        catch
+        {
+            lock (_lifecycleGate)
+            {
+                if (_disposed == 0 && client == Client)
+                {
+                    client.Disconnected += OnDisconnected;
+                    if (client.IsDisconnected) OnDisconnected(new IOException("Upgrade channel closed before acknowledgement"));
+                }
+            }
+            if (client != Client) await client.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+        var previous = Client;
+        Client = null;
+        if (previous != null) previous.Disconnected -= OnDisconnected;
+        SetState("Starting");
+        if (previous != null && previous != client) await previous.DisposeAsync().ConfigureAwait(false);
+        await client.DisposeAsync().ConfigureAwait(false);
     }
     private async Task<RemoteRepositoryClient> WaitForRecoveredClient(CancellationToken cancellation)
     {
-        var until = DateTime.UtcNow.AddMinutes(5);
-        while (!_lifetime.IsCancellationRequested && DateTime.UtcNow < until)
+        Task<RemoteRepositoryClient> recovery;
+        lock (_lifecycleGate)
         {
+            ObjectDisposedException.ThrowIf(_disposed != 0, this);
             if (State == "Connected" && Client is { IsDisconnected: false } live) return live;
-            await Task.Delay(100, cancellation).ConfigureAwait(false);
+            if (_recovered.Task.IsCompletedSuccessfully) _recovered = NewRecovery();
+            recovery = _recovered.Task;
         }
-        throw new IOException("Connection could not recover; operation outcome remains unknown");
+        // The recovery worker owns the relative budget. An independent waiter
+        // deadline could race its authoritative failure/state publication.
+        return await recovery.WaitAsync(cancellation).ConfigureAwait(false);
     }
     private void OnDisconnected(Exception error)
     {
-        if (_lifetime.IsCancellationRequested || _reconnecting) return;
-        _reconnecting = true;
-        _ = Task.Run(async () =>
+        lock (_lifecycleGate)
         {
-            SetState("Reconnecting"); Log("Disconnect", error.Message);
-            var until = DateTime.UtcNow.AddMinutes(5);
-            try
+            if (_disposed != 0 || _reconnecting) return;
+            _reconnecting = true;
+            if (_recovered.Task.IsCompleted) _recovered = NewRecovery();
+            _reconnectTask = Task.Run(async () =>
             {
-                while (!_lifetime.IsCancellationRequested && DateTime.UtcNow < until)
+                // One relative deadline covers connection attempts and failure
+                // backoff. Wall-clock adjustments cannot extend recovery.
+                using var budget = new CancellationTokenSource(_recoveryTimeout);
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeToken, budget.Token);
+                IOException? failure = null;
+                try
                 {
-                    try { if (Client != null) Client.Disconnected -= OnDisconnected; await ConnectAsync(_lifetime.Token).ConfigureAwait(false); return; }
-                    catch (Exception ex) { Log("Reconnect", ex.Message); await Task.Delay(2000, _lifetime.Token).ConfigureAwait(false); }
+                    SetState("Reconnecting"); Log("Disconnect", error.Message);
+                    while (true)
+                    {
+                        deadline.Token.ThrowIfCancellationRequested();
+                        try
+                        {
+                            if (Client != null) Client.Disconnected -= OnDisconnected;
+                            await ConnectAsync(deadline.Token).ConfigureAwait(false);
+                            if (BeforeRecoveryRetired != null) await BeforeRecoveryRetired().ConfigureAwait(false);
+                            return;
+                        }
+                        catch (Exception ex) when (!_lifetimeToken.IsCancellationRequested && State == "Connected" && Client is { IsDisconnected: false })
+                        {
+                            try { Log("Connected callback", ex.GetType().Name); } catch { }
+                            // Installation already saved/published its verified
+                            // channel. A later callback error/deadline cannot
+                            // retroactively replace that successful generation.
+                            return;
+                        }
+                        catch (Exception) when (deadline.IsCancellationRequested) { deadline.Token.ThrowIfCancellationRequested(); throw; }
+                        catch (Exception ex) { Log("Reconnect", ex.Message); await Task.Delay(2000, deadline.Token).ConfigureAwait(false); }
+                    }
                 }
-                SetState("Failed");
-            }
-            catch (OperationCanceledException) { }
-            finally { _reconnecting = false; }
-        });
+                catch (OperationCanceledException) when (!_lifetimeToken.IsCancellationRequested)
+                { failure = new IOException("Connection could not recover within " + _recoveryTimeout.TotalSeconds.ToString("g", System.Globalization.CultureInfo.InvariantCulture) + " seconds; operation outcome remains unknown"); }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                { failure = new IOException("Connection recovery failed; operation outcome remains unknown", ex); }
+                finally
+                {
+                    lock (_lifecycleGate)
+                    {
+                        _reconnecting = false;
+                        if (_disposed == 0 && failure != null)
+                        {
+                            // Retire the worker before waking its waiters; a
+                            // subsequent generation must not inherit this flag.
+                            State = "Failed";
+                            _recovered.TrySetException(failure);
+                            try { SetState("Failed"); } catch { }
+                        }
+                        else if (_disposed == 0 && Client is { IsDisconnected: true })
+                        {
+                            // A newly installed channel may disconnect while this
+                            // worker still owns _reconnecting. Retiring the worker
+                            // must hand that new generation back to recovery.
+                            OnDisconnected(new IOException("Installed connection disconnected before recovery completed"));
+                        }
+                    }
+                }
+            });
+        }
     }
     private async Task DrainTunnel(Process tunnel)
     {
-        var output = tunnel.StandardOutput.ReadToEndAsync();
-        var stderr = tunnel.StandardError.ReadToEndAsync();
-        await output.ConfigureAwait(false);
-        var error = await stderr.ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(error)) Log("SSH", error.Trim());
+        try
+        {
+            var output = ReadPipe(false);
+            var stderr = ReadPipe(true);
+            // Observe both readers even when closing the process breaks one pipe.
+            await Task.WhenAll(output, stderr).ConfigureAwait(false);
+            var error = await stderr.ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(error)) Log("SSH", error.Trim());
+        }
+        catch (Exception error)
+        {
+            if (Volatile.Read(ref _disposed) == 0)
+                try { Log("SSH drain", error.GetType().Name); } catch { }
+        }
+        // Convert even synchronous reader/property failures into tasks so both
+        // pipes always reach WhenAll and every exception is observed.
+        async Task<string> ReadPipe(bool standardError) =>
+            await (standardError ? tunnel.StandardError : tunnel.StandardOutput).ReadToEndAsync().ConfigureAwait(false);
     }
     private async Task<ServerRecord> StartLocal(CancellationToken cancellation)
     {
         var executable = _options.LocalServerPath ?? Path.Combine(AppContext.BaseDirectory, "server", "sourcegit-server.exe");
         var directory = Path.Combine(Path.GetTempPath(), "sourcegit-server", _options.Id);
-        Directory.CreateDirectory(directory);
-        var record = Path.Combine(directory, "instance.json");
-        if (File.Exists(record))
+        if (_localLauncher == null)
         {
-            var old = JsonSerializer.Deserialize(await File.ReadAllTextAsync(record, cancellation).ConfigureAwait(false), RemoteJson.Default.ServerRecord);
-            if (old != null && old.Build == Protocol.Build && IsAlive(old.ProcessId))
-            {
-                try { var probe = await RemoteRepositoryClient.ProbeAsync("127.0.0.1", old.Port, old.Token, cancellation).ConfigureAwait(false); if (probe.InstanceId == old.InstanceId) return old; }
-                catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException) { if (cancellation.IsCancellationRequested) throw; }
-            }
-            File.Delete(record);
+            _localLauncher = new LocalServerLauncher(executable, Path.Combine(directory, "instance.json"), message => Log("Local startup", message));
+            ConfigureLocalLauncher?.Invoke(_localLauncher);
         }
-        var start = StartInfo(executable.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? "dotnet" : executable);
-        if (executable.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) start.ArgumentList.Add(executable);
-        start.ArgumentList.Add("--record"); start.ArgumentList.Add(record);
-        _localServer = Process.Start(start) ?? throw new IOException("Cannot start local server");
-        _ = _localServer.StandardOutput.ReadToEndAsync(); _ = _localServer.StandardError.ReadToEndAsync();
-        for (var i = 0; i < 100; i++) { if (File.Exists(record)) return JsonSerializer.Deserialize(await File.ReadAllTextAsync(record, cancellation).ConfigureAwait(false), RemoteJson.Default.ServerRecord)!; await Task.Delay(100, cancellation).ConfigureAwait(false); }
-        throw new IOException("Local server did not create an instance record");
-    }
-    private static bool IsAlive(int pid) { try { return !Process.GetProcessById(pid).HasExited; } catch (ArgumentException) { return false; } }
-    private async Task<ServerRecord> Bootstrap(CancellationToken cancellation)
-    {
-        var build = Quote(Protocol.Build);
-        var package = _options.PackagePath ?? Path.Combine(AppContext.BaseDirectory, "server", "sourcegit-server-" + _runtime + ".tar.gz");
-        if (!File.Exists(package)) throw new FileNotFoundException("Matching self-contained Server package is required", package);
-        var bytes = await File.ReadAllBytesAsync(package, cancellation).ConfigureAwait(false);
-        var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-        var expected = _options.PackageSha256;
-        if (string.IsNullOrEmpty(expected) && File.Exists(package + ".sha256")) expected = (await File.ReadAllTextAsync(package + ".sha256", cancellation).ConfigureAwait(false)).Split(' ', '\r', '\n')[0];
-        if (string.IsNullOrWhiteSpace(expected) || !hash.Equals(expected.Trim(), StringComparison.OrdinalIgnoreCase)) throw new IOException("Server package digest missing or mismatched");
-        // The marker makes a redeploy happen when the package content changed under the same build id;
-        // a deployment without a marker (older client) always counts as stale.
-        var check = "base=\"$HOME/.sourcegit-server\"; version=\"$base/versions/\"" + build + "; test -x \"$version/sourcegit-server\" && [ \"$(cat \"$version/.package-sha256\" 2>/dev/null)\" = " + Quote(hash) + " ] && printf INSTALLED || printf MISSING";
-        var redesigned = false;
-        if (!(await RunRemote(check, null, cancellation).ConfigureAwait(false)).Contains("INSTALLED", StringComparison.Ordinal))
+        return await _localLauncher.StartAsync(async (record, token) =>
         {
-            SetState("Installing");
-            redesigned = true;
-            var install = "set -eu; umask 077; base=\"$HOME/.sourcegit-server\"; mkdir -p \"$base/versions\"; chmod 700 \"$base\"; " +
-                "archive=\"$base/upload-" + Guid.NewGuid().ToString("N") + ".tar.gz\"; cat > \"$archive\"; " +
-                "printf '%s  %s\\n' " + Quote(hash) + " \"$archive\" | sha256sum -c - >/dev/null; " +
-                "exec 9>\"$base/install.lock\"; flock 9; version=\"$base/versions/\"" + build + "; " +
-                "temp=\"$version.tmp-$$\"; rm -rf \"$temp\"; mkdir -p \"$temp\"; tar -xzf \"$archive\" -C \"$temp\"; chmod 700 \"$temp/sourcegit-server\"; printf '%s\\n' " + Quote(hash) + " > \"$temp/.package-sha256\"; rm -rf \"$version\"; mv \"$temp\" \"$version\"; rm -f \"$archive\"";
-            await RunRemote(install, bytes, cancellation).ConfigureAwait(false);
-        }
-        SetState("Starting");
-        // A redeploy replaced the binaries out from under a possibly running (stale) instance; restart it.
-        var script = "set -eu; umask 077; base=\"$HOME/.sourcegit-server\"; mkdir -p \"$base\"; chmod 700 \"$base\"; " +
-            "exec 9>\"$base/start.lock\"; flock 9; record=\"$base/instance-" + Protocol.Build + ".json\"; version=\"$base/versions/\"" + build + "; " +
-            (redesigned ? "if [ -f \"$record\" ]; then pid=$(sed -n 's/.*\"processId\":\\([0-9]*\\).*/\\1/p' \"$record\"); if [ -n \"$pid\" ] && kill -0 \"$pid\" 2>/dev/null; then kill \"$pid\" 2>/dev/null || true; i=0; while kill -0 \"$pid\" 2>/dev/null && [ \"$i\" -lt 50 ]; do sleep .1; i=$((i+1)); done; fi; rm -f \"$record\"; fi; " : "") +
-            "if [ -f \"$record\" ]; then pid=$(sed -n 's/.*\"processId\":\\([0-9]*\\).*/\\1/p' \"$record\"); valid=0; " +
-            "if [ -n \"$pid\" ] && kill -0 \"$pid\" 2>/dev/null && [ -r \"/proc/$pid/cmdline\" ]; then cmd=$(tr '\\000' ' ' < \"/proc/$pid/cmdline\"); case \"$cmd\" in *\"$version/sourcegit-server\"*\"$record\"*) valid=1;; esac; fi; if [ \"$valid\" -ne 1 ]; then rm -f \"$record\"; fi; fi; " +
-            "if [ ! -f \"$record\" ]; then if [ -f \"$base/server-env-setup\" ]; then . \"$base/server-env-setup\" >&2; fi; " +
-            "nohup \"$version/sourcegit-server\" --record \"$record\" >\"$base/server-" + Protocol.Build + ".log\" 2>&1 < /dev/null 9>&- & " +
-            "i=0; while [ ! -f \"$record\" ] && [ \"$i\" -lt 100 ]; do sleep .1; i=$((i+1)); done; fi; " +
-            "if [ ! -f \"$record\" ]; then tail -n 30 \"$base/server-" + Protocol.Build + ".log\" >&2; exit 1; fi; printf 'SOURCEGIT_RECORD '; cat \"$record\"; printf '\\n'";
-        var output = await RunRemote(script, null, cancellation).ConfigureAwait(false);
-        var line = output.Split('\n').LastOrDefault(x => x.StartsWith("SOURCEGIT_RECORD ", StringComparison.Ordinal)) ?? throw new IOException("Missing Server startup record");
-        return JsonSerializer.Deserialize(line[17..], RemoteJson.Default.ServerRecord) ?? throw new IOException("Invalid Server startup record");
+            var client = Client is { IsDisconnected: false } live && live.InstanceId == record.InstanceId
+                ? live : await OpenChannelAsync(record, token).ConfigureAwait(false);
+            await ShutdownForUpgradeAsync(client, token).ConfigureAwait(false);
+        }, cancellation).ConfigureAwait(false);
     }
     private async Task<string> RunRemote(string script, byte[]? input, CancellationToken cancellation)
     {
+        script = script.Replace("\r\n", "\n");
         ProcessStartInfo start;
         if (_options.Kind.Equals("Wsl", StringComparison.OrdinalIgnoreCase))
         {
@@ -298,12 +440,37 @@ public sealed class ConnectionManager : IAsyncDisposable
     }
     private static string Quote(string value) => "'" + value.Replace("'", "'\"'\"'") + "'";
     private int _disposed;
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (System.Threading.Interlocked.Exchange(ref _disposed, 1) == 1) return;
-        _lifetime.Cancel(); DeleteAskpass(); if (Client != null) { Client.Disconnected -= OnDisconnected; await Client.DisposeAsync().ConfigureAwait(false); }
-        if (_tunnel != null) { try { if (!_tunnel.HasExited) _tunnel.Kill(true); } catch (InvalidOperationException) { } _tunnel.Dispose(); }
-        // Server continues outstanding work and exits after its configurable idle grace.
-        _localServer?.Dispose(); _lifetime.Dispose();
+        lock (_lifecycleGate)
+        {
+            if (_disposeTask != null) return new ValueTask(_disposeTask);
+            _disposed = 1;
+            _recovered.TrySetCanceled();
+            _disposeTask = DisposeCoreAsync();
+            return new ValueTask(_disposeTask);
+        }
+    }
+    private async Task DisposeCoreAsync()
+    {
+        // Leave the caller's lifecycle lock before invoking cancellation callbacks.
+        await Task.Yield();
+        _lifetime.Cancel();
+        await _connectGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            DeleteAskpass();
+            var client = Client; Client = null;
+            if (client != null) { client.Disconnected -= OnDisconnected; await client.DisposeAsync().ConfigureAwait(false); }
+            if (_tunnel != null) { try { if (!_tunnel.HasExited) _tunnel.Kill(true); } catch (InvalidOperationException) { } _tunnel.Dispose(); }
+            // Server continues outstanding work and exits after its configurable idle grace.
+            if (_localLauncher != null) await _localLauncher.DisposeAsync().ConfigureAwait(false);
+            State = "Disconnected";
+        }
+        finally { _connectGate.Release(); }
+        Task? reconnect;
+        lock (_lifecycleGate) reconnect = _reconnectTask;
+        if (reconnect != null) await reconnect.ConfigureAwait(false);
+        _lifetime.Dispose();
     }
 }

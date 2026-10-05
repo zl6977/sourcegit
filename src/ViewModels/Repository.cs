@@ -138,6 +138,7 @@ namespace SourceGit.ViewModels
                 {
                     if (_histories != null)
                         _histories.HasSingleRemote = value != null && value.Count == 1;
+                    UpdateLocalFetchConditions();
                 }
             }
         }
@@ -460,19 +461,24 @@ namespace SourceGit.ViewModels
             _workingCopy = new WorkingCopy(this) { CommitMessage = _uiStates.LastCommitMessage };
             _stashesPage = new StashesPage(this);
             _selectedViewIndex = Preferences.Instance.ShowLocalChangesByDefault ? 1 : 0;
-            _lastFetchTime = DateTime.Now;
             if (SourceGit.Remote.RepositoryPath.IsRemote(FullPath))
             {
                 Preferences.Instance.PropertyChanged += OnRemoteFetchPreferencesChanged;
                 _ = ConfigureRemoteAutoFetchAsync();
             }
             else
-                _autoFetchTimer = new Timer(AutoFetchByTimer, null, 5000, 5000);
+            {
+                StartLocalFetch();
+            }
             RefreshAll();
         }
 
         public void Close()
         {
+            if (_localFetchClosed) return;
+            _localFetchClosed = true;
+            StopLocalFetch();
+            Preferences.Instance.PropertyChanged -= OnRemoteFetchPreferencesChanged;
             var commitMessage = _workingCopy.CommitMessage;
             if (!string.IsNullOrEmpty(commitMessage) && _workingCopy.InProgressContext != null)
                 SourceGit.Remote.RepositoryFile.WriteAllText(SourceGit.Remote.RepositoryPath.Combine(GitDir, "MERGE_MSG"), commitMessage);
@@ -492,8 +498,20 @@ namespace SourceGit.ViewModels
                 _cancellationRefreshStashes.Cancel();
 
             _watcher?.Dispose();
-            _autoFetchTimer?.Dispose();
-            Preferences.Instance.PropertyChanged -= OnRemoteFetchPreferencesChanged;
+        }
+
+        private void StopLocalFetch()
+        {
+            _localFetchSchedule?.Dispose();
+            if (_watcher != null) _watcher.ConditionsChanged -= QueueLocalFetchConditions;
+            BindAutoFetchPage(null);
+            Preferences.Instance.PropertyChanged -= OnLocalFetchPreferencesChanged;
+            if (_localFetchCancellation != null)
+            {
+                var cancellation = _localFetchCancellation;
+                cancellation.Cancel();
+                _ = _localFetchTask.ContinueWith(completed => { _ = completed.Exception; cancellation.Dispose(); }, TaskScheduler.Default);
+            }
         }
 
         public void SendNotification(string message, bool isError = false)
@@ -930,7 +948,7 @@ namespace SourceGit.ViewModels
 
         public void MarkFetched()
         {
-            _lastFetchTime = DateTime.Now;
+            _localFetchSchedule?.MarkFetched();
         }
 
         public void NavigateToCommit(string sha, bool isDelayMode = false)
@@ -1156,16 +1174,14 @@ namespace SourceGit.ViewModels
             {
                 var query = new Commands.QueryBranches(FullPath);
                 var branches = await query.WithCancellation(token).GetResultAsync().ConfigureAwait(false);
-                var generation = query.Generation;
                 var remotes = await new Commands.QueryRemotes(FullPath).GetResultAsync().ConfigureAwait(false);
                 var builder = BuildBranchTree(branches, remotes);
 
                 Dispatcher.UIThread.Invoke(() =>
                 {
-                    if (token.IsCancellationRequested || generation < _branchesGeneration)
+                    if (token.IsCancellationRequested || SourceGit.Remote.RepositoryPath.IsRemote(FullPath) &&
+                        !SourceGit.Remote.RemoteWorkspace.TryAcceptSnapshot(FullPath, query.Snapshot, _branchesSnapshot))
                         return;
-
-                    _branchesGeneration = generation;
 
                     Remotes = remotes;
                     Branches = branches;
@@ -1361,16 +1377,14 @@ namespace SourceGit.ViewModels
             {
                 var query = new Commands.QueryLocalChanges(FullPath, _uiStates.IncludeUntrackedInLocalChanges, noOptionalLocks).WithCancellation(token);
                 var changes = await query.GetResultAsync().ConfigureAwait(false);
-                var generation = query.Generation;
 
                 changes.Sort((l, r) => Models.NumericSort.Compare(l.Path, r.Path));
 
                 Dispatcher.UIThread.Invoke(() =>
                 {
-                    if (token.IsCancellationRequested || generation < _workingCopyGeneration)
+                    if (token.IsCancellationRequested || SourceGit.Remote.RepositoryPath.IsRemote(FullPath) &&
+                        !SourceGit.Remote.RemoteWorkspace.TryAcceptSnapshot(FullPath, query.Snapshot, _workingCopySnapshot))
                         return;
-
-                    _workingCopyGeneration = generation;
 
                     _workingCopy.SetData(changes);
                     LocalChangesCount = changes.Count;
@@ -1526,7 +1540,10 @@ namespace SourceGit.ViewModels
             var val = remote.DisableAutoFetch ? "false" : "true";
             var succ = await new Commands.Config(FullPath).SetAsync($"remote.{remote.Name.Quoted()}.disableautofetch", val);
             if (succ)
+            {
                 remote.DisableAutoFetch = !remote.DisableAutoFetch;
+                UpdateLocalFetchConditions();
+            }
         }
 
         public void AddSubmodule()
@@ -1912,16 +1929,64 @@ namespace SourceGit.ViewModels
             return null;
         }
 
-        private void AutoFetchByTimer(object sender)
+        internal void StartLocalFetch(TimeProvider clock = null)
         {
-            try
-            {
-                Dispatcher.UIThread.Invoke(AutoFetchOnUIThread);
-            }
-            catch
-            {
-                // Ignore exception.
-            }
+            if (_localFetchClosed || _localFetchSchedule != null) return;
+            _localFetchCancellation = new CancellationTokenSource();
+            _localFetchSchedule = new Models.FetchSchedule(generation => Dispatcher.UIThread.Post(() => StartLocalAutoFetch(generation)), clock);
+            Preferences.Instance.PropertyChanged += OnLocalFetchPreferencesChanged;
+            if (_watcher != null) _watcher.ConditionsChanged += QueueLocalFetchConditions;
+            ConfigureLocalFetch();
+            UpdateLocalFetchConditions();
+        }
+
+        internal void BindAutoFetchPage(LauncherPage page)
+        {
+            if (_localFetchClosed) page = null;
+            if (_autoFetchPage != null) _autoFetchPage.AutoFetchAvailabilityChanged -= UpdateLocalFetchConditions;
+            _autoFetchPage = page;
+            if (page != null) page.AutoFetchAvailabilityChanged += UpdateLocalFetchConditions;
+            UpdateLocalFetchConditions();
+        }
+
+        private void QueueLocalFetchConditions() => Dispatcher.UIThread.Post(UpdateLocalFetchConditions);
+
+        private void UpdateLocalFetchConditions()
+        {
+            if (_localFetchClosed || _localFetchSchedule == null) return;
+            _localFetchSchedule.ConditionsChanged(_autoFetchPage != null && _autoFetchPage.CanCreatePopup() &&
+                !SourceGit.Remote.RepositoryFile.Exists(SourceGit.Remote.RepositoryPath.Combine(GitDir, "index.lock")),
+                _remotes.Exists(remote => !remote.DisableAutoFetch));
+        }
+
+        private void OnLocalFetchPreferencesChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(Preferences.EnableAutoFetch) or nameof(Preferences.AutoFetchInterval)) ConfigureLocalFetch();
+        }
+
+        private void ConfigureLocalFetch()
+        {
+            var interval = Preferences.Instance.AutoFetchInterval;
+            if (interval <= 0) System.Diagnostics.Trace.WriteLine("Auto-fetch interval must be positive; scheduling disabled.");
+            _localFetchSchedule?.Configure(Preferences.Instance.EnableAutoFetch && interval > 0, TimeSpan.FromMinutes(Math.Max(1, interval)));
+        }
+
+        private void StartLocalAutoFetch(long generation)
+        {
+            if (_localFetchClosed) return;
+            UpdateLocalFetchConditions();
+            if (!_localFetchSchedule.TryStart(generation)) return;
+            // Publish the task before property/log callbacks can reenter Close.
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _localFetchTask = completion.Task;
+            _ = CompleteLocalFetchAsync(completion);
+        }
+
+        private async Task CompleteLocalFetchAsync(TaskCompletionSource completion)
+        {
+            try { await AutoFetchOnUIThread(); }
+            catch (Exception error) { System.Diagnostics.Trace.WriteLine("Auto-fetch cleanup failed: " + error.Message); }
+            finally { completion.TrySetResult(); }
         }
 
         private void OnRemoteFetchPreferencesChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1942,28 +2007,10 @@ namespace SourceGit.ViewModels
 
         private async Task AutoFetchOnUIThread()
         {
-            if (IsAutoFetching)
-                return;
-
             CommandLog log = null;
 
             try
             {
-                if (!Preferences.Instance.EnableAutoFetch || !CanCreatePopup())
-                {
-                    _lastFetchTime = DateTime.Now;
-                    return;
-                }
-
-                var lockFile = SourceGit.Remote.RepositoryPath.Combine(GitDir, "index.lock");
-                if (SourceGit.Remote.RepositoryFile.Exists(lockFile))
-                    return;
-
-                var now = DateTime.Now;
-                var desire = _lastFetchTime.AddMinutes(Preferences.Instance.AutoFetchInterval);
-                if (desire > now)
-                    return;
-
                 var remotes = new List<Models.Remote>();
                 foreach (var r in _remotes)
                 {
@@ -1978,17 +2025,20 @@ namespace SourceGit.ViewModels
                 log = CreateLog("Auto-Fetch");
 
                 foreach (var remote in remotes)
-                    await new Commands.Fetch(FullPath, remote).Use(log).ExecAsync();
-
-                _lastFetchTime = DateTime.Now;
+                {
+                    if (_localFetchCancellation.IsCancellationRequested) break;
+                    await new Commands.Fetch(FullPath, remote) { CancellationToken = _localFetchCancellation.Token, ReapOnCancellation = true }.Use(log).ExecAsync();
+                }
             }
-            catch
+            catch (Exception error)
             {
-                // Ignore all exceptions.
+                log?.AppendLine("Auto-fetch failed: " + error.Message);
             }
-
-            IsAutoFetching = false;
-            log?.Complete();
+            finally
+            {
+                try { IsAutoFetching = false; log?.Complete(); }
+                finally { _localFetchSchedule.Completed(); }
+            }
         }
 
         private readonly string _gitCommonDir = null;
@@ -2022,8 +2072,11 @@ namespace SourceGit.ViewModels
         private string _navigateToCommitDelayed = string.Empty;
 
         private bool _isAutoFetching = false;
-        private Timer _autoFetchTimer = null;
-        private DateTime _lastFetchTime = DateTime.MinValue;
+        private Models.FetchSchedule _localFetchSchedule;
+        private LauncherPage _autoFetchPage;
+        private CancellationTokenSource _localFetchCancellation;
+        private Task _localFetchTask = Task.CompletedTask;
+        private bool _localFetchClosed;
 
         private Models.BisectState _bisectState = Models.BisectState.None;
         private bool _isBisectCommandRunning = false;
@@ -2031,8 +2084,8 @@ namespace SourceGit.ViewModels
         private CancellationTokenSource _cancellationRefreshBranches = null;
         private CancellationTokenSource _cancellationRefreshTags = null;
         private CancellationTokenSource _cancellationRefreshWorkingCopyChanges = null;
-        private long _workingCopyGeneration;
-        private long _branchesGeneration;
+        private readonly SourceGit.Remote.RepositorySnapshotTracker _workingCopySnapshot = new();
+        private readonly SourceGit.Remote.RepositorySnapshotTracker _branchesSnapshot = new();
         private CancellationTokenSource _cancellationRefreshCommits = null;
         private CancellationTokenSource _cancellationRefreshStashes = null;
     }

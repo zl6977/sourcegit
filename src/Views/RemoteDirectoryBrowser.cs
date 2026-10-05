@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -18,10 +19,12 @@ namespace SourceGit.Views
         private readonly List<FileEntry> _entries = new();
         private readonly TextBlock _header = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
         private readonly ListBox _list = new();
+        private readonly Button _choose = new() { Content = "Choose this folder", HorizontalAlignment = HorizontalAlignment.Right };
+        private CancellationTokenSource _loading;
         public RemoteDirectoryBrowser(RemoteWorkspace workspace, string path)
         {
             _workspace = workspace;
-            _current = string.IsNullOrWhiteSpace(path) ? "" : path.TrimEnd('/');
+            _current = string.IsNullOrWhiteSpace(path) ? "" : NormalizePath(path);
             Title = "Browse remote directories"; Width = 560; Height = 440;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             _list.SelectionChanged += async (_, _) =>
@@ -29,12 +32,11 @@ namespace SourceGit.Views
                 if (_list.SelectedIndex < 0 || _list.SelectedIndex >= _entries.Count) return;
                 var selected = _entries[_list.SelectedIndex];
                 if (!selected.Directory) return;
-                _current = selected.Path.TrimEnd('/');
+                _current = NormalizePath(selected.Path);
                 await Refresh();
             };
-            var choose = new Button { Content = "Choose this folder", HorizontalAlignment = HorizontalAlignment.Right };
             var cancel = new Button { Content = "Cancel", HorizontalAlignment = HorizontalAlignment.Right };
-            choose.Click += (_, _) => Close(_current);
+            _choose.Click += (_, _) => Close(_current);
             cancel.Click += (_, _) => Close(null);
             // A Grid (not a StackPanel) constrains the ListBox height so its built-in ScrollViewer
             // engages: with unbounded height it rendered every entry, overflowed the window and
@@ -46,15 +48,24 @@ namespace SourceGit.Views
             _header.Margin = new Thickness(0, 0, 0, 8);
             _list.Margin = new Thickness(0, 0, 0, 8);
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
-            buttons.Children.Add(cancel); buttons.Children.Add(choose);
+            buttons.Children.Add(cancel); buttons.Children.Add(_choose);
             Grid.SetRow(_header, 0); Grid.SetRow(_list, 1); Grid.SetRow(buttons, 2);
             grid.Children.Add(_header); grid.Children.Add(_list); grid.Children.Add(buttons);
             Content = grid;
             Opened += async (_, _) => await Refresh();
+            Closed += (_, _) => _loading?.Cancel();
         }
         private async Task Refresh()
         {
+            _loading?.Cancel();
+            using var loading = new CancellationTokenSource();
+            _loading = loading;
             if (string.IsNullOrEmpty(_current)) _current = _workspace.Environment.Home;
+            var path = _current;
+            _list.IsEnabled = false;
+            _choose.IsEnabled = false;
+            _list.SelectedIndex = -1;
+            _list.ItemsSource = null;
             _entries.Clear();
             if (_current != "/")
             {
@@ -63,10 +74,26 @@ namespace SourceGit.Views
                 if (parent.Length == 0) parent = "/";
                 _entries.Add(new FileEntry("..", parent, true, 0));
             }
-            _entries.AddRange(RemoteWorkspace.List(_workspace.Resource(_current)));
-            _header.Text = _current;
-            _list.SelectedIndex = -1;
-            _list.ItemsSource = _entries.Select(x => x.Name + (x.Directory ? "/" : "")).ToArray();
+            _header.Text = path;
+            try
+            {
+                await foreach (var page in _workspace.Client.DirectoryPagesAsync(path, loading.Token))
+                {
+                    // Return to the UI context before changing controls.
+                    if (loading.IsCancellationRequested || _current != path) return;
+                    _entries.AddRange(page);
+                }
+                _list.ItemsSource = _entries.Select(x => x.Name + (x.Directory ? "/" : "")).ToArray();
+                _choose.IsEnabled = true;
+            }
+            catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
+            catch (TimeoutException error) { if (!loading.IsCancellationRequested) _header.Text = path + "\nDirectory listing timed out. Refresh to try again. " + error.Message; }
+            catch (Exception error) { if (!loading.IsCancellationRequested) _header.Text = path + "\n" + error.Message; }
+            finally
+            {
+                if (_loading == loading) { _loading = null; _list.IsEnabled = true; }
+            }
         }
+        private static string NormalizePath(string path) => path == "/" ? "/" : path.TrimEnd('/');
     }
 }

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Resolve each revision explicitly, including when old outputs are nearby. -->
+    <AssemblySearchPaths>{HintPathFromItem};{TargetFrameworkDirectory};{RawFileName}</AssemblySearchPaths>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../SourceGit.Remote.Tests/PollingComparison.cs" Link="PollingComparison.cs" />
+    <Reference Include="SourceGit.Contracts"><HintPath>$(ComparisonRoot)/SourceGit.Contracts.dll</HintPath></Reference>
+    <Reference Include="SourceGit.RemoteClient"><HintPath>$(ComparisonRoot)/SourceGit.RemoteClient.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

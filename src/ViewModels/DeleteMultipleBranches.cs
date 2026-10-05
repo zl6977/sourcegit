@@ -31,6 +31,7 @@ namespace SourceGit.ViewModels
 
             var log = _repo.CreateLog("Delete Multiple Branches");
             Use(log);
+            var success = true;
 
             if (_isLocal)
             {
@@ -42,17 +43,19 @@ namespace SourceGit.ViewModels
             else
             {
                 foreach (var target in Targets)
-                    await DeleteRemoteBranchAsync(target, log);
+                {
+                    if (!await DeleteRemoteBranchAsync(target, log)) { success = false; break; }
+                }
             }
 
             log.Complete();
             _repo.MarkBranchesDirtyManually();
-            return true;
+            return success;
         }
 
         private async Task<bool> DeleteRemoteBranchAsync(Models.Branch branch, CommandLog log)
         {
-            var exists = false;
+            bool? exists = false;
             var remote = _repo.Remotes.Find(x => x.Name.Equals(branch.Remote, StringComparison.Ordinal));
             if (remote != null)
             {
@@ -62,7 +65,8 @@ namespace SourceGit.ViewModels
                     .ConfigureAwait(false);
             }
 
-            if (exists)
+            if (exists == null) return false;
+            if (exists == true)
                 return await new Commands.Push(_repo.FullPath, remote, $"refs/heads/{branch.Name}", true)
                     .Use(log)
                     .ExecAsync()

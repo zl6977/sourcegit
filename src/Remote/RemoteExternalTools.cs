@@ -86,16 +86,17 @@ namespace SourceGit.Remote
         private static async Task<byte[]> ReadBlobAsync(string repository, string expression)
         {
             var workspace = RemoteWorkspace.ForPath(repository);
-            var info = await workspace.OpenTransientAsync(repository).ConfigureAwait(false);
+            var client = workspace.Client;
+            var info = await client.OpenRepositoryAsync(workspace.ExecutionPath(repository)).ConfigureAwait(false);
             try
             {
-                var exists = await workspace.Client.ExecuteGitAsync(new GitRequest(info.Id, ["cat-file", "-e", expression])).ConfigureAwait(false);
+                var exists = await client.ExecuteGitAsync(new GitRequest(info.Id, ["cat-file", "-e", expression])).ConfigureAwait(false);
                 if (exists.ExitCode != 0) return [];
-                var result = await workspace.Client.ExecuteGitAsync(new GitRequest(info.Id, ["cat-file", "blob", expression])).ConfigureAwait(false);
+                var result = await client.ExecuteGitAsync(new GitRequest(info.Id, ["cat-file", "blob", expression])).ConfigureAwait(false);
                 if (result.ExitCode != 0) throw new IOException(result.Error);
                 return Convert.FromBase64String(result.OutputBase64);
             }
-            finally { await workspace.ReleaseTransientAsync(info.Id).ConfigureAwait(false); }
+            finally { await workspace.ReleaseTransientAsync(info, client).ConfigureAwait(false); }
         }
         private static async Task<bool> RunAsync(Models.DiffMergeTool tool, Dictionary<string, string> files)
         {

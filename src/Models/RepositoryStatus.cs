@@ -7,6 +7,8 @@
         public int Behind { get; set; } = 0;
         public int LocalChanges { get; set; } = 0;
         public long Generation { get; set; } = 0;
+        public string InstanceId { get; set; }
+        public string RepositoryId { get; set; }
 
         public bool IsTrackingStatusVisible
         {

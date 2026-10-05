@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -11,6 +11,7 @@ namespace SourceGit.Commands
         private const string PREFIX_DETACHED_AT = "(HEAD detached at";
         private const string PREFIX_DETACHED_FROM = "(HEAD detached from";
         public long Generation { get; private set; }
+        public SourceGit.Remote.RepositorySnapshot Snapshot { get; private set; }
 
         public QueryBranches(string repo)
         {
@@ -21,16 +22,18 @@ namespace SourceGit.Commands
 
         public async Task<List<Models.Branch>> GetResultAsync()
         {
+            Snapshot = null;
             var branches = new List<Models.Branch>();
             if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
             {
                 try
                 {
                     var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(WorkingDirectory);
-                    var handle = await workspace.OpenTransientAsync(WorkingDirectory, CancellationToken).ConfigureAwait(false);
+                    var client = workspace.Client;
+                    var handle = await client.OpenRepositoryAsync(workspace.ExecutionPath(WorkingDirectory), CancellationToken).ConfigureAwait(false);
                     try
                     {
-                        var snapshot = await workspace.Client.GetRefsAsync(handle.Id, CancellationToken).ConfigureAwait(false);
+                        var snapshot = await client.GetRefsAsync(handle.Id, CancellationToken).ConfigureAwait(false);
                         Generation = snapshot.Generation;
                         var remoteRefs = new Dictionary<string, Models.Branch>();
                         foreach (var info in snapshot.Refs)
@@ -52,9 +55,10 @@ namespace SourceGit.Commands
                             if (b.IsLocal && !string.IsNullOrEmpty(b.Upstream) && !remoteRefs.ContainsKey(b.Upstream))
                                 b.IsUpstreamGone = true;
                         }
+                        Snapshot = new(client.InstanceId, handle.Id, snapshot.Generation);
                         return branches;
                     }
-                    finally { await workspace.ReleaseTransientAsync(handle.Id).ConfigureAwait(false); }
+                    finally { await workspace.ReleaseTransientAsync(handle, client).ConfigureAwait(false); }
                 }
                 catch { return branches; }
             }

@@ -67,16 +67,19 @@ public sealed partial class RepositoryQueries(RepositoryService repositories)
         }
         return new StatusSnapshot(result.Generation, changes.ToArray(), headOid, branch, upstream, ahead, behind);
     }
-    public async Task<RefsSnapshot> RefsAsync(QueryRequest query, CancellationToken cancellation)
+    public Task<RefsSnapshot> RefsAsync(QueryRequest query, CancellationToken cancellation)
+        => repositories.ReadSnapshotAsync(query.RepositoryId, execute => RefsCoreAsync(query, cancellation, execute), cancellation);
+
+    private async Task<RefsSnapshot> RefsCoreAsync(QueryRequest query, CancellationToken cancellation, Func<GitRequest, Task<GitResult>> execute)
     {
-        var result = await Execute(query, ["for-each-ref", "--format=%(refname)%00%(committerdate:unix)%00%(objectname)%00%(HEAD)%00%(upstream)%00%(upstream:track)%00%(worktreepath)"], cancellation);
+        var result = await Execute(query, ["for-each-ref", "--format=%(refname)%00%(committerdate:unix)%00%(objectname)%00%(HEAD)%00%(upstream)%00%(upstream:track)%00%(worktreepath)"], cancellation, execute);
         var detached = false;
-        var state = await Execute(query with { NoOptionalLocks = true }, ["status", "--porcelain=v2", "--branch", "-z", "--untracked-files=no", "--ignore-submodules=dirty"], cancellation);
+        var state = await Execute(query with { NoOptionalLocks = true }, ["status", "--porcelain=v2", "--branch", "-z", "--untracked-files=no", "--ignore-submodules=dirty"], cancellation, execute);
         foreach (var row in Decode(state).Split('\0'))
         {
             if (row.StartsWith("# branch.head (detached)", StringComparison.Ordinal)) detached = true;
         }
-        var detachedOid = detached ? Decode(await Execute(query, ["rev-parse", "--short", "HEAD"], cancellation)).Trim() : null;
+        var detachedOid = detached ? Decode(await Execute(query, ["rev-parse", "--short", "HEAD"], cancellation, execute)).Trim() : null;
         var refs = new List<RefInfo>();
         foreach (var row in Decode(result).Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -180,9 +183,10 @@ public sealed partial class RepositoryQueries(RepositoryService repositories)
         }
         return new DiffInfo(result.Generation, raw.Contains("Binary files ", StringComparison.Ordinal) || raw.Contains("GIT binary patch", StringComparison.Ordinal), lines.ToArray(), result.OutputBase64);
     }
-    private async Task<GitResult> Execute(QueryRequest query, string[] arguments, CancellationToken cancellation)
+    private async Task<GitResult> Execute(QueryRequest query, string[] arguments, CancellationToken cancellation, Func<GitRequest, Task<GitResult>>? execute = null)
     {
-        var result = await repositories.ExecuteAsync(new GitRequest(query.RepositoryId, arguments, NoOptionalLocks: query.NoOptionalLocks), cancellation);
+        var request = new GitRequest(query.RepositoryId, arguments, NoOptionalLocks: query.NoOptionalLocks);
+        var result = execute == null ? await repositories.ExecuteAsync(request, cancellation) : await execute(request);
         if (result.ExitCode != 0) throw new IOException(result.Error);
         return result;
     }

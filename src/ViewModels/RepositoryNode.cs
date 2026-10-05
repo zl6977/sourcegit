@@ -23,7 +23,12 @@ namespace SourceGit.ViewModels
             set
             {
                 var normalized = SourceGit.Remote.RepositoryPath.StoredPath(value);
-                SetProperty(ref _id, normalized);
+                if (SetProperty(ref _id, normalized))
+                {
+                    Interlocked.Increment(ref _statusQuerySequence);
+                    _lastStatus = null;
+                    _lastUpdateStatus = DateTime.UnixEpoch.ToLocalTime();
+                }
             }
         }
 
@@ -157,6 +162,8 @@ namespace SourceGit.ViewModels
 
         public async Task UpdateStatusAsync(bool force, CancellationToken? token)
         {
+            // Early exits also invalidate replies already in flight (including failures).
+            Interlocked.Increment(ref _statusQuerySequence);
             if (token is { IsCancellationRequested: true })
                 return;
 
@@ -198,10 +205,49 @@ namespace SourceGit.ViewModels
             }
 
             _lastUpdateStatus = DateTime.Now;
-            var status = await new Commands.QueryRepositoryStatus(_id).GetResultAsync();
-            if (status != null && status.Generation < _lastStatusGeneration)
+            await QueryAndApplyStatusAsync(
+                (path, cancellation) => new Commands.QueryRepositoryStatus(path) { CancellationToken = cancellation }.GetResultAsync(),
+                CurrentStatusInstance, token ?? CancellationToken.None);
+        }
+
+        private static string CurrentStatusInstance(string path)
+        {
+            try
+            {
+                var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(path);
+                return workspace.Client.IsDisconnected ? null : workspace.Client.InstanceId;
+            }
+            catch (IOException) { return null; }
+        }
+
+        // Keep the async query boundary testable without scheduling real network races.
+        internal async Task QueryAndApplyStatusAsync(
+            Func<string, CancellationToken, Task<Models.RepositoryStatus>> query,
+            Func<string, string> currentInstance, CancellationToken cancellation)
+        {
+            var sequence = Interlocked.Increment(ref _statusQuerySequence);
+            var path = _id;
+            var remote = SourceGit.Remote.RepositoryPath.IsRemote(path);
+            var instance = remote ? currentInstance(path) : null;
+            if (cancellation.IsCancellationRequested || (remote && instance == null))
                 return;
-            _lastStatusGeneration = status?.Generation ?? 0;
+
+            var status = await query(path, cancellation);
+            if (cancellation.IsCancellationRequested || sequence != Volatile.Read(ref _statusQuerySequence) ||
+                path != _id || !_isRepository)
+                return;
+            if (remote && (instance != currentInstance(path) || (status != null && status.InstanceId != instance)))
+                return;
+
+            if (remote && status != null)
+            {
+                // Temporary opens may recreate a session within the same instance.
+                // Its id belongs to this query; it need not match a workspace cache entry.
+                if (_lastStatus is { } last && last.Instance == status.InstanceId &&
+                    last.Repository == status.RepositoryId && status.Generation < last.Generation)
+                    return;
+                _lastStatus = (status.InstanceId, status.RepositoryId, status.Generation);
+            }
             Status = status;
         }
 
@@ -254,6 +300,7 @@ namespace SourceGit.ViewModels
         private bool _isVisible = true;
         private Models.RepositoryStatus _status = null;
         private DateTime _lastUpdateStatus = DateTime.UnixEpoch.ToLocalTime();
-        private long _lastStatusGeneration;
+        private long _statusQuerySequence;
+        private (string Instance, string Repository, long Generation)? _lastStatus;
     }
 }

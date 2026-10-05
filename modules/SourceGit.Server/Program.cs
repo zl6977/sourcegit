@@ -6,11 +6,14 @@ using System.Text;
 using System.Text.Json;
 using SourceGit.Contracts;
 using SourceGit.Core;
+using SourceGit.Server;
+using Operation = SourceGit.Server.OperationStore.Operation;
 
 if (args.Length > 0 && args[0] == "helper") { Environment.Exit(await Helpers.RunAsync(args.Skip(1).ToArray())); return; }
+if (args.Length > 0 && args[0] == "bootstrap") { Environment.Exit(await Bootstrap.RunAsync(args.Skip(1).ToArray())); return; }
 var recordPath = GetOption("--record") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".sourcegit-server", "instance-" + Protocol.Build + ".json");
 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(recordPath))!);
-using var server = new RemoteServer(recordPath);
+using var server = new RemoteServer(recordPath, GetOption("--ready-socket"), GetOption("--ready-nonce"));
 await server.RunAsync();
 string? GetOption(string key) { var index = Array.IndexOf(args, key); return index >= 0 && index + 1 < args.Length ? args[index + 1] : null; }
 
@@ -21,46 +24,70 @@ sealed class RemoteServer : IDisposable
     private readonly string _instance = Guid.NewGuid().ToString("N");
     private readonly string _token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     private readonly string _recordPath;
-    private readonly ConcurrentDictionary<string, Operation> _operations = new();
+    private readonly string? _readySocket, _readyNonce;
+    private readonly OperationStore _operations = new();
+    private readonly DirectorySnapshots _directorySnapshots = new();
+    private readonly TimeSpan _operationTimeout = ExecutionTimeout();
+    private static TimeSpan ExecutionTimeout()
+    {
+        var configured = Environment.GetEnvironmentVariable("SOURCEGIT_OPERATION_TIMEOUT_SECONDS");
+        if (configured == null) return TimeSpan.FromHours(1);
+        if (!double.TryParse(configured, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var seconds) || !double.IsFinite(seconds) || seconds <= 0 || seconds > 4294967)
+            throw new ArgumentException("SOURCEGIT_OPERATION_TIMEOUT_SECONDS must be positive and at most 4294967");
+        return TimeSpan.FromSeconds(seconds);
+    }
     private readonly ConcurrentDictionary<string, PendingInteraction> _interactions = new();
     private readonly ConcurrentDictionary<string, Timer> _fetchTimers = new(StringComparer.Ordinal);
+    private int _operationWaiters;
+    internal int ActiveOperationWaiters => Volatile.Read(ref _operationWaiters);
+    internal const int OperationWaitersPerChannel = 64;
+    internal const int OperationWaitersGlobal = 1024;
     private readonly object _ownerLock = new();
     private string? _owner, _recovery;
     private Connection? _connection;
     private readonly ConcurrentDictionary<Connection, byte> _channels = new();
-    private DateTime _lastConnection = DateTime.UtcNow;
+    private readonly ServerDeadlines<Connection> _deadlines;
     private readonly TimeSpan _grace = TimeSpan.FromSeconds(int.TryParse(Environment.GetEnvironmentVariable("SOURCEGIT_GRACE_SECONDS"), out var seconds) ? Math.Max(1, seconds) : 300);
     private readonly TimeSpan _channelGrace = TimeSpan.FromSeconds(int.TryParse(Environment.GetEnvironmentVariable("SOURCEGIT_CHANNEL_GRACE_SECONDS"), out var channelSeconds) ? Math.Max(1, channelSeconds) : 60);
     private static readonly bool DebugLog = Environment.GetEnvironmentVariable("SOURCEGIT_DEBUG_LOG") == "1";
     private static string Truncate(string text) => text.Length > 400 ? text[..400] : text;
     private string _helperPath = "";
-    private sealed class Operation
-    {
-        public required string Fingerprint;
-        public required string Id;
-        public string HelperToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        public string State = "accepted";
-        public GitResult? Result;
-        public string? Error;
-        public FileResult? FileResult;
-        public readonly CancellationTokenSource Cancellation = new();
-        public OperationInfo Info() => new(Id, State, Result, Error, FileResult);
-    }
+    internal Func<string, CancellationToken, Task>? BeforeReply { get; set; }
+    internal Func<Task>? BeforeRecordPublished { get; set; }
+    internal Action? AfterChannelClosed { get; set; }
+    internal Action<string, Exception>? RequestFailed { get; set; }
+    private readonly TaskCompletionSource<ServerRecord> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal Task<ServerRecord> Ready => _ready.Task;
     private sealed record PendingInteraction(InteractionRequest Request, TaskCompletionSource<InteractionReply> Completion);
     private sealed class Connection
     {
         public required TcpClient Client;
         public required NetworkStream Stream;
+        public string OwnerId = "";
+        public readonly string ChannelId = Guid.NewGuid().ToString("N");
         public readonly SemaphoreSlim WriteGate = new(1);
-        public DateTime LastSeenUtc = DateTime.UtcNow;
         public readonly ConcurrentDictionary<string, CancellationTokenSource> Requests = new();
         public readonly SemaphoreSlim RequestsGate = new(16);
+        public int OperationWaiters;
     }
-    public RemoteServer(string recordPath) { _recordPath = recordPath; _repositories.Changed += OnChanged; _repositories.Progress += progress => _ = SendEvent("OperationProgress", Protocol.Json(progress, RemoteJson.Default.OperationProgress)); _repositories.Output = output => SendEvent("OperationOutput", Protocol.Json(output, RemoteJson.Default.OperationOutput)); }
+    public RemoteServer(string recordPath, string? readySocket = null, string? readyNonce = null)
+    {
+        _recordPath = Path.GetFullPath(recordPath);
+        _readySocket = readySocket; _readyNonce = readyNonce;
+        _deadlines = new(_ownerLock, _grace, _channelGrace, () => _operations.HasActive, () =>
+        {
+            if (_connection != null || !_operations.TryBeginIdleShutdown()) return false;
+            _listener.Stop(); return true;
+        });
+        _repositories.Changed += OnChanged;
+        _repositories.Progress += progress => _ = SendEvent("OperationProgress", Protocol.Json(progress, RemoteJson.Default.OperationProgress));
+        _repositories.Output = output => SendEvent("OperationOutput", Protocol.Json(output, RemoteJson.Default.OperationOutput), cancellation: _operations.TryGetValue(Key(output.OperationId), out var operation) ? operation.ExecutionToken : default);
+    }
     public async Task RunAsync()
     {
         // An OS file lock makes stale records harmless and protects against concurrent starts.
         using var instanceLock = new FileStream(_recordPath + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        if (BeforeRecordPublished != null) await BeforeRecordPublished();
         _listener.Start(32);
         var record = new ServerRecord(((IPEndPoint)_listener.LocalEndpoint).Port, _token, _instance, Environment.ProcessId);
         var temporary = _recordPath + ".tmp-" + _instance;
@@ -81,13 +108,36 @@ sealed class RemoteServer : IDisposable
             start.Environment["GIT_SEQUENCE_EDITOR"] = editorCommand;
             return Task.CompletedTask;
         };
-        Console.WriteLine("SOURCEGIT_READY " + _instance);
+        // The GUI may crash after spawn; a closed startup pipe must not kill
+        // the independently running server after it publishes its record.
+        try { Console.WriteLine("SOURCEGIT_READY " + _instance); }
+        catch (IOException) { }
+        await Bootstrap.NotifyReadyAsync(_readySocket, _readyNonce, record, _recordPath);
+        _ready.TrySetResult(record);
         // A live client pings every 10 s; a channel silent for 60 s belongs to a dead peer (crash, broken NAT
         // forwarding that never delivered FIN/RST) and must be aborted so its ownership cannot pin the instance.
-        using var idle = new Timer(_ => { try { foreach (var connection in _channels.Keys) if (DateTime.UtcNow - connection.LastSeenUtc > _channelGrace) connection.Client.Close(); if (_connection == null && DateTime.UtcNow - _lastConnection > _grace && !_operations.Values.Any(x => x.State is "running" or "waitingInteraction" or "accepted")) _listener.Stop(); } catch { } }, null, 1000, 1000);
+        _deadlines.Start();
         try { while (true) { var client = await _listener.AcceptTcpClientAsync(); _ = HandleAsync(client); } }
         catch (SocketException) { }
-        finally { if (File.Exists(_recordPath)) File.Delete(_recordPath); }
+        finally
+        {
+            _deadlines.Dispose();
+            // The lifetime lock is still held here. Ownership is also checked so
+            // a future startup refactor or an external edit cannot erase another record.
+            try
+            {
+                if (File.Exists(_recordPath))
+                {
+                    var current = JsonSerializer.Deserialize(await File.ReadAllTextAsync(_recordPath), RemoteJson.Default.ServerRecord);
+                    if (current?.InstanceId == _instance && current.ProcessId == Environment.ProcessId)
+                        File.Delete(_recordPath);
+                }
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+            {
+                Console.Error.WriteLine("SOURCEGIT_RECORD_CLEANUP " + error.GetType().Name + ": record preserved");
+            }
+        }
     }
     private async Task HandleAsync(TcpClient client)
     {
@@ -114,14 +164,16 @@ sealed class RemoteServer : IDisposable
                     // Takeover: a different owner is accepted as soon as the previous owner has no live channel at all
                     // (crash or exit) and no operation is in flight; a live connection is never displaced.
                     if (_connection != null) throw new InvalidOperationException("Instance owned by another GUI");
-                    if (_operations.Values.Any(x => x.State is "accepted" or "running" or "waitingInteraction")) throw new InvalidOperationException("Server has active operations; wait for them to finish");
+                    if (_operations.HasActive) throw new InvalidOperationException("Server has active operations; wait for them to finish");
                     _owner = null;
                     foreach (var fetchTimer in _fetchTimers.Values) fetchTimer.Dispose();
                     _fetchTimers.Clear(); _operations.Clear(); _repositories.CloseAll();
                 }
                 // One GUI owner may use several aliases/channels for the same host; another owner is still rejected.
                 _owner = handshake.OwnerId; _recovery = handshake.RecoveryToken; _connection = connection;
+                connection.OwnerId = handshake.OwnerId;
                 _channels[connection] = 0;
+                _deadlines.Add(connection, client.Close);
                 if (DebugLog) Console.Error.WriteLine($"CHANNEL + owner={handshake.OwnerId} channels={_channels.Count}");
             }
             await Reply(connection, first.Id, Protocol.Json(new HandshakeResult(_instance, Protocol.Version, Protocol.Build, ["git", "files", "watcher", "operations", "interaction", "chunks"]), RemoteJson.Default.HandshakeResult));
@@ -129,9 +181,17 @@ sealed class RemoteServer : IDisposable
             ready = true;
             while (await Protocol.ReadAsync(connection.Stream) is { } request)
             {
-                connection.LastSeenUtc = DateTime.UtcNow;
-                if (request.Method == "CancelRequest") { if (connection.Requests.TryGetValue(request.Data.GetString()!, out var cts)) cts.Cancel(); continue; }
-                if (connection.Requests.Count > 128 && request.Method is not ("Ping" or "SubmitInteraction"))
+                _deadlines.Touch(connection);
+                if (request.Method == "CancelRequest")
+                {
+                    if (connection.Requests.TryGetValue(request.Data.GetString()!, out var cts))
+                    {
+                        // Completion may remove and dispose it after this lookup.
+                        try { cts.Cancel(); } catch (ObjectDisposedException) { }
+                    }
+                    continue;
+                }
+                if (connection.Requests.Count > 128 + Volatile.Read(ref connection.OperationWaiters) && request.Method is not ("Ping" or "SubmitInteraction" or "GetOperation" or "WaitOperation"))
                 { await Protocol.WriteAsync(connection.Stream, new Envelope(request.Id, "Result", Protocol.Null, "Too many pending requests"), connection.WriteGate); continue; }
                 _ = ProcessAsync(connection, request);
             }
@@ -144,11 +204,13 @@ sealed class RemoteServer : IDisposable
             {
                 var wasOwnerChannel = _channels.TryRemove(connection, out _);
                 if (_connection == connection) _connection = _channels.Keys.FirstOrDefault();
-                if (wasOwnerChannel && _channels.IsEmpty) _lastConnection = DateTime.UtcNow;
+                if (wasOwnerChannel) _deadlines.Remove(connection);
                 if (DebugLog) Console.Error.WriteLine($"CHANNEL - wasOwner={wasOwnerChannel} channels={_channels.Count} owner={_owner}");
             }
-            foreach (var request in connection.Requests.Values) request.Cancel();
+            _directorySnapshots.ReleaseOwner(connection.ChannelId);
+            foreach (var request in connection.Requests.Values) { try { request.Cancel(); } catch (ObjectDisposedException) { } }
             client.Dispose();
+            AfterChannelClosed?.Invoke();
         }
     }
     private async Task ProcessAsync(Connection connection, Envelope request)
@@ -156,11 +218,21 @@ sealed class RemoteServer : IDisposable
         var stopwatch = DebugLog ? System.Diagnostics.Stopwatch.StartNew() : null;
         using var cancellation = new CancellationTokenSource();
         connection.Requests[request.Id] = cancellation;
-        var needsGate = request.Method is not ("Ping" or "SubmitInteraction" or "GetOperation");
+        var needsGate = request.Method is not ("Ping" or "SubmitInteraction" or "GetOperation" or "WaitOperation" or "ReleaseDirectory");
         var enteredGate = false;
+        var enteredOperationWait = false;
+        var shutdownAccepted = false;
         try
         {
             if (needsGate) { await connection.RequestsGate.WaitAsync(cancellation.Token); enteredGate = true; }
+            if (request.Method == "WaitOperation")
+            {
+                var channelCount = Interlocked.Increment(ref connection.OperationWaiters);
+                var globalCount = Interlocked.Increment(ref _operationWaiters);
+                enteredOperationWait = true;
+                if (channelCount > OperationWaitersPerChannel || globalCount > OperationWaitersGlobal)
+                    throw new IOException("Operation wait capacity reached; cancel an existing wait before retrying");
+            }
             JsonElement result;
             switch (request.Method)
             {
@@ -172,16 +244,28 @@ sealed class RemoteServer : IDisposable
                 case "GetBlame": result = Protocol.Json(await new RepositoryQueries(_repositories).BlameAsync(request.Data.Deserialize(RemoteJson.Default.QueryRequest)!, cancellation.Token), RemoteJson.Default.BlameData); break;
                 case "GetDiff": result = Protocol.Json(await new RepositoryQueries(_repositories).DiffAsync(request.Data.Deserialize(RemoteJson.Default.QueryRequest)!, cancellation.Token), RemoteJson.Default.DiffInfo); break;
                 case "Shutdown":
-                    if (_operations.Values.Any(x => x.State is "accepted" or "running" or "waitingInteraction")) throw new InvalidOperationException("Server has active operations; wait for them to finish before restarting");
+                    _operations.BeginShutdown();
+                    shutdownAccepted = true;
+                    foreach (var timer in _fetchTimers.Values) timer.Dispose();
+                    _fetchTimers.Clear();
                     result = Protocol.Json("closing", RemoteJson.Default.String);
-                    _ = Task.Run(async () => { await Task.Delay(500); _listener.Stop(); });
                     break;
-                case "OpenRepository": result = Protocol.Json(await _repositories.OpenAsync(request.Data.Deserialize(RemoteJson.Default.OpenRequest)!.Path), RemoteJson.Default.RepositoryInfo); break;
+                case "OpenRepository":
+                    var opened = await _repositories.OpenAsync(request.Data.Deserialize(RemoteJson.Default.OpenRequest)!.Path, connection.OwnerId);
+                    lock (_ownerLock)
+                    {
+                        if (_owner != connection.OwnerId)
+                        {
+                            _repositories.Close(opened.LeaseId, connection.OwnerId);
+                            throw new IOException("Repository open belongs to a replaced owner");
+                        }
+                    }
+                    result = Protocol.Json(opened, RemoteJson.Default.RepositoryInfo); break;
                 case "CloseRepository":
                     var closeId = request.Data.Deserialize(RemoteJson.Default.IdRequest)!.Id;
-                    var closeCommon = _repositories.Get(closeId).CommonDirectory;
-                    _repositories.Close(closeId);
-                    if (_repositories.FindByCommonDirectory(closeCommon) == null && _fetchTimers.TryRemove(closeCommon, out var closingTimer)) closingTimer.Dispose();
+                    // Protocol v2 IdRequest.Id identifies a lease, never the shared repository.
+                    var closed = _repositories.Close(closeId, connection.OwnerId);
+                    if (closed != null && _repositories.FindByCommonDirectory(closed.CommonDirectory) == null && _fetchTimers.TryRemove(closed.CommonDirectory, out var closingTimer)) closingTimer.Dispose();
                     result = Protocol.Json("closed", RemoteJson.Default.String); break;
                 case "ConfigureAutoFetch":
                     var schedule = request.Data.Deserialize(RemoteJson.Default.AutoFetchRequest)!;
@@ -207,8 +291,7 @@ sealed class RemoteServer : IDisposable
                                     var sshKey = key.ExitCode == 0 ? Encoding.UTF8.GetString(Convert.FromBase64String(key.OutputBase64)).Trim() : null;
                                     var id = "autofetch-" + Guid.NewGuid().ToString("N");
                                     var query = new GitRequest(current.Id, schedule.Prune ? ["fetch", "--prune", remote] : ["fetch", remote], false, id, Editor: "None", SSHKey: sshKey);
-                                    var operation = new Operation { Id = id, Fingerprint = "autofetch" };
-                                    _operations[Key(id)] = operation;
+                                    var operation = Register(connection.OwnerId, id, "autofetch", out var registered);
                                     await RunOperation(operation, query);
                                 }
                             }
@@ -226,7 +309,10 @@ sealed class RemoteServer : IDisposable
                     result = Protocol.Json(new EnvironmentInfo(Environment.OSVersion.ToString(), System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString(), Environment.UserName, Encoding.UTF8.GetString(Convert.FromBase64String(git.OutputBase64)).Trim(), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), capabilities.ToArray()), RemoteJson.Default.EnvironmentInfo); break;
                 case "ListDirectory":
                     var directory = request.Data.Deserialize(RemoteJson.Default.DirectoryRequest)!;
-                    result = Protocol.Json(new FileResult(Entries: Directory.EnumerateFileSystemEntries(Path.GetFullPath(directory.Path)).Order(StringComparer.Ordinal).Skip(Math.Max(0, directory.Offset)).Take(Math.Clamp(directory.Count, 1, 1000)).Select(RepositoryService.Entry).ToArray()), RemoteJson.Default.FileResult); break;
+                    result = Protocol.Json(await _directorySnapshots.ReadAsync(connection.ChannelId, directory, cancellation.Token), RemoteJson.Default.FileResult); break;
+                case "ReleaseDirectory":
+                    _directorySnapshots.Release(connection.ChannelId, request.Data.Deserialize(RemoteJson.Default.IdRequest)!.Id);
+                    result = Protocol.Json("released", RemoteJson.Default.String); break;
                 case "File":
                     var fileRequest = request.Data.Deserialize(RemoteJson.Default.FileRequest)!;
                     if (fileRequest.Action is "stat" or "exists" or "read" or "list" or "hash") result = Protocol.Json(await _repositories.FileAsync(fileRequest), RemoteJson.Default.FileResult);
@@ -234,13 +320,10 @@ sealed class RemoteServer : IDisposable
                     {
                         if (string.IsNullOrWhiteSpace(fileRequest.OperationId)) throw new ArgumentException("File writes require client-generated operation ID");
                         var fileFingerprint = "file:" + Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(fileRequest, RemoteJson.Default.FileRequest)));
-                        var fileFresh = new Operation { Id = fileRequest.OperationId, Fingerprint = fileFingerprint };
-                        if (_operations.Count >= 100000 && !_operations.ContainsKey(Key(fileRequest.OperationId))) throw new IOException("Operation history capacity reached; reconnect to a fresh server when idle");
-                        var fileOperation = _operations.GetOrAdd(Key(fileRequest.OperationId), fileFresh);
-                        if (fileOperation.Fingerprint != fileFingerprint) throw new InvalidOperationException("Operation ID reused with different parameters");
-                        if (ReferenceEquals(fileOperation, fileFresh)) _ = RunFile(fileOperation, fileRequest);
-                        while (fileOperation.State is "accepted" or "running") await Task.Delay(20, cancellation.Token);
-                        result = Protocol.Json(fileOperation.FileResult ?? throw new IOException(fileOperation.Error ?? "File operation outcome unknown"), RemoteJson.Default.FileResult);
+                        var fileOperation = Register(connection.OwnerId, fileRequest.OperationId, fileFingerprint, out var fileFresh);
+                        if (fileFresh) _ = RunFile(fileOperation, fileRequest);
+                        var fileInfo = await fileOperation.Completion.WaitAsync(cancellation.Token);
+                        result = Protocol.Json(fileInfo.FileResult ?? throw new IOException(fileInfo.Error ?? "File operation outcome unknown"), RemoteJson.Default.FileResult);
                     }
                     break;
                 case "ExecuteGit":
@@ -249,27 +332,28 @@ sealed class RemoteServer : IDisposable
                     else
                     {
                         if (string.IsNullOrWhiteSpace(gitRequest.OperationId)) throw new ArgumentException("Client-generated operation ID required");
-                        GitPolicy.Validate(gitRequest.Arguments, false);
+                        GitCommandPolicy.Validate(gitRequest.Arguments, false);
                         var fingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(gitRequest, RemoteJson.Default.GitRequest)));
-                        var fresh = new Operation { Id = gitRequest.OperationId, Fingerprint = fingerprint };
-                        if (_operations.Count >= 100000 && !_operations.ContainsKey(Key(gitRequest.OperationId))) throw new IOException("Operation history capacity reached; reconnect to a fresh server when idle");
-                        var operation = _operations.GetOrAdd(Key(gitRequest.OperationId), fresh);
-                        if (operation.Fingerprint != fingerprint) throw new InvalidOperationException("Operation ID reused with different parameters");
-                        if (ReferenceEquals(operation, fresh)) _ = RunOperation(operation, gitRequest);
+                        var operation = Register(connection.OwnerId, gitRequest.OperationId, fingerprint, out var fresh);
+                        if (fresh) _ = RunOperation(operation, gitRequest);
                         result = Protocol.Json(operation.Info(), RemoteJson.Default.OperationInfo);
                     }
                     break;
                 case "ExecuteCustomCommand":
                     var custom = request.Data.Deserialize(RemoteJson.Default.CustomCommandRequest)!;
                     var customFingerprint = "custom:" + Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(custom, RemoteJson.Default.CustomCommandRequest)));
-                    var customFresh = new Operation { Id = custom.OperationId, Fingerprint = customFingerprint };
-                    var customOperation = _operations.GetOrAdd(Key(custom.OperationId), customFresh);
-                    if (customOperation.Fingerprint != customFingerprint) throw new InvalidOperationException("Operation ID reused with different parameters");
-                    if (ReferenceEquals(customFresh, customOperation)) _ = RunCustom(customOperation, custom);
+                    var customOperation = Register(connection.OwnerId, custom.OperationId, customFingerprint, out var customFresh);
+                    if (customFresh) _ = RunCustom(customOperation, custom);
                     result = Protocol.Json(customOperation.Info(), RemoteJson.Default.OperationInfo); break;
                 case "GetOperation":
                     var id = request.Data.Deserialize(RemoteJson.Default.IdRequest)!.Id;
-                    result = Protocol.Json(_operations.TryGetValue(Key(id), out var found) ? found.Info() : new OperationInfo(id, "unknown"), RemoteJson.Default.OperationInfo); break;
+                    result = Protocol.Json(_operations.TryGetValue(connection.OwnerId + ":" + id, out var found) ? found.Info() : new OperationInfo(id, "unknown"), RemoteJson.Default.OperationInfo); break;
+                case "WaitOperation":
+                    var waitId = request.Data.Deserialize(RemoteJson.Default.IdRequest)!.Id;
+                    var waitResult = _operations.TryGetValue(connection.OwnerId + ":" + waitId, out var awaited)
+                        ? await awaited.Completion.WaitAsync(cancellation.Token)
+                        : new OperationInfo(waitId, "unknown");
+                    result = Protocol.Json(waitResult, RemoteJson.Default.OperationInfo); break;
                 case "CancelOperation":
                     // Writes are deliberately not force-killed. Cancellation is offered through Git abort operations.
                     throw new InvalidOperationException("Write cancellation requires an explicit Git abort operation");
@@ -279,81 +363,125 @@ sealed class RemoteServer : IDisposable
                     waiting.Completion.TrySetResult(reply); result = Protocol.Json("accepted", RemoteJson.Default.String); break;
                 default: throw new NotSupportedException("Unknown method: " + request.Method);
             }
+            if (BeforeReply != null) await BeforeReply(request.Method, cancellation.Token);
             if (DebugLog) Console.Error.WriteLine($"REQ {request.Method} id={request.Id} {stopwatch?.ElapsedMilliseconds}ms");
             if (DebugLog && request.Method is "GetStatus" or "GetRefs" or "GetHistory" or "GetCommit" or "OpenRepository" or "CloseRepository" or "File" or "ExecuteGit")
             {
                 Console.Error.WriteLine($"REQ {request.Method} id={request.Id} {stopwatch?.ElapsedMilliseconds}ms {Truncate(request.Data.GetRawText())}");
             }
-            await Reply(connection, request.Id, result);
+            await Reply(connection, request.Id, result, shutdownAccepted ? cancellation.Token : default);
+            if (shutdownAccepted) _listener.Stop(); // Result is flushed before stopping the accept loop.
         }
         catch (Exception ex)
         {
+            RequestFailed?.Invoke(request.Method, ex);
             if (DebugLog) Console.Error.WriteLine($"REQ {request.Method} id={request.Id} FAILED {stopwatch?.ElapsedMilliseconds}ms: {ex.Message} | {Truncate(request.Data.GetRawText())}");
-            try { await Protocol.WriteAsync(connection.Stream, new Envelope(request.Id, "Result", Protocol.Null, ex.Message), connection.WriteGate); } catch { }
+            if (shutdownAccepted)
+            {
+                // Accepted shutdown still proceeds if the reply cannot be sent.
+                // Closing the channel exposes an unknown acknowledgement outcome.
+                try { connection.Client.Close(); } finally { _listener.Stop(); }
+            }
+            else
+                try { await Protocol.WriteAsync(connection.Stream, new Envelope(request.Id, "Result", Protocol.Null, ex.Message), connection.WriteGate); } catch { }
         }
-        finally { connection.Requests.TryRemove(request.Id, out _); if (enteredGate) connection.RequestsGate.Release(); }
+        finally
+        {
+            connection.Requests.TryRemove(request.Id, out _);
+            if (enteredGate) connection.RequestsGate.Release();
+            if (enteredOperationWait) { Interlocked.Decrement(ref connection.OperationWaiters); Interlocked.Decrement(ref _operationWaiters); }
+        }
     }
     private async Task RunOperation(Operation operation, GitRequest request)
     {
-        operation.State = "running";
-        try { operation.Result = await _repositories.ExecuteAsync(request); operation.State = operation.Result.ExitCode == 0 ? "succeeded" : "failed"; }
-        catch (Exception ex) { operation.Error = ex.Message; operation.State = "failed"; }
+        await operation.ExecuteAsync(_operationTimeout, async token =>
+        {
+            var result = await _repositories.ExecuteAsync(request, token, operation.TerminationFailed);
+            return new(operation.Id, result.ExitCode == 0 ? "succeeded" : "failed", result);
+        });
         await SendEvent("OperationCompleted", Protocol.Json(operation.Info(), RemoteJson.Default.OperationInfo));
     }
     private async Task RunCustom(Operation operation, CustomCommandRequest request)
     {
-        operation.State = "running";
-        try
+        await operation.ExecuteAsync(_operationTimeout, async token =>
         {
-            operation.Result = await _repositories.ExecuteCustomAsync(request.RepositoryId, request.Command, operation.Id, line => _ = SendEvent("OperationProgress", Protocol.Json(new OperationProgress(operation.Id, line), RemoteJson.Default.OperationProgress)));
-            operation.State = operation.Result.ExitCode == 0 ? "succeeded" : "failed";
-        }
-        catch (Exception ex) { operation.Error = ex.Message; operation.State = "failed"; }
+            var result = await _repositories.ExecuteCustomAsync(request.RepositoryId, request.Command, operation.Id, line => _ = SendEvent("OperationProgress", Protocol.Json(new OperationProgress(operation.Id, line), RemoteJson.Default.OperationProgress)), token, operation.TerminationFailed);
+            return new(operation.Id, result.ExitCode == 0 ? "succeeded" : "failed", result);
+        });
         await SendEvent("OperationCompleted", Protocol.Json(operation.Info(), RemoteJson.Default.OperationInfo));
     }
     private async Task RunFile(Operation operation, FileRequest request)
     {
-        operation.State = "running";
-        try { operation.FileResult = await _repositories.FileAsync(request); operation.State = "succeeded"; }
-        catch (Exception ex) { operation.Error = ex.Message; operation.State = "failed"; }
+        await operation.ExecuteAsync(_operationTimeout, async token => new(operation.Id, "succeeded", FileResult: await _repositories.FileAsync(request, token)));
         await SendEvent("OperationCompleted", Protocol.Json(operation.Info(), RemoteJson.Default.OperationInfo));
     }
-    private async Task Reply(Connection connection, string id, JsonElement value)
+    private async Task Reply(Connection connection, string id, JsonElement value, CancellationToken cancellation = default)
     {
         var bytes = Encoding.UTF8.GetBytes(value.GetRawText());
-        if (bytes.Length < 1024 * 1024) { await Protocol.WriteAsync(connection.Stream, new Envelope(id, "Result", value), connection.WriteGate); return; }
+        if (bytes.Length < 1024 * 1024) { await Protocol.WriteAsync(connection.Stream, new Envelope(id, "Result", value), connection.WriteGate, cancellation); return; }
         // Chunked JSON responses interleave with heartbeats/interaction, bounded to 256 KiB per frame.
         for (var offset = 0; offset < bytes.Length; offset += 192 * 1024)
-            await Protocol.WriteAsync(connection.Stream, new Envelope(id, "Chunk", Protocol.Json(Convert.ToBase64String(bytes.AsSpan(offset, Math.Min(192 * 1024, bytes.Length - offset))), RemoteJson.Default.String)), connection.WriteGate);
-        await Protocol.WriteAsync(connection.Stream, new Envelope(id, "ChunkEnd", Protocol.Json("", RemoteJson.Default.String)), connection.WriteGate);
+            await Protocol.WriteAsync(connection.Stream, new Envelope(id, "Chunk", Protocol.Json(Convert.ToBase64String(bytes.AsSpan(offset, Math.Min(192 * 1024, bytes.Length - offset))), RemoteJson.Default.String)), connection.WriteGate, cancellation);
+        await Protocol.WriteAsync(connection.Stream, new Envelope(id, "ChunkEnd", Protocol.Json("", RemoteJson.Default.String)), connection.WriteGate, cancellation);
     }
     private void OnChanged(RepositoryEvent change) => _ = SendEvent("RepositoryChanged", Protocol.Json(change, RemoteJson.Default.RepositoryEvent), $"repo={change.RepositoryId} gen={change.Generation}");
-    private async Task SendEvent(string method, JsonElement value, string detail = "")
+    private async Task SendEvent(string method, JsonElement value, string detail = "", CancellationToken cancellation = default)
     {
         if (DebugLog) Console.Error.WriteLine($"EVT {method} {detail}");
         var destinations = method == "Interaction" ? (_connection == null ? [] : new[] { _connection }) : _channels.Keys.ToArray();
         foreach (var connection in destinations)
-        { try { await Protocol.WriteAsync(connection.Stream, new Envelope("", method, value, Event: true), connection.WriteGate); } catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException) { } }
+        {
+            using var writeDeadline = new CancellationTokenSource(_channelGrace);
+            using var admission = CancellationTokenSource.CreateLinkedTokenSource(cancellation, writeDeadline.Token);
+            try { await Protocol.WriteAsync(connection.Stream, new Envelope("", method, value, Event: true), connection.WriteGate, admission.Token, writeDeadline.Token); }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested && !writeDeadline.IsCancellationRequested)
+            {
+                // Canceled before frame admission: no bytes were emitted. An
+                // admitted frame finishes using the independent write budget.
+                return;
+            }
+            catch (OperationCanceledException) when (writeDeadline.IsCancellationRequested) { connection.Client.Close(); throw; }
+            catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException) { }
+        }
     }
     private async Task HandleHelperAsync(Connection connection, Envelope message)
     {
         var request = message.Data.GetProperty("request").Deserialize(RemoteJson.Default.InteractionRequest)!;
         if (!_operations.TryGetValue(Key(request.OperationId), out var operation) || !message.Data.TryGetProperty("token", out var token) || !SecureEquals(token.GetString() ?? "", operation.HelperToken)) throw new UnauthorizedAccessException("Invalid operation helper credentials");
         var pending = new TaskCompletionSource<InteractionReply>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!operation.EnterInteraction()) throw new InvalidOperationException("Operation no longer accepts interaction");
         _interactions[request.Id] = new PendingInteraction(request, pending);
-        operation.State = "waitingInteraction";
         try
         {
-            await SendEvent("Interaction", Protocol.Json(request, RemoteJson.Default.InteractionRequest));
-            var response = await pending.Task.WaitAsync(_grace);
+            await SendEvent("Interaction", Protocol.Json(request, RemoteJson.Default.InteractionRequest), cancellation: operation.ExecutionToken);
+            var response = await pending.Task.WaitAsync(_grace, operation.ExecutionToken);
             await Reply(connection, message.Id, Protocol.Json(response, RemoteJson.Default.InteractionReply));
         }
         catch (TimeoutException) { await Reply(connection, message.Id, Protocol.Json(new InteractionReply(request.Id, false, ""), RemoteJson.Default.InteractionReply)); }
-        finally { _interactions.TryRemove(request.Id, out _); operation.State = "running"; }
+        finally { _interactions.TryRemove(request.Id, out _); operation.ExitInteraction(); }
     }
     private static bool SecureEquals(string left, string right) => CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(left), Encoding.UTF8.GetBytes(right));
     private string Key(string operationId) => _owner + ":" + operationId;
-    public void Dispose() { _listener.Stop(); foreach (var timer in _fetchTimers.Values) timer.Dispose(); _repositories.Dispose(); }
+    private Operation Register(string owner, string id, string fingerprint, out bool fresh)
+    {
+        lock (_ownerLock)
+        {
+            if (_owner != owner) throw new IOException("Operation belongs to a replaced owner");
+            var operation = _operations.Register(owner + ":" + id, id, fingerprint, out fresh);
+            if (fresh)
+            {
+                _deadlines.OperationChanged();
+                _ = NotifyOperationCompleted(operation);
+            }
+            return operation;
+        }
+    }
+    private async Task NotifyOperationCompleted(Operation operation)
+    {
+        await operation.Completion.ConfigureAwait(false);
+        _deadlines.OperationChanged();
+    }
+    public void Dispose() { _deadlines.Dispose(); _listener.Stop(); foreach (var timer in _fetchTimers.Values) timer.Dispose(); _directorySnapshots.Dispose(); _repositories.Dispose(); }
 }
 
 static class Helpers

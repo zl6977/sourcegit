@@ -59,6 +59,7 @@ namespace SourceGit.Views
         }
 
         protected override Type StyleKeyOverride => typeof(TextBlock);
+        internal bool IsRefreshing => _refreshTimer?.IsEnabled == true;
 
         protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
         {
@@ -74,12 +75,12 @@ namespace SourceGit.Views
 
                 if (ShowAsDateTime)
                 {
-                    _refreshTimer?.Stop();
+                    UpdateTimer();
                     HorizontalAlignment = HorizontalAlignment.Left;
                 }
                 else
                 {
-                    _refreshTimer?.Start();
+                    UpdateTimer();
                     HorizontalAlignment = HorizontalAlignment.Center;
                 }
             }
@@ -88,33 +89,48 @@ namespace SourceGit.Views
                 if (ShowAsDateTime)
                     SetCurrentValue(TextProperty, GetDisplayText());
             }
+            else if (change.Property == IsVisibleProperty) UpdateTimer();
         }
 
         protected override void OnLoaded(RoutedEventArgs e)
         {
             base.OnLoaded(e);
-
-            _refreshTimer = new DispatcherTimer();
-            _refreshTimer.Interval = TimeSpan.FromSeconds(10);
-            _refreshTimer.Tag = this;
-            _refreshTimer.Tick += static (o, _) =>
+            _loaded = true;
+            _visibility?.Dispose();
+            _visibility = new TimeDisplayVisibility(this, UpdateTimer);
+            if (_refreshTimer == null)
             {
-                if (o is DispatcherTimer { Tag: CommitTimeTextBlock textBlock })
+                _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+                _refreshTimer.Tick += static (o, _) =>
                 {
-                    var text = textBlock.GetDisplayText();
-                    if (!text.Equals(textBlock.Text, StringComparison.Ordinal))
-                        textBlock.Text = text;
-                }
-            };
-            _refreshTimer.IsEnabled = !ShowAsDateTime;
+                    if (o is DispatcherTimer { Tag: CommitTimeTextBlock textBlock } && textBlock._loaded && textBlock._visibility?.IsVisible == true)
+                    {
+                        var text = textBlock.GetDisplayText();
+                        if (!text.Equals(textBlock.Text, StringComparison.Ordinal)) textBlock.Text = text;
+                    }
+                };
+            }
+            _refreshTimer.Tag = this;
+            SetCurrentValue(TextProperty, GetDisplayText());
+            UpdateTimer();
         }
 
         protected override void OnUnloaded(RoutedEventArgs e)
         {
-            _refreshTimer.Tag = null;
-            _refreshTimer.IsEnabled = false;
+            _loaded = false;
+            _visibility?.Dispose();
+            _visibility = null;
+            if (_refreshTimer != null) { _refreshTimer.Tag = null; _refreshTimer.Stop(); }
 
             base.OnUnloaded(e);
+        }
+
+        private void UpdateTimer()
+        {
+            if (_refreshTimer == null) return;
+            var enabled = _loaded && _visibility?.IsVisible == true && !ShowAsDateTime;
+            if (enabled && !_refreshTimer.IsEnabled) SetCurrentValue(TextProperty, GetDisplayText());
+            _refreshTimer.IsEnabled = enabled;
         }
 
         protected override void OnDataContextChanged(EventArgs e)
@@ -176,5 +192,7 @@ namespace SourceGit.Views
         private int _dateTimeFormat = 0;
         private ulong _timestamp = 0;
         private DispatcherTimer _refreshTimer = null;
+        private bool _loaded;
+        private TimeDisplayVisibility _visibility;
     }
 }

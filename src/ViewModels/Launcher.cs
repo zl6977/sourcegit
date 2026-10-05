@@ -368,11 +368,12 @@ namespace SourceGit.ViewModels
             Models.Notification connecting = null;
             try
             {
-                using var cancellation = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(90));
+                using var cancellation = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(90), RemoteOpenClock);
                 SourceGit.Remote.RemoteWorkspace workspace = null;
                 Exception error = null;
                 for (var attempt = 0; attempt < 3 && workspace == null; attempt++)
                 {
+                    cancellation.Token.ThrowIfCancellationRequested();
                     try
                     {
                         if (attempt == 0)
@@ -384,12 +385,13 @@ namespace SourceGit.ViewModels
                             }
                             if (name != null) connecting = Models.Notification.Send(node.Id, "Connecting to " + name + "…", false);
                         }
-                        workspace = await SourceGit.Remote.RemoteConnections.RestoreAsync(node.Id, cancellation.Token);
+                        workspace = await (RestoreRemoteWorkspace ?? SourceGit.Remote.RemoteConnections.RestoreAsync)(node.Id, cancellation.Token);
                     }
                     catch (Exception ex) when (attempt < 2 && ex is System.IO.IOException or System.Net.Sockets.SocketException or System.IO.EndOfStreamException)
                     {
                         error = ex;
-                        await System.Threading.Tasks.Task.Delay(2000, System.Threading.CancellationToken.None);
+                        System.Diagnostics.Trace.WriteLine($"REMOTE-OPEN {RemoteOpenClock.GetUtcNow():O} retry reason={ex.GetType().Name} attempt={attempt + 1}/3 nextIn=2s");
+                        await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(2), RemoteOpenClock, cancellation.Token);
                     }
                 }
                 if (workspace == null) throw error ?? new System.IO.IOException("Remote connection failed");
@@ -633,6 +635,8 @@ namespace SourceGit.ViewModels
         private bool _ignoreIndexChange;
         private readonly System.Collections.Generic.HashSet<string> _remoteOpening = new();
         private readonly object _remoteOpeningGate = new();
+        internal TimeProvider RemoteOpenClock { get; set; } = TimeProvider.System;
+        internal Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task<SourceGit.Remote.RemoteWorkspace>> RestoreRemoteWorkspace { get; set; }
         private string _title = string.Empty;
         private ICommandPalette _commandPalette;
         private Models.Version _newVersion = null;

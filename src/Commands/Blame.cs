@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -35,13 +35,14 @@ namespace SourceGit.Commands
                 try
                 {
                     var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(WorkingDirectory);
-                    var handle = await workspace.OpenTransientAsync(WorkingDirectory, CancellationToken).ConfigureAwait(false);
+                    var client = workspace.Client;
+                    var handle = await client.OpenRepositoryAsync(workspace.ExecutionPath(WorkingDirectory), CancellationToken).ConfigureAwait(false);
                     try
                     {
-                        var data = await workspace.Client.GetBlameAsync(handle.Id, _revision, _file, _ignoreWhitespace, CancellationToken).ConfigureAwait(false);
+                        var data = await client.GetBlameAsync(handle.Id, _revision, _file, _ignoreWhitespace, CancellationToken).ConfigureAwait(false);
                         return Map(data);
                     }
-                    finally { await workspace.ReleaseTransientAsync(handle.Id).ConfigureAwait(false); }
+                    finally { await workspace.ReleaseTransientAsync(handle, client).ConfigureAwait(false); }
                 }
                 catch { return _result; }
             }

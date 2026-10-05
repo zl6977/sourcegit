@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -22,19 +22,22 @@ namespace SourceGit.Commands
                 try
                 {
                     var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(WorkingDirectory);
-                    var handle = await workspace.OpenTransientAsync(WorkingDirectory, CancellationToken).ConfigureAwait(false);
+                    var client = workspace.Client;
+                    var handle = await client.OpenRepositoryAsync(workspace.ExecutionPath(WorkingDirectory), CancellationToken).ConfigureAwait(false);
                     try
                     {
-                        var snapshot = await workspace.Client.GetStatusAsync(handle.Id).ConfigureAwait(false);
+                        var snapshot = await client.GetStatusAsync(handle.Id, cancellation: CancellationToken).ConfigureAwait(false);
                         var remote = new Models.RepositoryStatus();
                         remote.CurrentBranch = snapshot.Branch ?? (string.IsNullOrEmpty(snapshot.HeadOid) || snapshot.HeadOid.Length <= 10 ? "-" : $"({snapshot.HeadOid[..10]})");
                         remote.LocalChanges = snapshot.Changes.Length;
                         remote.Ahead = snapshot.Ahead;
                         remote.Behind = snapshot.Behind;
                         remote.Generation = snapshot.Generation;
+                        remote.InstanceId = client.InstanceId;
+                        remote.RepositoryId = handle.Id;
                         return remote;
                     }
-                    finally { await workspace.ReleaseTransientAsync(handle.Id).ConfigureAwait(false); }
+                    finally { await workspace.ReleaseTransientAsync(handle, client).ConfigureAwait(false); }
                 }
                 catch { return null; }
             }

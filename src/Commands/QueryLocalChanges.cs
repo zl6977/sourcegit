@@ -32,18 +32,21 @@ namespace SourceGit.Commands
             Args = builder.ToString();
         }
         public long Generation { get; private set; }
+        public SourceGit.Remote.RepositorySnapshot Snapshot { get; private set; }
 
         public async Task<List<Models.Change>> GetResultAsync()
         {
+            Snapshot = null;
             if (SourceGit.Remote.RepositoryPath.IsRemote(WorkingDirectory))
             {
                 try
                 {
                     var workspace = SourceGit.Remote.RemoteWorkspace.ForPath(WorkingDirectory);
-                    var handle = await workspace.OpenTransientAsync(WorkingDirectory, CancellationToken).ConfigureAwait(false);
+                    var client = workspace.Client;
+                    var handle = await client.OpenRepositoryAsync(workspace.ExecutionPath(WorkingDirectory), CancellationToken).ConfigureAwait(false);
                     try
                     {
-                        var snapshot = await workspace.Client.GetStatusAsync(handle.Id, _noOptionalLocks, CancellationToken).ConfigureAwait(false);
+                        var snapshot = await client.GetStatusAsync(handle.Id, _noOptionalLocks, CancellationToken).ConfigureAwait(false);
                         Generation = snapshot.Generation;
                         var remote = new List<Models.Change>();
                         foreach (var info in snapshot.Changes)
@@ -51,9 +54,10 @@ namespace SourceGit.Commands
                             if (!_includeUntracked && info.WorkingTreeStatus == "?") continue;
                             remote.Add(MapChange(info));
                         }
+                        Snapshot = new(client.InstanceId, handle.Id, snapshot.Generation);
                         return remote;
                     }
-                    finally { await workspace.ReleaseTransientAsync(handle.Id).ConfigureAwait(false); }
+                    finally { await workspace.ReleaseTransientAsync(handle, client).ConfigureAwait(false); }
                 }
                 catch { return new List<Models.Change>(); }
             }

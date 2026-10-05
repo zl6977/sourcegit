@@ -6,7 +6,7 @@ namespace SourceGit.Contracts;
 
 public static class Protocol
 {
-    public const int Version = 1;
+    public const int Version = 3;
     public const string Build = BuildIdentity.Value;
     public const int MaxFrame = 4 * 1024 * 1024;
     public static JsonElement Null { get; } = JsonDocument.Parse("null").RootElement.Clone();
@@ -22,14 +22,23 @@ public static class Protocol
         await stream.ReadExactlyAsync(bytes, cancellation).ConfigureAwait(false);
         return JsonSerializer.Deserialize(bytes, RemoteJson.Default.Envelope) ?? throw new InvalidDataException("Invalid envelope");
     }
-    public static async Task WriteAsync(Stream stream, Envelope message, SemaphoreSlim gate, CancellationToken cancellation = default)
+    public static async Task WriteAsync(Stream stream, Envelope message, SemaphoreSlim gate, CancellationToken cancellation = default, CancellationToken? frameCancellation = null)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(message, RemoteJson.Default.Envelope);
         if (bytes.Length > MaxFrame) throw new InvalidDataException("Frame exceeds limit");
         var header = new byte[4];
         BinaryPrimitives.WriteInt32BigEndian(header, bytes.Length);
         await gate.WaitAsync(cancellation).ConfigureAwait(false);
-        try { await stream.WriteAsync(header, cancellation).ConfigureAwait(false); await stream.WriteAsync(bytes, cancellation).ConfigureAwait(false); await stream.FlushAsync(cancellation).ConfigureAwait(false); }
+        try
+        {
+            cancellation.ThrowIfCancellationRequested();
+            // Once a header is emitted, canceling the operation cannot leave a
+            // partial frame on an otherwise healthy shared connection.
+            var writeToken = frameCancellation ?? cancellation;
+            await stream.WriteAsync(header, writeToken).ConfigureAwait(false);
+            await stream.WriteAsync(bytes, writeToken).ConfigureAwait(false);
+            await stream.FlushAsync(writeToken).ConfigureAwait(false);
+        }
         finally { gate.Release(); }
     }
     public static JsonElement Json<T>(T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info) => JsonSerializer.SerializeToElement(value, info);
@@ -38,12 +47,12 @@ public sealed record Envelope(string Id, string Method, JsonElement Data, string
 public sealed record HandshakeRequest(string Token, string OwnerId, string RecoveryToken, int Version = Protocol.Version, string Build = Protocol.Build);
 public sealed record HandshakeResult(string InstanceId, int Version, string Build, string[] Capabilities);
 public sealed record OpenRequest(string Path);
-public sealed record RepositoryInfo(string Id, string WorktreePath, string GitDirectory, string CommonDirectory, bool Bare, long Generation);
+public sealed record RepositoryInfo(string Id, string WorktreePath, string GitDirectory, string CommonDirectory, bool Bare, long Generation, string LeaseId = "");
 public sealed record GitRequest(string RepositoryId, string[] Arguments, bool ReadOnly = true, string? OperationId = null, string? InputBase64 = null, string? WorkingDirectory = null, string? Editor = null, string? SSHKey = null, string[]? ConfigOverrides = null, bool StreamOutput = false, bool NoOptionalLocks = false);
 public sealed record GitResult(int ExitCode, string OutputBase64, string Error, string? OperationId = null, long Generation = 0);
 public sealed record FileRequest(string RepositoryId, string Action, string Path, string? Destination = null, string? ContentBase64 = null, long Offset = 0, int Count = 1024 * 1024, string? ExpectedHash = null, bool Overwrite = false, bool Truncate = false, bool CreateNew = false, string? OperationId = null);
 public sealed record FileEntry(string Name, string Path, bool Directory, long Length, string? Hash = null, long ModifiedUtcTicks = 0);
-public sealed record FileResult(string? ContentBase64 = null, FileEntry[]? Entries = null, long Length = 0, string? Hash = null, bool Exists = false, bool Directory = false, DateTime LastWriteTimeUtc = default);
+public sealed record FileResult(string? ContentBase64 = null, FileEntry[]? Entries = null, long Length = 0, string? Hash = null, bool Exists = false, bool Directory = false, DateTime LastWriteTimeUtc = default, string? DirectoryCursor = null, int NextOffset = 0);
 public sealed record IdRequest(string Id);
 public sealed record OperationInfo(string Id, string State, GitResult? Result = null, string? Error = null, FileResult? FileResult = null);
 public sealed record OperationProgress(string OperationId, string Text);
@@ -54,7 +63,7 @@ public sealed record InteractionRequest(string Id, string OperationId, string Ki
 public sealed record InteractionReply(string Id, bool Accepted, string Value);
 public sealed record ServerRecord(int Port, string Token, string InstanceId, int ProcessId, string Build = Protocol.Build);
 public sealed record EnvironmentInfo(string OS, string Architecture, string User, string GitVersion, string Home, string[] Capabilities);
-public sealed record DirectoryRequest(string Path, int Offset = 0, int Count = 200);
+public sealed record DirectoryRequest(string Path, int Offset = 0, int Count = 200, string? Cursor = null);
 public sealed record AutoFetchRequest(string RepositoryId, int IntervalMinutes, bool Prune = true);
 public sealed record QueryRequest(string RepositoryId, string? Revision = null, string? Path = null, int Offset = 0, int Count = 100, bool IgnoreWhitespace = false, bool NoOptionalLocks = false);
 public sealed record ChangeInfo(string Path, string? OriginalPath, string IndexStatus, string WorkingTreeStatus, bool Conflict);

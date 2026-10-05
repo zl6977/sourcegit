@@ -48,6 +48,5 @@ src/Properties/launchSettings.json
 
 # Remote build outputs and test fixtures (instance records contain connection credentials).
 artifacts/
-build/remote/
-build/test-remote*/
 .remote-io-inventory.txt
+build/

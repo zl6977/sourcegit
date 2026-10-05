@@ -16,7 +16,13 @@ namespace SourceGit.ViewModels
         public object Data
         {
             get => _data;
-            set => SetProperty(ref _data, value);
+            set
+            {
+                if (ReferenceEquals(_data, value)) return;
+                if (_data is Repository old) old.BindAutoFetchPage(null);
+                SetProperty(ref _data, value);
+                if (value is Repository repo) repo.BindAutoFetchPage(this);
+            }
         }
 
         public Models.DirtyState DirtyState
@@ -28,7 +34,20 @@ namespace SourceGit.ViewModels
         public Popup Popup
         {
             get => _popup;
-            set => SetProperty(ref _popup, value);
+            set
+            {
+                if (ReferenceEquals(_popup, value)) return;
+                if (_popup != null) _popup.PropertyChanged -= OnPopupChanged;
+                SetProperty(ref _popup, value);
+                if (_popup != null) _popup.PropertyChanged += OnPopupChanged;
+                AutoFetchAvailabilityChanged?.Invoke();
+            }
+        }
+
+        internal event Action AutoFetchAvailabilityChanged;
+        private void OnPopupChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(Popup.InProgress)) AutoFetchAvailabilityChanged?.Invoke();
         }
 
         public AvaloniaList<Models.Notification> Notifications
@@ -50,6 +69,7 @@ namespace SourceGit.ViewModels
         {
             _node = node;
             _data = repo;
+            repo?.BindAutoFetchPage(this);
         }
 
         public void ClearNotifications()

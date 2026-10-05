@@ -7,6 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../modules/SourceGit.Contracts/SourceGit.Contracts.csproj" />
+    <ProjectReference Include="../../modules/SourceGit.Core/SourceGit.Core.csproj" />
     <ProjectReference Include="../../modules/SourceGit.RemoteClient/SourceGit.RemoteClient.csproj" />
+    <ProjectReference Include="../../modules/SourceGit.Server/SourceGit.Server.csproj" />
   </ItemGroup>
 </Project>

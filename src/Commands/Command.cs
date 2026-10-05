@@ -35,6 +35,8 @@ namespace SourceGit.Commands
 
         // Only used in `ExecAsync` mode.
         public CancellationToken CancellationToken { get; set; } = CancellationToken.None;
+        // Selected local callers keep ownership until canceled process/output waits finish.
+        internal bool ReapOnCancellation { get; set; }
         public bool RaiseError { get; set; } = true;
         public Models.ICommandLog Log { get; set; } = null;
 
@@ -53,20 +55,8 @@ namespace SourceGit.Commands
             var capturedLock = new object();
             try
             {
+                CancellationToken.ThrowIfCancellationRequested();
                 proc.Start();
-
-                // Not safe, please only use `CancellationToken` in readonly commands.
-                if (CancellationToken.CanBeCanceled)
-                {
-                    CancellationToken.Register(() =>
-                    {
-                        lock (capturedLock)
-                        {
-                            if (captured is { Process: { HasExited: false } })
-                                Native.OS.TerminateProcess(captured.Process);
-                        }
-                    });
-                }
             }
             catch (Exception e)
             {
@@ -77,6 +67,17 @@ namespace SourceGit.Commands
                 return false;
             }
 
+            using var cancellationRegistration = CancellationToken.Register(() =>
+            {
+                lock (capturedLock)
+                {
+                    try
+                    {
+                        if (captured is { Process: { HasExited: false } }) Native.OS.TerminateProcess(captured.Process);
+                    }
+                    catch (Exception error) { HandleOutput("Git cancellation failed: " + error.Message, errs); }
+                }
+            });
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
 
@@ -87,6 +88,8 @@ namespace SourceGit.Commands
             catch (Exception e)
             {
                 HandleOutput(e.Message, errs);
+                if (ReapOnCancellation && CancellationToken.IsCancellationRequested)
+                    await proc.WaitForExitAsync().ConfigureAwait(false);
             }
 
             lock (capturedLock)
@@ -108,7 +111,7 @@ namespace SourceGit.Commands
                 return false;
             }
 
-            return true;
+            return !ReapOnCancellation || !CancellationToken.IsCancellationRequested;
         }
 
         protected Result ReadToEnd()

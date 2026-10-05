@@ -513,6 +513,7 @@ namespace SourceGit
 
             desktop.Exit += (_, _) =>
             {
+                Models.AvatarManager.Instance.StopAsync().GetAwaiter().GetResult();
                 _ipcChannel?.Dispose();
                 _ipcChannel = null;
             };

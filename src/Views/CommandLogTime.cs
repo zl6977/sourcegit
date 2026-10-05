@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Threading;
+using System.ComponentModel;
 
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -10,47 +10,81 @@ namespace SourceGit.Views
     public class CommandLogTime : TextBlock
     {
         protected override Type StyleKeyOverride => typeof(TextBlock);
+        internal bool IsRefreshing => _refreshTimer?.IsEnabled == true;
+
+        protected override void OnLoaded(RoutedEventArgs e)
+        {
+            base.OnLoaded(e);
+            _loaded = true;
+            _visibility?.Dispose();
+            _visibility = new TimeDisplayVisibility(this, UpdateTimer);
+            BindLog(DataContext as ViewModels.CommandLog);
+        }
 
         protected override void OnUnloaded(RoutedEventArgs e)
         {
             base.OnUnloaded(e);
-            StopTimer();
+            _loaded = false;
+            _visibility?.Dispose();
+            _visibility = null;
+            BindLog(null);
         }
 
         protected override void OnDataContextChanged(EventArgs e)
         {
             base.OnDataContextChanged(e);
 
-            StopTimer();
-
-            if (DataContext is ViewModels.CommandLog log)
-                SetupCommandLog(log);
-            else
-                Text = string.Empty;
+            BindLog(DataContext as ViewModels.CommandLog);
         }
 
-        private void SetupCommandLog(ViewModels.CommandLog log)
+        protected override void OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs change)
         {
-            Text = GetDisplayText(log);
-            if (log.IsComplete)
-                return;
+            base.OnPropertyChanged(change);
+            if (change.Property == IsVisibleProperty) UpdateTimer();
+        }
 
-            _refreshTimer = new Timer(_ =>
+        private void BindLog(ViewModels.CommandLog log)
+        {
+            StopTimer();
+            if (_log != null) _log.PropertyChanged -= OnLogChanged;
+            _log = log;
+            Text = log == null ? string.Empty : GetDisplayText(log);
+            if (_loaded && log != null) log.PropertyChanged += OnLogChanged;
+            UpdateTimer();
+        }
+
+        private void OnLogChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.CommandLog.IsComplete) || sender != _log || !_loaded) return;
+            Text = GetDisplayText(_log);
+            UpdateTimer();
+        }
+
+        private void UpdateTimer()
+        {
+            if (!_loaded || _visibility?.IsVisible != true || _log == null || _log.IsComplete)
             {
-                Dispatcher.UIThread.Invoke(() =>
+                StopTimer();
+                return;
+            }
+            if (_refreshTimer != null) return;
+            Text = GetDisplayText(_log);
+            _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _refreshTimer.Tick += (_, _) =>
+            {
+                if (_loaded && _visibility?.IsVisible == true && _log != null)
                 {
-                    Text = GetDisplayText(log);
-                    if (log.IsComplete)
-                        StopTimer();
-                });
-            }, null, 0, 100);
+                    Text = GetDisplayText(_log);
+                }
+            };
+            _refreshTimer.Start();
         }
 
         private void StopTimer()
         {
             if (_refreshTimer is not null)
             {
-                _refreshTimer.Dispose();
+                _refreshTimer.Stop();
                 _refreshTimer = null;
             }
         }
@@ -69,6 +103,9 @@ namespace SourceGit.Views
             return $"{duration.TotalMilliseconds:G3} ms";
         }
 
-        private Timer _refreshTimer = null;
+        private DispatcherTimer _refreshTimer = null;
+        private ViewModels.CommandLog _log;
+        private bool _loaded;
+        private TimeDisplayVisibility _visibility;
     }
 }

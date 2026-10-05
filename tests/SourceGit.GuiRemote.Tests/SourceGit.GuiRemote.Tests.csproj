@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="11.3.22" />
+    <Compile Include="../SourceGit.Remote.Tests/ManualTimeProvider.cs" Link="ManualTimeProvider.cs" />
     <ProjectReference Include="../../src/SourceGit.csproj" />
   </ItemGroup>
 </Project>

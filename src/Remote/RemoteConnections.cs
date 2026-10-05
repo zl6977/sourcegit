@@ -174,6 +174,7 @@ namespace SourceGit.Remote
         public static async Task DisconnectAllAsync()
         {
             foreach (var manager in Managers.Values) await manager.DisposeAsync().ConfigureAwait(false);
+            foreach (var workspace in Workspaces.Values) workspace.Unregister();
             Managers.Clear(); Workspaces.Clear();
         }
     }

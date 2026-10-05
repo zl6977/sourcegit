@@ -4,11 +4,239 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using SourceGit.Contracts;
+using SourceGit.Core;
 using SourceGit.RemoteClient;
 
 // Dependency-free integration runner. Every repository is freshly created under --root.
 // --server starts a local server DLL (root defaults to a local artifacts directory); --record uses an already running WSL/SSH server, where the root defaults to a directory under the server's home directory, since the client and server filesystems differ.
 var results = new List<(string Name, string Status, string Detail)>();
+if (args.Contains("--review-followup-checks"))
+{
+    await ReviewFollowupChecks.RunAsync();
+    return;
+}
+if (args.Contains("--linux-group-pressure-checks"))
+{
+    await LinuxGroupPressureChecks.RunAsync(Option("--native-fixture")!);
+    return;
+}
+if (args.Contains("--repository-debounce-checks"))
+{
+    RepositoryDebounceChecks.Run();
+    await RepositoryDebounceChecks.ConcurrentAsync();
+    await RepositoryDebounceChecks.RepositoryAsync();
+    return;
+}
+if (args.Contains("--manager-persistent-write-checks"))
+{
+    await ManagerPersistentWriteChecks.RunAsync(Path.GetFullPath(Option("--server")!));
+    return;
+}
+if (args.Contains("--recovery-deadline-checks"))
+{
+    await RecoveryDeadlineChecks.RunAsync(Path.GetFullPath(Option("--server")!));
+    return;
+}
+if (args.Contains("--manual-publication-checks"))
+{
+    await ManualPublicationChecks.RunAsync();
+    return;
+}
+if (Option("--local-intent-owner") is { } intentOwner)
+{
+    await LocalStartIntentChecks.OwnerAsync(intentOwner, Option("--intent-stage")!);
+    return;
+}
+if (args.Contains("--local-start-intent-checks"))
+{
+    await LocalStartIntentChecks.RunAsync();
+    return;
+}
+if (Environment.GetEnvironmentVariable("SOURCEGIT_TEST_START_PIPE") is { } startupPipe)
+{
+    await LocalStartHandoffChecks.ChildAsync(Option("--record")!, startupPipe);
+    return;
+}
+if (args.Contains("--local-start-handoff-checks"))
+{
+    await LocalStartHandoffChecks.RunAsync();
+    return;
+}
+if (Option("--windows-decision-lock-child") is { } decisionLockPath)
+{
+    await WindowsDecisionLockChecks.ChildAsync(decisionLockPath, args.Contains("legacy"));
+    return;
+}
+if (args.Contains("--windows-decision-lock-checks"))
+{
+    await WindowsDecisionLockChecks.RunAsync();
+    return;
+}
+if (Option("--ssh-lifecycle-checks") is { } sshConfig)
+{
+    await SshLifecycleChecks.RunAsync(Path.GetFullPath(sshConfig), Path.GetFullPath(Option("--package")!), Option("--fixture-home")!, Option("--fixture-user")!, args.Contains("--cleanup-only"));
+    return;
+}
+if (Option("--bootstrap-endpoint-parent") is { } endpointParentRecord)
+{
+    await BootstrapEndpointChecks.BootstrapChildAsync(endpointParentRecord);
+    return;
+}
+if (args.Contains("--bootstrap-fault-child"))
+{
+    await BootstrapFaultChecks.ChildAsync(Option("--record")!, Option("--ready-socket")!, Option("--ready-nonce")!, Option("--fault-mode")!, Option("--hold-socket")!);
+    return;
+}
+if (args.Contains("--bootstrap-fault-checks"))
+{
+    await BootstrapFaultChecks.RunAsync();
+    return;
+}
+if (Option("--bootstrap-endpoint-child") is { } endpointRecord)
+{
+    await BootstrapEndpointChecks.ChildAsync(endpointRecord);
+    return;
+}
+if (args.Contains("--bootstrap-endpoint-checks"))
+{
+    await BootstrapEndpointChecks.RunAsync();
+    return;
+}
+if (args.Contains("--bootstrap-endpoint-owner-checks"))
+{
+    await BootstrapEndpointChecks.ForeignOwnerAsync();
+    return;
+}
+if (Option("--linux-group-child") is { } linuxMode)
+{
+    await LinuxGroupChecks.ChildAsync(linuxMode, Option("--endpoint")!, Option("--detail") ?? "");
+    return;
+}
+if (args.Contains("--linux-group-checks"))
+{
+    await LinuxGroupChecks.RunAsync();
+    return;
+}
+if (Option("--job-child") is { } jobMode)
+{
+    await WindowsJobChecks.ChildAsync(jobMode, Option("--release")!, Option("--detail") ?? "", Option("--spawn"));
+    return;
+}
+if (args.Contains("--windows-job-checks"))
+{
+    await WindowsJobChecks.RunAsync();
+    return;
+}
+if (args.Contains("--bootstrap-ready-checks"))
+{
+    await BootstrapReadyChecks.RunAsync(Path.GetFullPath(Option("--bootstrap-server")!));
+    return;
+}
+if (args.Contains("--bootstrap-primitive-checks"))
+{
+    await BootstrapPrimitiveChecks.RunAsync();
+    return;
+}
+if (args.Contains("--shutdown-reply-checks"))
+{
+    await ServerShutdownChecks.RunAsync();
+    return;
+}
+if (args.Contains("--server-deadline-checks"))
+{
+    ServerDeadlineChecks.Run();
+    return;
+}
+if (args.Contains("--server-deadline-real-checks"))
+{
+    await ServerDeadlineChecks.RealAsync(Path.GetFullPath(Option("--server")!));
+    return;
+}
+if (Environment.GetEnvironmentVariable("SOURCEGIT_TEST_READY_MODE") is { } readyMode)
+{
+    await LocalReadyChecks.ChildAsync(Option("--record")!, readyMode);
+    return;
+}
+if (args.Contains("--local-ready-checks"))
+{
+    await LocalReadyChecks.RunAsync();
+    return;
+}
+if (args.Contains("--probe-contract-checks"))
+{
+    await ProbeContractChecks.RunAsync();
+    return;
+}
+if (args.Contains("--operation-wait-checks"))
+{
+    await OperationWaitChecks.RunAsync(Path.GetFullPath(Option("--server")!));
+    return;
+}
+if (args.Contains("--polling-metrics"))
+{
+    await PollingMetrics.RunAsync(Path.GetFullPath(Option("--server")!));
+    return;
+}
+if (args.Contains("--connection-lifecycle-checks"))
+{
+    await ConnectionLifecycleChecks.RunAsync(Path.GetFullPath(Option("--server")!));
+    return;
+}
+if (args.Contains("--directory-snapshot-checks"))
+{
+    await DirectorySnapshotChecks.RunAsync();
+    return;
+}
+if (args.Contains("--execution-child"))
+{
+    await ExecutionDeadlineChecks.ChildAsync(Option("--mode")!);
+    return;
+}
+if (args.Contains("--execution-checks"))
+{
+    await ExecutionDeadlineChecks.RunAsync();
+    return;
+}
+if (args.Contains("--execution-server-checks"))
+{
+    await ExecutionDeadlineChecks.ServerAsync(Path.GetFullPath(Option("--server")!));
+    return;
+}
+if (Environment.GetEnvironmentVariable("SOURCEGIT_TEST_STALL_STARTUP") == "1")
+{
+    await Task.Delay(TimeSpan.FromSeconds(30));
+    return;
+}
+if (args.Contains("--local-discover-child"))
+{
+    await LocalStartupChecks.ChildAsync(Path.GetFullPath(Option("--server")!), Option("--record")!, Option("--report")!, Option("--gate")!, Option("--release")!);
+    return;
+}
+if (args.Contains("--local-hold-lock-child"))
+{
+    await LocalStartupChecks.HoldLockChildAsync(Path.GetFullPath(Option("--server")!), Option("--record")!);
+    return;
+}
+if (args.Contains("--local-startup-checks"))
+{
+    await LocalStartupChecks.RunAsync(Path.GetFullPath(Option("--server")!));
+    return;
+}
+if (args.Contains("--local-incompatible-check"))
+{
+    await LocalStartupChecks.IncompatibleAsync(Path.GetFullPath(Option("--server")!));
+    return;
+}
+if (args.Contains("--client-protocol-checks"))
+{
+    await ClientProtocolChecks.RunAsync();
+    return;
+}
+if (Option("--deployment-wsl") is { } deploymentDistro)
+{
+    await DeploymentChecks.RunAsync(deploymentDistro, Path.GetFullPath(Option("--package") ?? "build/remote/sourcegit-server-linux-x64.tar.gz"));
+    return;
+}
 if (Option("--wsl") is { } distro || Option("--ssh") != null)
 {
     var kind = Option("--wsl") != null ? "Wsl" : "Ssh";
@@ -108,7 +336,7 @@ try
         await client.ConnectAsync(host, port, record.Token);
         Check((await client.GetEnvironmentAsync()).GitVersion.StartsWith("git version"), "Original owner did not regain ownership");
     });
-    await Test("A new owner can take over after a silent owner channel expires", async () =>
+    if (serverDll != null) await Test("A new owner can take over after a silent owner channel expires", async () =>
     {
         if (serverDll == null) throw new Exception("Local server DLL required");
         // A crashed GUI behind broken WSL2 NAT forwarding leaves a channel whose peer never delivers
@@ -121,29 +349,38 @@ try
         start.ArgumentList.Add(Path.GetFullPath(serverDll!)); start.ArgumentList.Add("--record"); start.ArgumentList.Add(livenessRecord);
         start.Environment["SOURCEGIT_CHANNEL_GRACE_SECONDS"] = "3";
         using var liveness = Process.Start(start) ?? throw new Exception("Liveness server did not start");
-        _ = liveness.StandardOutput.ReadToEndAsync(); _ = liveness.StandardError.ReadToEndAsync();
-        for (var i = 0; i < 100 && !File.Exists(livenessRecord) && !liveness.HasExited; i++) await Task.Delay(100);
-        var livenessServer = JsonSerializer.Deserialize(await File.ReadAllTextAsync(livenessRecord), RemoteJson.Default.ServerRecord)!;
-        // A silent owner: one handshake, then nothing (exactly what a dead peer leaves behind).
-        using var ghost = new TcpClient();
-        await ghost.ConnectAsync(host, livenessServer.Port);
-        var ghostGate = new SemaphoreSlim(1);
-        await Protocol.WriteAsync(ghost.GetStream(), new Envelope("g1", "Handshake", Protocol.Json(new HandshakeRequest(livenessServer.Token, "ghost-owner", "ghost-recovery"), RemoteJson.Default.HandshakeRequest)), ghostGate);
-        Check(await Protocol.ReadAsync(ghost.GetStream()) is not null, "Ghost owner handshake failed");
-        await using var blocked = new RemoteRepositoryClient("blocked-owner");
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await Throws<IOException>(async () => { await blocked.ConnectAsync(host, livenessServer.Port, livenessServer.Token, timeout.Token); });
-        RemoteRepositoryClient? successor = null;
-        var takenOver = false;
-        for (var i = 0; i < 40 && !takenOver; i++)
+        try
         {
-            var candidate = new RemoteRepositoryClient("successor-owner");
-            try { await candidate.ConnectAsync(host, livenessServer.Port, livenessServer.Token, CancellationToken.None); successor = candidate; takenOver = true; }
-            catch (IOException) { await candidate.DisposeAsync(); await Task.Delay(500); }
+            _ = liveness.StandardOutput.ReadToEndAsync(); _ = liveness.StandardError.ReadToEndAsync();
+            for (var i = 0; i < 100 && !File.Exists(livenessRecord) && !liveness.HasExited; i++) await Task.Delay(100);
+            var livenessServer = JsonSerializer.Deserialize(await File.ReadAllTextAsync(livenessRecord), RemoteJson.Default.ServerRecord)!;
+            // A silent owner: one handshake, then nothing (exactly what a dead peer leaves behind).
+            using var ghost = new TcpClient();
+            await ghost.ConnectAsync(host, livenessServer.Port);
+            var ghostGate = new SemaphoreSlim(1);
+            await Protocol.WriteAsync(ghost.GetStream(), new Envelope("g1", "Handshake", Protocol.Json(new HandshakeRequest(livenessServer.Token, "ghost-owner", "ghost-recovery"), RemoteJson.Default.HandshakeRequest)), ghostGate);
+            Check(await Protocol.ReadAsync(ghost.GetStream()) is not null, "Ghost owner handshake failed");
+            await using var blocked = new RemoteRepositoryClient("blocked-owner");
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await Throws<IOException>(async () => { await blocked.ConnectAsync(host, livenessServer.Port, livenessServer.Token, timeout.Token); });
+            RemoteRepositoryClient? successor = null;
+            var takenOver = false;
+            for (var i = 0; i < 40 && !takenOver; i++)
+            {
+                var candidate = new RemoteRepositoryClient("successor-owner");
+                try { await candidate.ConnectAsync(host, livenessServer.Port, livenessServer.Token, CancellationToken.None); successor = candidate; takenOver = true; }
+                catch (IOException) { await candidate.DisposeAsync(); await Task.Delay(500); }
+            }
+            Check(takenOver, "Takeover did not succeed after the silent channel expired");
+            Check((await successor!.GetEnvironmentAsync()).GitVersion.StartsWith("git version"), "Takeover owner unavailable");
+            await successor.ShutdownAsync();
+            await successor.DisposeAsync();
         }
-        Check(takenOver, "Takeover did not succeed after the silent channel expired");
-        Check((await successor!.GetEnvironmentAsync()).GitVersion.StartsWith("git version"), "Takeover owner unavailable");
-        await successor.DisposeAsync();
+        finally
+        {
+            if (!liveness.HasExited) liveness.Kill(true);
+            await liveness.WaitForExitAsync();
+        }
     });
     if (string.IsNullOrEmpty(testRoot)) testRoot = (await client.GetEnvironmentAsync()).Home + "/sourcegit-remote-tests-" + Guid.NewGuid().ToString("N");
     var repoPath = testRoot.TrimEnd('/', '\\') + "/repo space 中文";
@@ -247,7 +484,7 @@ try
         Check(untracked is { IndexStatus: " ", WorkingTreeStatus: "?" }, "Untracked change mismatch");
         var renamed = snapshot.Changes.FirstOrDefault(c => c.Path == "renamed.txt");
         Check(renamed is { IndexStatus: "R", WorkingTreeStatus: "M", OriginalPath: "b.txt" }, "Rename original path mismatch: " + (renamed?.OriginalPath ?? "missing"));
-        await client.CallAsync("CloseRepository", new IdRequest(multiRepo.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+        await client.CallAsync("CloseRepository", new IdRequest(multiRepo.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
     });
     await Test("Semantic status reports tracking upstream and ahead/behind", async () =>
     {
@@ -273,7 +510,7 @@ try
         Success(await git(["commit", "-am", "two"], false));
         var ahead = await client.GetStatusAsync(workRepo.Id);
         Check(ahead.Ahead == 1 && ahead.Behind == 0, "Ahead count mismatch: " + ahead.Ahead + "/" + ahead.Behind);
-        await client.CallAsync("CloseRepository", new IdRequest(workRepo.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+        await client.CallAsync("CloseRepository", new IdRequest(workRepo.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
     });
     await Test("Server rejects malformed frames and keeps serving", async () =>
     {
@@ -348,7 +585,7 @@ try
         Success(await seedOp(["add", "-A"]));
         Success(await seedOp(["commit", "-m", "inner seed"]));
         Success(await seedOp(["push", "origin", "main"]));
-        await client.CallAsync("CloseRepository", new IdRequest(seed.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+        await client.CallAsync("CloseRepository", new IdRequest(seed.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
         // The raw-channel shape the GUI produces after -c stripping (RemoteWorkspace.ExecuteGitAsync): clean verb + structured ConfigOverride.
         Success(await client.ExecuteGitAsync(new GitRequest(outer.Id, ["submodule", "add", innerPath, "inner"], false, Guid.NewGuid().ToString("N"), ConfigOverrides: ["protocol.file.allow=always"])));
         Success(await op(["commit", "-m", "add submodule"]));
@@ -369,7 +606,7 @@ try
         // EOL may be normalized by core.autocrlf between commit and checkout; normalize before comparing.
         var innerText = innerResult.ContentBase64 == null ? null : Encoding.UTF8.GetString(Convert.FromBase64String(innerResult.ContentBase64)).Replace("\r\n", "\n");
         Check(innerText == "inner\n", "Submodule content mismatch after fresh-clone init; length=" + innerResult.Length + " base64=" + innerResult.ContentBase64);
-        await client.CallAsync("CloseRepository", new IdRequest(fresh.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+        await client.CallAsync("CloseRepository", new IdRequest(fresh.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
     });
     await Test("Semantic refs snapshot lists branches and detects detached head", async () =>
     {
@@ -395,7 +632,8 @@ try
         var first = await client.OpenRepositoryAsync(path);
         var second = await client.OpenRepositoryAsync(path);
         Check(first.WorktreePath == second.WorktreePath && first.Id == second.Id, "Same repository must share one server session");
-        await client.CallAsync("CloseRepository", new IdRequest(first.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+        Check(!string.IsNullOrEmpty(first.LeaseId) && first.LeaseId != second.LeaseId, "Each open must return an independent lease");
+        await client.CallAsync("CloseRepository", new IdRequest(first.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
         Check((await client.GetStatusAsync(first.Id)).Generation >= 0, "First close disposed the shared session");
         var changed = new TaskCompletionSource<RepositoryEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         void Handler(RepositoryEvent value) { if (value.RepositoryId == first.Id) changed.TrySetResult(value); }
@@ -406,13 +644,62 @@ try
             Check((await changed.Task.WaitAsync(TimeSpan.FromSeconds(10))).Generation > 0, "Watcher did not fire after reference drop");
         }
         finally { client.RepositoryChanged -= Handler; }
-        await client.CallAsync("CloseRepository", new IdRequest(first.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+        await client.CallAsync("CloseRepository", new IdRequest(first.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+        Check((await client.GetStatusAsync(second.Id)).Generation >= 0, "Duplicate close released another user's lease");
+        await client.CloseRepositoryAsync(second.LeaseId);
         await Throws<IOException>(async () => { await client.GetStatusAsync(first.Id); });
         var third = await client.OpenRepositoryAsync(path);
         Check(third.Id != first.Id, "Reopened repository must create a fresh session");
         Check((await client.GetStatusAsync(third.Id)).Generation >= 0, "Fresh session unusable");
-        await client.CallAsync("CloseRepository", new IdRequest(third.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+        await client.CallAsync("CloseRepository", new IdRequest(third.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
         await client.FileAsync(new FileRequest("", "deleteTree", path));
+    });
+    await Test("Lost close acknowledgement is safely retried without releasing another lease", async () =>
+    {
+        var path = testRoot + "/lease-loss-" + Guid.NewGuid().ToString("N");
+        await client.FileAsync(new FileRequest("", "mkdir", path));
+        Success(await client.ExecuteGitAsync(new GitRequest("", ["init"], false, WorkingDirectory: path)));
+        var first = await client.OpenRepositoryAsync(path);
+        var second = await client.OpenRepositoryAsync(path);
+        await using var proxy = new DropReplyProxy(host, port, "CloseRepository");
+        await using var interrupted = new RemoteRepositoryClient(client.OwnerId, client.RecoveryToken);
+        await interrupted.ConnectAsync("127.0.0.1", proxy.Port, record.Token);
+        await Throws<IOException>(() => interrupted.CloseRepositoryAsync(first.LeaseId));
+        await proxy.Dropped.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => client.CloseRepositoryAsync(first.LeaseId)));
+        Check((await client.GetStatusAsync(second.Id)).Generation >= 0, "Retry after executed close released the remaining lease");
+        await client.CloseRepositoryAsync(second.LeaseId);
+        await Throws<IOException>(() => client.GetStatusAsync(second.Id));
+        await client.CloseRepositoryAsync(second.LeaseId); // already expired is a successful no-op
+        await client.FileAsync(new FileRequest("", "deleteTree", path));
+    });
+    if (serverDll != null) await Test("Repository leases enforce ownership, capacity and owner-session expiry", async () =>
+    {
+        using var service = new RepositoryService(maxLeases: 2);
+        var first = await service.OpenAsync(repo.WorktreePath, "owner-a");
+        var second = await service.OpenAsync(repo.WorktreePath, "owner-a");
+        await Throws<IOException>(() => service.OpenAsync(repo.WorktreePath, "owner-a"));
+        await Throws<UnauthorizedAccessException>(() => Task.Run(() => service.Close(first.LeaseId, "owner-b")));
+        var outcomes = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => Task.Run(() => service.Close(first.LeaseId, "owner-a"))));
+        Check(outcomes.Count(value => value != null) == 1 && service.Get(second.Id).Id == second.Id, "Concurrent close released more than once");
+        var third = await service.OpenAsync(repo.WorktreePath, "owner-a");
+        Check(third.Id == second.Id && third.LeaseId != second.LeaseId && third.LeaseId != first.LeaseId, "Released capacity was not reusable with a distinct lease");
+        service.CloseAll();
+        var nextOwner = await service.OpenAsync(repo.WorktreePath, "owner-b");
+        Check(nextOwner.Id != second.Id && service.Close(second.LeaseId, "owner-a") == null, "Expired owner lease affected the new session");
+        Check(service.Get(nextOwner.Id).Id == nextOwner.Id, "Expired release disposed a new owner's session");
+        service.Close(nextOwner.LeaseId, "owner-b");
+    });
+    await Test("Protocol v1 clients are rejected before legacy repository-close semantics can run", async () =>
+    {
+        using var legacy = new TcpClient();
+        await legacy.ConnectAsync(host, port);
+        using var gate = new SemaphoreSlim(1);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await Protocol.WriteAsync(legacy.GetStream(), new Envelope("legacy", "Handshake", Protocol.Json(
+            new HandshakeRequest(record.Token, client.OwnerId, client.RecoveryToken, Version: 1), RemoteJson.Default.HandshakeRequest)), gate, deadline.Token);
+        var response = await Protocol.ReadAsync(legacy.GetStream(), deadline.Token);
+        Check(response?.Error?.Contains("Protocol/build mismatch") == true, "Legacy client was allowed to connect to lease protocol");
     });
     await Test("Semantic commit detail carries fields and decorations", async () =>
     {
@@ -458,7 +745,7 @@ try
         }
         finally
         {
-            await client.CallAsync("CloseRepository", new IdRequest(session.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+            await client.CallAsync("CloseRepository", new IdRequest(session.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
             await client.FileAsync(new FileRequest("", "deleteTree", path));
         }
     });
@@ -524,6 +811,55 @@ try
         Check(Text(await Git(["log", "-1", "--format=%s"])).Trim() == "survives disconnect", "Write did not survive transport closure");
     });
     await Test("Missing operation reports unknown", async () => Check((await client.GetOperationAsync(Guid.NewGuid().ToString("N"))).State == "unknown", "Missing operation was not unknown"));
+    await Test("File write recovers a discarded response without replaying CreateNew", async () =>
+    {
+        await using var proxy = new DropReplyProxy(host, port, "File");
+        await using var faulted = new RemoteRepositoryClient(client.OwnerId, client.RecoveryToken);
+        await faulted.ConnectAsync(host, proxy.Port, record.Token);
+        faulted.RecoveryClient = _ => Task.FromResult(client);
+        var request = new FileRequest(repo.Id, "write", "lost-file-reply.txt", ContentBase64: Convert.ToBase64String(Encoding.UTF8.GetBytes("once\n")), CreateNew: true);
+        var result = await faulted.FileAsync(request).WaitAsync(TimeSpan.FromSeconds(10));
+        Check(result.Length == 5, "Recovered file result missing");
+        Check(Encoding.UTF8.GetString(await client.ReadFileAsync(repo.Id, request.Path)) == "once\n", "Recovered file content differs");
+        Check(faulted.PendingOperations.Count == 0, "Resolved file operation remained pending");
+    });
+    await Test("Custom command recovers a discarded response and commits once", async () =>
+    {
+        var before = int.Parse(Text(await Git(["rev-list", "--count", "HEAD"])).Trim());
+        await using var proxy = new DropReplyProxy(host, port, "ExecuteCustomCommand");
+        await using var faulted = new RemoteRepositoryClient(client.OwnerId, client.RecoveryToken);
+        await faulted.ConnectAsync(host, proxy.Port, record.Token);
+        faulted.RecoveryClient = _ => Task.FromResult(client);
+        Success(await faulted.ExecuteCustomAsync(new CustomCommandRequest(repo.Id, "git commit --allow-empty -m custom-response-lost", Guid.NewGuid().ToString("N"))).WaitAsync(TimeSpan.FromSeconds(10)));
+        Check(int.Parse(Text(await Git(["rev-list", "--count", "HEAD"])).Trim()) == before + 1, "Custom command was replayed");
+        Check(faulted.PendingOperations.Count == 0, "Resolved custom operation remained pending");
+    });
+    await Test("Shared command policy accepts ls-remote and keeps reflog writes tracked", async () =>
+    {
+        Check(GitCommandPolicy.IsQuery(["ls-remote", repo.WorktreePath]), "ls-remote misclassified");
+        Check(!GitCommandPolicy.IsQuery(["reflog", "expire", "--all"]), "reflog mutation misclassified");
+        var refs = Text(await Git(["ls-remote", repo.WorktreePath]));
+        Check(refs.Contains("HEAD"), "ls-remote rejected or missing refs");
+    });
+    if (serverDll != null) await Test("Refs snapshot holds the common-directory lock across all Git queries", async () =>
+    {
+        using var repositories = new RepositoryService();
+        var session = await repositories.OpenAsync(repo.WorktreePath);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        repositories.PrepareProcess = async (start, _) =>
+        {
+            if (start.ArgumentList.Contains("for-each-ref")) { entered.TrySetResult(); await release.Task; }
+        };
+        var snapshotTask = new RepositoryQueries(repositories).RefsAsync(new QueryRequest(session.Id), CancellationToken.None);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var checkout = repositories.ExecuteAsync(new GitRequest(session.Id, ["checkout", "--detach"], false));
+        release.TrySetResult();
+        var snapshot = await snapshotTask;
+        Success(await checkout);
+        Check(!snapshot.IsDetachedHead && snapshot.Refs.Any(x => x.Head), "Refs and HEAD were read on opposite sides of a checkout");
+        Success(await repositories.ExecuteAsync(new GitRequest(session.Id, ["checkout", "main"], false)));
+    });
     await Test("Repository relative traversal rejected", async () => { await Throws<IOException>(async () => { await client.FileAsync(new FileRequest(repo.Id, "read", "../outside.txt")); }); });
     await Test("Real Git editor helper returns client text", async () =>
     {
@@ -637,6 +973,72 @@ try
         finally { await client.ConfigureAutoFetchAsync(repo.Id, 0); }
     }, 90);
 
+    if (serverDll != null) await Test("Server replacement keeps an unresolved write unknown even when its ID exists again", async () =>
+    {
+        var operationId = Guid.NewGuid().ToString("N");
+        await using var proxy = new DropReplyProxy(host, port, "File", dropCompletion: true);
+        await using var faulted = new RemoteRepositoryClient(client.OwnerId, client.RecoveryToken);
+        await faulted.ConnectAsync(host, proxy.Port, record.Token);
+        var recovered = new TaskCompletionSource<RemoteRepositoryClient>(TaskCreationOptions.RunContinuationsAsynchronously);
+        faulted.RecoveryClient = _ => recovered.Task;
+        var pending = faulted.FileAsync(new FileRequest(repo.Id, "write", "old-instance-write.txt", ContentBase64: "eA==", CreateNew: true, OperationId: operationId));
+        await proxy.Dropped.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await client.ShutdownAsync();
+        await server!.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        server.Dispose();
+        var start = new ProcessStartInfo("dotnet") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        start.ArgumentList.Add(Path.GetFullPath(serverDll)); start.ArgumentList.Add("--record"); start.ArgumentList.Add(recordPath);
+        server = Process.Start(start)!;
+        _ = server.StandardOutput.ReadToEndAsync(); _ = server.StandardError.ReadToEndAsync();
+        for (var i = 0; i < 100 && !File.Exists(recordPath); i++) await Task.Delay(100);
+        var replacement = JsonSerializer.Deserialize(await File.ReadAllTextAsync(recordPath!), RemoteJson.Default.ServerRecord)!;
+        Check(replacement.InstanceId != record.InstanceId, "Server did not restart");
+        await client.DisposeAsync();
+        client = new RemoteRepositoryClient(faulted.OwnerId, faulted.RecoveryToken);
+        await client.ConnectAsync(host, replacement.Port, replacement.Token);
+        await client.FileAsync(new FileRequest("", "write", repo.WorktreePath + "/new-instance-write.txt", ContentBase64: "eQ==", CreateNew: true, OperationId: operationId));
+        recovered.TrySetResult(client);
+        await Throws<IOException>(async () => { await pending.WaitAsync(TimeSpan.FromSeconds(10)); });
+        Check(faulted.PendingOperations.ContainsKey(operationId), "Unknown operation was incorrectly resolved using the new instance's record");
+    });
+    if (serverDll != null) await Test("Connection manager reuses its live local channel and remains Connected", async () =>
+    {
+        await using var manager = new ConnectionManager(new ConnectionOptions("reuse-" + Guid.NewGuid().ToString("N"), "Reuse regression", "Local", "", LocalServerPath: Path.GetFullPath(serverDll)));
+        var first = await manager.ConnectAsync();
+        var second = await manager.ConnectAsync();
+        Check(ReferenceEquals(first, second) && manager.State == "Connected", "Live channel reuse left the manager Connecting");
+        var invalidExposure = false;
+        manager.StateChanged += state => { if (state == "Starting" && manager.Client != null) invalidExposure = true; };
+        await manager.ShutdownForUpgradeAsync(first);
+        Check(manager.Client == null && manager.State == "Starting" && !invalidExposure,
+            "Accepted shutdown exposed the disposed client during upgrade");
+    });
+    if (serverDll != null) await Test("Connection manager retains its live client when upgrade is refused", async () =>
+    {
+        await using var manager = new ConnectionManager(new ConnectionOptions("refuse-" + Guid.NewGuid().ToString("N"), "Upgrade refusal", "Local", "", LocalServerPath: Path.GetFullPath(serverDll)));
+        var live = await manager.ConnectAsync();
+        var path = Path.Combine(testRoot, "upgrade-refusal");
+        await live.FileAsync(new FileRequest("", "mkdir", path));
+        Success(await live.ExecuteGitAsync(new GitRequest("", ["init"], false, WorkingDirectory: path)));
+        var handle = await live.OpenRepositoryAsync(path);
+        Success(await live.ExecuteGitAsync(new GitRequest(handle.Id, ["config", "user.name", "Upgrade Test"], false)));
+        Success(await live.ExecuteGitAsync(new GitRequest(handle.Id, ["config", "user.email", "test@example.invalid"], false)));
+        var waiting = new TaskCompletionSource<InteractionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
+        live.InteractionRequested += request => waiting.TrySetResult(request);
+        var commit = live.ExecuteGitAsync(new GitRequest(handle.Id, ["commit", "--allow-empty"], false));
+        var interaction = await waiting.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        try
+        {
+            await Throws<IOException>(() => manager.ShutdownForUpgradeAsync(live));
+            Check(manager.Client == live && manager.State == "Connected" && !live.IsDisconnected,
+                "Refused upgrade discarded the usable client");
+            Check((await live.GetEnvironmentAsync()).GitVersion.StartsWith("git version"), "Refused-upgrade client cannot query");
+        }
+        finally { await live.SubmitInteractionAsync(new InteractionReply(interaction.Id, true, "finish active commit\n")); }
+        Success(await commit.WaitAsync(TimeSpan.FromSeconds(10)));
+        await manager.ShutdownForUpgradeAsync(live);
+    });
+
     Task<GitResult> Git(string[] arguments, bool readOnly = true) => client.ExecuteGitAsync(new GitRequest(repo!.Id, arguments, readOnly, readOnly ? null : Guid.NewGuid().ToString("N")));
     Task<FileResult> Write(string path, string content) => client.FileAsync(new FileRequest(repo!.Id, "write", path, ContentBase64: Convert.ToBase64String(Encoding.UTF8.GetBytes(content)), Truncate: true));
 }
@@ -653,7 +1055,7 @@ string? Option(string key) { var i = Array.IndexOf(args, key); return i >= 0 && 
 async Task Test(string name, Func<Task> test, int timeoutSeconds = 40)
 {
     try { await test().WaitAsync(TimeSpan.FromSeconds(timeoutSeconds)); results.Add((name, "PASS", "")); Console.WriteLine("PASS " + name); }
-    catch (Exception ex) { results.Add((name, "FAIL", ex.Message)); Console.WriteLine("FAIL " + name + ": " + ex.Message); }
+    catch (Exception ex) { results.Add((name, "FAIL", ex.Message)); Console.WriteLine("FAIL " + name + ": " + ex.GetType().Name + ": " + ex.Message); Console.WriteLine(ex.StackTrace); }
 }
 static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
 static void Success(GitResult result) { Check(result.ExitCode == 0, $"Git exit {result.ExitCode}: {result.Error}"); }

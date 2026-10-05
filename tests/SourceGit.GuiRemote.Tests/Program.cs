@@ -5,6 +5,55 @@ using SourceGit.Contracts;
 using SourceGit.Remote;
 using SourceGit.RemoteClient;
 
+if (args.Contains("--avatar-checks"))
+{
+    AvatarChecks.Run();
+    return;
+}
+if (args.Contains("--launcher-retry-checks"))
+{
+    LauncherRetryChecks.Run();
+    return;
+}
+
+if (args.Contains("--fetch-integration-checks"))
+{
+    FetchIntegrationChecks.Run();
+    return;
+}
+
+if (args.Contains("--native-ui-time-checks"))
+{
+    UiTimeChecks.Run(nativeWindows: true);
+    return;
+}
+
+if (args.Contains("--ui-time-checks"))
+{
+    UiTimeChecks.Run();
+    return;
+}
+
+if (args.Contains("--watcher-checks"))
+{
+    WatcherChecks.Run();
+    WatcherChecks.Diagnostics();
+    await WatcherChecks.RealAsync();
+    return;
+}
+
+if (args.Contains("--fetch-schedule-checks"))
+{
+    FetchScheduleChecks.Run();
+    return;
+}
+
+if (args.Contains("--fetch-cancel-checks"))
+{
+    await FetchCancellationChecks.RunAsync();
+    return;
+}
+
 if (args.Length > 0 && args[0] == "--fake-tool")
 {
     var report = args[1]; var mode = args[2];
@@ -59,8 +108,9 @@ try
                 ctx.Pump(20); Thread.Sleep(10);
             }
             await connect; // already complete: no continuation is posted to the unpumped queue
-            var entries = uiClient.ListDirectoryAsync(Path.GetTempPath()).GetAwaiter().GetResult();
-            Check(entries.Entries is { Length: > 0 }, "UI-context sync ListDirectory returned no entries");
+            var home = uiClient.GetEnvironmentAsync().GetAwaiter().GetResult().Home;
+            var entries = uiClient.ListDirectoryAsync(home).GetAwaiter().GetResult();
+            Check(entries.Entries != null, "UI-context sync ListDirectory returned no directory array");
             Console.WriteLine("PASS UI-thread sync-wait on RPC does not deadlock protocol loops");
         }
         finally
@@ -71,6 +121,7 @@ try
         }
     }
     await client.ConnectAsync("127.0.0.1", record.Port, record.Token);
+    var fixtureRoot = Option("--root") ?? root;
     var repositoryPath = Option("--root") is { } remoteRoot ? remoteRoot.TrimEnd('/') + "/repo space 中文" : Path.Combine(root, "repo space 中文");
     await client.FileAsync(new FileRequest("", "mkdir", repositoryPath));
     var init = await client.ExecuteGitAsync(new GitRequest("", ["init"], false, Guid.NewGuid().ToString("N"), WorkingDirectory: repositoryPath));
@@ -78,6 +129,55 @@ try
     var workspace = new RemoteWorkspace(Guid.NewGuid().ToString("N"), "GUI adapters", client, await client.GetEnvironmentAsync());
     var info = await workspace.OpenAsync(repositoryPath);
     var resource = workspace.Resource(info.WorktreePath);
+    await LeaseReleaseChecks.RunAsync(record, client, repositoryPath);
+    await WelcomeStatusChecks.RunAsync(resource);
+    var welcomeStatus = await new SourceGit.Commands.QueryRepositoryStatus(resource).GetResultAsync();
+    Check(welcomeStatus.InstanceId == client.InstanceId && welcomeStatus.RepositoryId == info.Id,
+        "Welcome status command omitted its temporary repository session identity");
+    using (var cancelledStatus = new CancellationTokenSource())
+    {
+        cancelledStatus.Cancel();
+        Check(await new SourceGit.Commands.QueryRepositoryStatus(resource) { CancellationToken = cancelledStatus.Token }.GetResultAsync() == null,
+            "Cancelled Welcome command returned a status");
+    }
+    {
+        await using var sibling = new RemoteRepositoryClient(client.OwnerId, client.RecoveryToken);
+        await sibling.ConnectAsync("127.0.0.1", record.Port, record.Token);
+        var lease = await workspace.OpenTransientAsync(resource);
+        await Task.WhenAll(workspace.RebindAsync(sibling), workspace.ReleaseTransientAsync(lease, client));
+        Check(workspace.Connected && workspace.Client == sibling, "Rebind completed before repository synchronization");
+        await workspace.RebindAsync(client);
+        Console.WriteLine("PASS Rebinding and releasing a transient repository lease preserve session ownership");
+    }
+    {
+        var tracker = new RepositorySnapshotTracker();
+        Check(tracker.TryAccept(new("old-instance", "old-repository", 100), "old-instance", "old-repository"), "Initial snapshot rejected");
+        Check(!tracker.TryAccept(new("old-instance", "old-repository", 99), "old-instance", "old-repository"), "Stale snapshot accepted");
+        Check(tracker.TryAccept(new("new-instance", "new-repository", 0), "new-instance", "new-repository"), "Server restart kept the old generation threshold");
+        Check(!tracker.TryAccept(new("old-instance", "old-repository", 101), "new-instance", "new-repository"), "Late result from old server accepted");
+        Check(tracker.TryAccept(new("new-instance", "reopened-repository", 0), "new-instance", "reopened-repository"), "Reopened repository kept its expired session's generation");
+        Check(!tracker.TryAccept(null!, "new-instance", "reopened-repository"), "Failed query accepted as an empty snapshot");
+        Console.WriteLine("PASS Snapshot acceptance handles server restart, reopened sessions and late replies");
+    }
+    {
+        var directory = Option("--record") == null ? Path.Combine(repositoryPath, "paged-directory") : repositoryPath.TrimEnd('/') + "/paged-directory";
+        if (Option("--record") == null)
+        {
+            Directory.CreateDirectory(directory);
+            for (var i = 0; i < 400; i++) File.WriteAllText(Path.Combine(directory, $"entry-{i:D3}.txt"), "");
+        }
+        else
+        {
+            var fixture = await client.ExecuteCustomAsync(new(info.Id, "mkdir -p paged-directory; i=0; while [ $i -lt 400 ]; do : > paged-directory/entry-$i; i=$((i+1)); done", Guid.NewGuid().ToString("N")));
+            Check(fixture.ExitCode == 0, fixture.Error);
+        }
+        Check((await RemoteWorkspace.ListAsync(workspace.Resource(directory))).Length == 400, "Async directory listing lost an exact-size page");
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        try { await RemoteWorkspace.ListAsync(workspace.Resource(directory), cancellation.Token); throw new Exception("Cancelled listing completed"); }
+        catch (OperationCanceledException) { }
+        Console.WriteLine("PASS Async remote directory listing loads multiple pages and supports cancellation");
+    }
     // The client has no configured Git executable. Only the separate server may run Git.
     Check(string.IsNullOrEmpty(SourceGit.Native.OS.GitExecutable), "Unexpected local Git configuration");
     var path = RepositoryPath.Combine(resource, "hello space 中文.txt");
@@ -127,6 +227,19 @@ try
         var commit = new SourceGit.Commands.Commit(resource, "GUI commit with remote temp file", false, false, false, false) { RaiseError = false };
         Check(await commit.RunAsync(), "GUI remote commit message temporary file failed");
         Console.WriteLine("PASS GUI pathspec staging and commit message run with server temporary files");
+        {
+            var addRemote = await client.ExecuteGitAsync(new GitRequest(info.Id, ["remote", "add", "existence-probe", info.WorktreePath], false));
+            Check(addRemote.ExitCode == 0, addRemote.Error);
+            var status = await client.GetStatusAsync(info.Id);
+            var branch = new SourceGit.Models.Branch { Name = status.Branch! };
+            var present = new SourceGit.Commands.DoesBranchExistOnRemote(resource, new SourceGit.Models.Remote { Name = "existence-probe" }, branch);
+            Check(await present.GetResultAsync() == true, "Remote branch existence query rejected ls-remote");
+            var missing = new SourceGit.Commands.DoesBranchExistOnRemote(resource, new SourceGit.Models.Remote { Name = "unconfigured-remote" }, branch) { RaiseError = false };
+            Check(await missing.GetResultAsync() == null, "Failed existence query was interpreted as a missing branch");
+            var removeRemote = await client.ExecuteGitAsync(new GitRequest(info.Id, ["remote", "remove", "existence-probe"], false));
+            Check(removeRemote.ExitCode == 0, removeRemote.Error);
+            Console.WriteLine("PASS Remote branch existence distinguishes lookup failure from absence");
+        }
         var indexPath = RepositoryPath.Combine(gitDirectory, "index");
         var indexBefore = ReadBytes(indexPath);
         var unchangedContent = RepositoryFile.ReadAllText(path);
@@ -330,12 +443,12 @@ try
     Console.WriteLine("PASS Windows external merge rejects stale result without overwriting remote edits");
     // The GUI Submodule command class must work end-to-end on remote repositories (add + fresh-clone init via file transport).
     var subSuffix = Guid.NewGuid().ToString("N")[..8];
-    var subInnerPath = Path.Combine(root, "sub-inner-" + subSuffix + ".git");
+    var subInnerPath = fixtureRoot.TrimEnd('/', '\\') + "/sub-inner-" + subSuffix + ".git";
     await client.FileAsync(new FileRequest("", "mkdir", subInnerPath));
     Check((await client.ExecuteGitAsync(new GitRequest("", ["init", "--bare", "--initial-branch=main"], false, Guid.NewGuid().ToString("N"), WorkingDirectory: subInnerPath))).ExitCode == 0, "Inner bare init failed");
-    var subSeedPath = Path.Combine(root, "sub-seed " + subSuffix);
+    var subSeedPath = fixtureRoot.TrimEnd('/', '\\') + "/sub-seed " + subSuffix;
     await client.FileAsync(new FileRequest("", "mkdir", subSeedPath));
-    Check((await client.ExecuteGitAsync(new GitRequest("", ["clone", subInnerPath, subSeedPath], false, Guid.NewGuid().ToString("N"), WorkingDirectory: root))).ExitCode == 0, "Inner seed clone failed");
+    Check((await client.ExecuteGitAsync(new GitRequest("", ["clone", subInnerPath, subSeedPath], false, Guid.NewGuid().ToString("N"), WorkingDirectory: fixtureRoot))).ExitCode == 0, "Inner seed clone failed");
     var subSeed = await client.OpenRepositoryAsync(subSeedPath);
     await client.ExecuteGitAsync(new GitRequest(subSeed.Id, ["config", "user.name", "Remote Test"], false, Guid.NewGuid().ToString("N")));
     await client.ExecuteGitAsync(new GitRequest(subSeed.Id, ["config", "user.email", "remote-test@example.invalid"], false, Guid.NewGuid().ToString("N")));
@@ -343,8 +456,8 @@ try
     Check((await client.ExecuteGitAsync(new GitRequest(subSeed.Id, ["add", "-A"], false, Guid.NewGuid().ToString("N")))).ExitCode == 0, "Inner seed add failed");
     Check((await client.ExecuteGitAsync(new GitRequest(subSeed.Id, ["commit", "-m", "inner seed"], false, Guid.NewGuid().ToString("N")))).ExitCode == 0, "Inner seed commit failed");
     Check((await client.ExecuteGitAsync(new GitRequest(subSeed.Id, ["push", "origin", "main"], false, Guid.NewGuid().ToString("N")))).ExitCode == 0, "Inner seed push failed");
-    await client.CallAsync("CloseRepository", new IdRequest(subSeed.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
-    var subOuterPath = Path.Combine(root, "sub-outer " + subSuffix);
+    await client.CallAsync("CloseRepository", new IdRequest(subSeed.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+    var subOuterPath = fixtureRoot.TrimEnd('/', '\\') + "/sub-outer " + subSuffix;
     await client.FileAsync(new FileRequest("", "mkdir", subOuterPath));
     Check((await client.ExecuteGitAsync(new GitRequest("", ["init", "--initial-branch=main"], false, Guid.NewGuid().ToString("N"), WorkingDirectory: subOuterPath))).ExitCode == 0, "Outer init failed");
     var subOuter = await client.OpenRepositoryAsync(subOuterPath);
@@ -358,15 +471,15 @@ try
     Check(RepositoryFile.ReadAllText(subOuterUri + "/inner/inner.txt").Replace("\r\n", "\n") == "inner\n", "Submodule content missing after add");
     await client.ExecuteGitAsync(new GitRequest(subOuter.Id, ["add", "-A"], false, Guid.NewGuid().ToString("N")));
     Check((await client.ExecuteGitAsync(new GitRequest(subOuter.Id, ["commit", "-m", "add submodule"], false, Guid.NewGuid().ToString("N")))).ExitCode == 0, "Submodule commit failed");
-    var subFreshPath = Path.Combine(root, "sub-fresh " + subSuffix);
+    var subFreshPath = fixtureRoot.TrimEnd('/', '\\') + "/sub-fresh " + subSuffix;
     await client.FileAsync(new FileRequest("", "mkdir", subFreshPath));
-    Check((await client.ExecuteGitAsync(new GitRequest("", ["clone", subOuterPath, subFreshPath], false, Guid.NewGuid().ToString("N"), WorkingDirectory: root))).ExitCode == 0, "Fresh clone failed");
+    Check((await client.ExecuteGitAsync(new GitRequest("", ["clone", subOuterPath, subFreshPath], false, Guid.NewGuid().ToString("N"), WorkingDirectory: fixtureRoot))).ExitCode == 0, "Fresh clone failed");
     var subFresh = await client.OpenRepositoryAsync(subFreshPath);
     var subFreshUri = workspace.Resource(subFresh.WorktreePath);
     Check(await new SourceGit.Commands.Submodule(subFreshUri).UpdateAsync(new List<string>(), true, false, false), "Submodule update --init failed on fresh clone");
     Check(RepositoryFile.ReadAllText(subFreshUri + "/inner/inner.txt").Replace("\r\n", "\n") == "inner\n", "Submodule content missing after fresh-clone update");
-    await client.CallAsync("CloseRepository", new IdRequest(subOuter.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
-    await client.CallAsync("CloseRepository", new IdRequest(subFresh.Id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+    await client.CallAsync("CloseRepository", new IdRequest(subOuter.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+    await client.CallAsync("CloseRepository", new IdRequest(subFresh.LeaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
     Console.WriteLine("PASS GUI Submodule command adds and initializes remote submodules");
     await workspace.OpenAsync(repositoryPath);
     await workspace.OpenAsync(repositoryPath);

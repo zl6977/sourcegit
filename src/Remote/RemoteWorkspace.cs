@@ -20,7 +20,9 @@ namespace SourceGit.Remote
         private readonly ConcurrentDictionary<string, long> _generations = new();
         private readonly SemaphoreSlim _repositoryGate = new(1);
         private readonly ConcurrentDictionary<string, int> _autoFetch = new(StringComparer.Ordinal);
-        private readonly ConcurrentQueue<(string Instance, string Id)> _retiredHandles = new();
+        private readonly ConcurrentQueue<(string Instance, string LeaseId)> _retiredHandles = new();
+        private Action<Exception> _disconnected;
+        internal int PendingReleaseCount => _retiredHandles.Count;
         public string Id { get; }
         public string Name { get; }
         public RemoteRepositoryClient Client { get; private set; }
@@ -31,16 +33,17 @@ namespace SourceGit.Remote
         public RemoteWorkspace(string id, string name, RemoteRepositoryClient client, EnvironmentInfo environment)
         {
             Id = id; Name = name; Client = client; Environment = environment;
-            Connections[id] = this;
             Bind(client);
+            Connections[id] = this;
         }
-        private void Bind(RemoteRepositoryClient client)
+        private void Bind(RemoteRepositoryClient client, bool connected = true)
         {
             Client = client;
             client.RepositoryChanged += Changed;
             client.InteractionRequested += Interaction;
-            client.Disconnected += Disconnect;
-            Connected = true;
+            _disconnected = error => { if (Client == client) Disconnect(error); };
+            client.Disconnected += _disconnected;
+            Connected = connected;
         }
         private void Changed(RepositoryEvent e)
         {
@@ -54,31 +57,43 @@ namespace SourceGit.Remote
                 if (_subscriptions.TryGetValue(path, out var update)) update();
         }
         private void Interaction(InteractionRequest request) => _ = ReplyAsync(request);
-        private void Disconnect(Exception error) { Connected = false; ConnectionError?.Invoke(error.Message); }
+        internal void Unregister()
+        {
+            Connected = false;
+            // An old instance closing must not remove a newer registration.
+            ((ICollection<KeyValuePair<string, RemoteWorkspace>>)Connections).Remove(new(Id, this));
+        }
+        private void Disconnect(Exception error) { Unregister(); ConnectionError?.Invoke(error.Message); }
         public async Task RebindAsync(RemoteRepositoryClient client)
         {
             await _repositoryGate.WaitAsync().ConfigureAwait(false);
             try
             {
-                if (Client == client && Connected) return;
+                if (Client == client && Connected)
+                {
+                    await DrainRetiredHandlesAsync(client).ConfigureAwait(false);
+                    return;
+                }
                 var sameInstance = Client.InstanceId == client.InstanceId;
                 var paths = _repositories.Keys.ToArray();
                 Client.RepositoryChanged -= Changed;
                 Client.InteractionRequested -= Interaction;
-                Client.Disconnected -= Disconnect;
+                Client.Disconnected -= _disconnected;
                 if (!sameInstance) { _repositories.Clear(); _generations.Clear(); }
-                Bind(client);
+                Bind(client, false);
                 Environment = await client.GetEnvironmentAsync().ConfigureAwait(false);
-                while (_retiredHandles.TryDequeue(out var retired))
-                    if (retired.Instance == client.InstanceId) await CloseHandleAsync(retired.Id).ConfigureAwait(false);
+                await DrainRetiredHandlesAsync(client).ConfigureAwait(false);
                 foreach (var path in paths)
                 {
                     if (!sameInstance)
                         _repositories[path] = await client.OpenRepositoryAsync(path).ConfigureAwait(false);
                     if (_autoFetch.TryGetValue(path, out var interval))
                         await client.ConfigureAutoFetchAsync(_repositories[path].Id, interval).ConfigureAwait(false);
-                    if (_subscriptions.TryGetValue(path, out var update)) update();
                 }
+                Connected = !client.IsDisconnected;
+                if (Connected) Connections.TryAdd(Id, this);
+                foreach (var path in paths)
+                    if (_subscriptions.TryGetValue(path, out var update)) update();
             }
             finally { _repositoryGate.Release(); }
         }
@@ -122,7 +137,7 @@ namespace SourceGit.Remote
                 var result = await Client.OpenRepositoryAsync(remote, cancellation).ConfigureAwait(false);
                 if (_repositories.TryGetValue(result.WorktreePath, out existing))
                 {
-                    await CloseHandleAsync(result.Id).ConfigureAwait(false);
+                    await CloseOrQueueHandleAsync(result.LeaseId, Client.InstanceId).ConfigureAwait(false);
                     return existing;
                 }
                 _repositories[result.WorktreePath] = result;
@@ -130,20 +145,53 @@ namespace SourceGit.Remote
             }
             finally { _repositoryGate.Release(); }
         }
-        // Commands borrow a handle without a subscription. Each use takes its own server reference
-        // (OpenRepository increments References; the Server dedupes by worktree and shares the watcher),
+        // Commands borrow a handle without a subscription. Each open owns a unique lease
+        // (the Server shares a repository session and watcher among its live leases),
         // so an in-flight command keeps the watcher alive even if a subscription closes, and a
         // command-only open is fully released when the command finishes instead of leaking.
         public Task<RepositoryInfo> OpenTransientAsync(string path, CancellationToken cancellation = default)
             => Client.OpenRepositoryAsync(HostPath(path), cancellation);
-        public async Task ReleaseTransientAsync(string id)
+        public async Task ReleaseTransientAsync(RepositoryInfo repository, RemoteRepositoryClient originalClient = null)
         {
-            if (id == null) return;
-            if (!Connected) { _retiredHandles.Enqueue((Client.InstanceId, id)); return; }
-            try { await CloseHandleAsync(id).ConfigureAwait(false); }
-            catch (Exception error) { ConnectionError?.Invoke(error.Message); }
+            if (repository == null) return;
+            var instance = (originalClient ?? Client).InstanceId;
+            await _repositoryGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await CloseOrQueueHandleAsync(repository.LeaseId, instance).ConfigureAwait(false);
+            }
+            finally { _repositoryGate.Release(); }
         }
-        private Task<string> CloseHandleAsync(string id) => Client.CallAsync("CloseRepository", new IdRequest(id), RemoteJson.Default.IdRequest, RemoteJson.Default.String);
+        private async Task CloseOrQueueHandleAsync(string leaseId, string instance)
+        {
+            if (instance != Client.InstanceId) return;
+            if (!Connected || Client.IsDisconnected) { _retiredHandles.Enqueue((instance, leaseId)); return; }
+            try { await Client.CloseRepositoryAsync(leaseId).ConfigureAwait(false); }
+            catch (Exception error)
+            {
+                // The close may already have executed. Lease ids make a later retry
+                // safe, so online failures must retain the entry as well as disconnects.
+                _retiredHandles.Enqueue((instance, leaseId));
+                ConnectionError?.Invoke("Repository lease close queued for retry: " + error.Message);
+            }
+        }
+        private async Task DrainRetiredHandlesAsync(RemoteRepositoryClient client)
+        {
+            // Retry each entry at most once per drain. Failed entries rejoin the
+            // queue without being immediately retried in an endless loop.
+            var count = _retiredHandles.Count;
+            for (var i = 0; i < count && _retiredHandles.TryDequeue(out var retired); i++)
+            {
+                if (retired.Instance != client.InstanceId) continue;
+                try { await client.CloseRepositoryAsync(retired.LeaseId).ConfigureAwait(false); }
+                catch (Exception error)
+                {
+                    _retiredHandles.Enqueue(retired);
+                    ConnectionError?.Invoke("Repository lease close queued for retry: " + error.Message);
+                    if (client.IsDisconnected) break;
+                }
+            }
+        }
         public async Task ConfigureAutoFetchAsync(string path, int interval)
         {
             var repo = await OpenAsync(path).ConfigureAwait(false);
@@ -161,26 +209,25 @@ namespace SourceGit.Remote
         }
         public string Resource(string path) => RepositoryPath.Remote(Id, WindowsHost ? path.Replace('\\', '/') : path);
         public string ExecutionPath(string path) => HostPath(path);
+        public bool AcceptSnapshot(string path, RepositorySnapshot snapshot, RepositorySnapshotTracker tracker)
+        {
+            return Connected && _repositories.TryGetValue(HostPath(path), out var repository) &&
+                tracker.TryAccept(snapshot, Client.InstanceId, repository.Id);
+        }
+        public static bool TryAcceptSnapshot(string path, RepositorySnapshot snapshot, RepositorySnapshotTracker tracker)
+            => Connections.TryGetValue(RepositoryPath.ConnectionId(path), out var workspace) && workspace.AcceptSnapshot(path, snapshot, tracker);
         public async Task<GitResult> ExecuteCustomAsync(string path, string command, Action<string> output)
         {
-            var repository = await OpenTransientAsync(path).ConfigureAwait(false);
-            var request = new CustomCommandRequest(repository.Id, command, Guid.NewGuid().ToString("N"));
             var client = Client;
-            void Progress(OperationProgress e) { if (e.OperationId == request.OperationId) output?.Invoke(e.Text); }
-            client.OperationProgress += Progress;
+            var repository = await client.OpenRepositoryAsync(HostPath(path)).ConfigureAwait(false);
+            var request = new CustomCommandRequest(repository.Id, command, Guid.NewGuid().ToString("N"));
             try
             {
-                var operation = await client.CallAsync("ExecuteCustomCommand", request, RemoteJson.Default.CustomCommandRequest, RemoteJson.Default.OperationInfo).ConfigureAwait(false);
-                while (operation.State is "accepted" or "running" or "waitingInteraction")
-                {
-                    await Task.Delay(150).ConfigureAwait(false);
-                    operation = await Client.GetOperationAsync(request.OperationId).ConfigureAwait(false);
-                }
-                var result = operation.Result ?? throw new System.IO.IOException(operation.Error ?? "Remote custom command outcome is unknown; refresh before retrying");
+                var result = await client.ExecuteCustomAsync(request, progress: e => output?.Invoke(e.Text)).ConfigureAwait(false);
                 if (result.OutputBase64.Length > 0) output?.Invoke(Encoding.UTF8.GetString(Convert.FromBase64String(result.OutputBase64)));
                 return result;
             }
-            finally { client.OperationProgress -= Progress; _ = ReleaseTransientAsync(repository.Id); }
+            finally { await ReleaseTransientAsync(repository, client).ConfigureAwait(false); }
         }
         private async Task ReplyAsync(InteractionRequest request)
         {
@@ -209,8 +256,7 @@ namespace SourceGit.Remote
                 _autoFetch.TryRemove(path, out _);
                 if (_repositories.TryRemove(path, out var repo))
                 {
-                    if (Connected) await CloseHandleAsync(repo.Id).ConfigureAwait(false);
-                    else _retiredHandles.Enqueue((Client.InstanceId, repo.Id));
+                    await CloseOrQueueHandleAsync(repo.LeaseId, Client.InstanceId).ConfigureAwait(false);
                 }
             }
             catch (Exception error) { ConnectionError?.Invoke(error.Message); }
@@ -240,11 +286,11 @@ namespace SourceGit.Remote
             // Old update-index call sites set only this fixed editor config; never forward global -c overrides.
             if (args.Count >= 2 && args[0] == "-c" && args[1] == "core.editor=true") args.RemoveRange(0, 2);
             var path = connection.HostPath(start.WorkingDirectory);
+            var client = connection.Client;
             RepositoryInfo repo = null;
-            string id = null;
             if (args.Count > 0 && args[0] is not ("clone" or "init"))
             {
-                try { repo = await connection.OpenTransientAsync(path, cancellation).ConfigureAwait(false); id = repo.Id; }
+                try { repo = await client.OpenRepositoryAsync(path, cancellation).ConfigureAwait(false); }
                 catch (System.IO.IOException) when (args[0] == "rev-parse") { }
             }
             var readOnly = IsReadOnly(args);
@@ -252,21 +298,14 @@ namespace SourceGit.Remote
             var sshKey = start.Environment.TryGetValue("SOURCEGIT_REMOTE_SSHKEY", out var sshValue) ? sshValue : null;
             if (RepositoryPath.IsRemote(sshKey)) sshKey = connection.HostPath(sshKey);
             var request = new GitRequest(repo?.Id ?? "", args.ToArray(), readOnly, readOnly ? null : Guid.NewGuid().ToString("N"), input.Length == 0 ? null : Convert.ToBase64String(input), path, editor, sshKey, configs.ToArray(), NoOptionalLocks: noOptionalLocks);
-            var client = connection.Client;
-            void OnProgress(OperationProgress value)
-            {
-                if (value.OperationId == request.OperationId) progress?.Invoke(value.Text);
-            }
-            client.OperationProgress += OnProgress;
             try
             {
-                var result = await client.ExecuteGitAsync(request, readOnly ? cancellation : CancellationToken.None).ConfigureAwait(false);
+                var result = await client.ExecuteGitAsync(request, readOnly ? cancellation : CancellationToken.None, value => progress?.Invoke(value.Text)).ConfigureAwait(false);
                 return new GitExecution(result.ExitCode, Convert.FromBase64String(result.OutputBase64), result.Error, result.Generation);
             }
             finally
             {
-                client.OperationProgress -= OnProgress;
-                if (id != null) await connection.ReleaseTransientAsync(id).ConfigureAwait(false);
+                if (repo != null) await connection.ReleaseTransientAsync(repo, client).ConfigureAwait(false);
             }
         }
         public static List<string> Tokenize(string command)
@@ -289,23 +328,20 @@ namespace SourceGit.Remote
         }
         private static bool IsReadOnly(List<string> args)
         {
-            if (args.Count == 0) return false;
-            if (new[] { "status", "log", "show", "diff", "diff-files", "diff-index", "ls-files", "ls-tree", "rev-parse", "rev-list", "for-each-ref", "show-ref", "describe", "blame", "cat-file", "check-ignore", "check-attr", "merge-base", "count-objects", "name-rev", "reflog", "version", "ls-remote" }.Contains(args[0])) return true;
-            if (args.Count > 1 && args[0] == "branch" && args[1] is "-l" or "--list" or "-a" or "--all" or "--show-current" or "--points-at" or "--contains" or "--no-contains" or "--merged" or "--no-merged" or "--remotes" or "-r" or "--sort" or "--format" or "-v" or "--abbrev" or "--color" or "--no-color") return true;
-            if (args.Count > 1 && args[0] == "tag" && args[1] is "-l" or "--list" or "--contains" or "--no-contains" or "--points-at" or "--sort" or "-n" or "--format" or "--color" or "--no-color") return true;
-            return args[0] == "config" && args.Any(x => x is "--get" or "--get-all" or "--get-regexp" or "--list" or "-l") || args[0] == "worktree" && args.Contains("list") || args[0] == "remote" && (args.Count == 1 || args[1] is "-v" or "get-url") || args[0] == "stash" && args.Count > 1 && args[1] is "list" or "show";
+            return GitCommandPolicy.IsQuery(args.ToArray());
         }
         public static RemoteFileValue Stat(string path) => FileAsync(path, "stat").GetAwaiter().GetResult();
         public static FileEntry[] List(string path)
+            => ListAsync(path).GetAwaiter().GetResult();
+        public static async Task<FileEntry[]> ListAsync(string path, CancellationToken cancellation = default)
         {
             var connection = ForPath(path);
             var result = new List<FileEntry>();
-            for (var offset = 0; ; offset += 200)
+            await foreach (var page in connection.Client.DirectoryPagesAsync(connection.HostPath(path), cancellation).ConfigureAwait(false))
             {
-                var page = connection.Client.ListDirectoryAsync(connection.HostPath(path), offset).GetAwaiter().GetResult();
-                result.AddRange(page.Entries ?? []);
-                if ((page.Entries?.Length ?? 0) < 200) return result.ToArray();
+                result.AddRange(page);
             }
+            return result.ToArray();
         }
         public static async Task<RemoteFileValue> FileAsync(string path, string action, string destination = null, byte[] content = null, long offset = 0, int count = 64 * 1024, bool overwrite = false, bool truncate = false, bool createNew = false, CancellationToken cancellation = default, string expectedHash = null)
         {

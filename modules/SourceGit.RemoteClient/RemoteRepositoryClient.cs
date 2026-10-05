@@ -21,11 +21,15 @@ public sealed class RemoteRepositoryClient : IAsyncDisposable
     private readonly Channel<Envelope> _events = Channel.CreateUnbounded<Envelope>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
     private Task? _eventReader;
     private int _queuedEvents;
+    private readonly TimeSpan _rpcTimeout;
     private Timer? _heartbeat;
+    internal Func<Task>? BeforeRpcCancellationClassification { get; set; }
+    internal Func<Task>? BeforeDisconnectCancellation { get; set; }
     public string OwnerId { get; }
     public string RecoveryToken { get; }
     public string? InstanceId { get; private set; }
-    public ConcurrentDictionary<string, GitRequest> PendingOperations { get; } = new();
+    public OperationTracker Operations { get; }
+    public IReadOnlyDictionary<string, PendingOperation> PendingOperations => Operations.Pending;
     public Func<CancellationToken, Task<RemoteRepositoryClient>>? RecoveryClient { get; set; }
     public bool IsDisconnected { get; private set; }
     private readonly ConcurrentDictionary<string, InteractionRequest> _pendingInteractions = new();
@@ -48,8 +52,15 @@ public sealed class RemoteRepositoryClient : IAsyncDisposable
     public event Action<OperationProgress>? OperationProgress;
     public event Action<OperationOutput>? OperationOutput;
     public event Action<Exception>? Disconnected;
-    public RemoteRepositoryClient(string? ownerId = null, string? recoveryToken = null)
-    { OwnerId = ownerId ?? Guid.NewGuid().ToString("N"); RecoveryToken = recoveryToken ?? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)); }
+    public RemoteRepositoryClient(string? ownerId = null, string? recoveryToken = null, TimeSpan? rpcTimeout = null, OperationTracker? operations = null)
+    {
+        Operations = operations ?? new();
+        _rpcTimeout = rpcTimeout ?? TimeSpan.FromMinutes(10);
+        if (_rpcTimeout <= TimeSpan.Zero || _rpcTimeout.TotalMilliseconds > uint.MaxValue - 1)
+            throw new ArgumentOutOfRangeException(nameof(rpcTimeout));
+        OwnerId = ownerId ?? Guid.NewGuid().ToString("N");
+        RecoveryToken = recoveryToken ?? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+    }
     public static async Task<HandshakeResult> ProbeAsync(string host, int port, string token, CancellationToken cancellation = default)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -80,6 +91,7 @@ public sealed class RemoteRepositoryClient : IAsyncDisposable
         _eventReader = Task.Run(ReadEvents);
         var result = await CallAsync("Handshake", new HandshakeRequest(token, OwnerId, RecoveryToken), RemoteJson.Default.HandshakeRequest, RemoteJson.Default.HandshakeResult, cancellation).ConfigureAwait(false);
         InstanceId = result.InstanceId;
+        Operations.BindInstance(InstanceId);
         _heartbeat = new Timer(async _ => { try { await CallAsync("Ping", "", RemoteJson.Default.String, RemoteJson.Default.String, _lifetime.Token).ConfigureAwait(false); } catch { } }, null, 10000, 10000);
         return result;
     }
@@ -88,20 +100,27 @@ public sealed class RemoteRepositoryClient : IAsyncDisposable
         var id = Guid.NewGuid().ToString("N");
         var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pending[id] = completion;
-        if (method is "ExecuteGit" or "ExecuteCustomCommand" or "GetOperation") _orderedReplies[id] = 0;
+        if (method is "ExecuteGit" or "ExecuteCustomCommand" or "GetOperation" or "WaitOperation") _orderedReplies[id] = 0;
+        using var deadline = method == "WaitOperation" ? new CancellationTokenSource() : new CancellationTokenSource(_rpcTimeout);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation, _lifetime.Token, deadline.Token);
         try
         {
-            await Protocol.WriteAsync(_stream ?? throw new IOException("Not connected"), new Envelope(id, method, Protocol.Json(request, requestJson)), _write, cancellation).ConfigureAwait(false);
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation, _lifetime.Token);
-            timeout.CancelAfter(TimeSpan.FromMinutes(10));
             using var cancel = timeout.Token.Register(() => { completion.TrySetCanceled(timeout.Token); _ = CancelRequestAsync(id); });
+            await Protocol.WriteAsync(_stream ?? throw new IOException("Not connected"), new Envelope(id, method, Protocol.Json(request, requestJson)), _write, timeout.Token).ConfigureAwait(false);
             var result = await completion.Task.ConfigureAwait(false);
             return result.Deserialize(responseJson) ?? throw new InvalidDataException("Empty response");
+        }
+        catch (OperationCanceledException ex)
+        {
+            if (BeforeRpcCancellationClassification != null) await BeforeRpcCancellationClassification().ConfigureAwait(false);
+            if (deadline.IsCancellationRequested && !cancellation.IsCancellationRequested && !_lifetime.IsCancellationRequested)
+                throw new TimeoutException($"RPC {method} timed out after {_rpcTimeout.TotalSeconds:g} seconds", ex);
+            throw;
         }
         finally { _pending.TryRemove(id, out _); _orderedReplies.TryRemove(id, out _); if (_chunks.TryRemove(id, out var chunk)) chunk.Dispose(); }
     }
     private async Task CancelRequestAsync(string id)
-    { try { if (_stream != null) await Protocol.WriteAsync(_stream, new Envelope("", "CancelRequest", Protocol.Json(id, RemoteJson.Default.String)), _write).ConfigureAwait(false); } catch { } }
+    { try { if (_stream != null) await Protocol.WriteAsync(_stream, new Envelope("", "CancelRequest", Protocol.Json(id, RemoteJson.Default.String)), _write, _lifetime.Token).ConfigureAwait(false); } catch { } }
     private async Task ReadLoop()
     {
         try
@@ -114,8 +133,7 @@ public sealed class RemoteRepositoryClient : IAsyncDisposable
                     if (message.Method is "Interaction" or "RepositoryChanged") _ = Task.Run(() => DispatchEvent(message));
                     else
                     {
-                        if (Interlocked.Increment(ref _queuedEvents) > 4096) throw new IOException("Event consumer is too slow; reconnect and resynchronize");
-                        _events.Writer.TryWrite(message);
+                        EnqueueEvent(message);
                     }
                     continue;
                 }
@@ -144,7 +162,11 @@ public sealed class RemoteRepositoryClient : IAsyncDisposable
         catch (Exception ex)
         {
             IsDisconnected = true;
+            if (BeforeDisconnectCancellation != null) await BeforeDisconnectCancellation().ConfigureAwait(false);
             foreach (var pending in _pending.Values) pending.TrySetException(ex);
+            _heartbeat?.Dispose();
+            _lifetime.Cancel();
+            _client?.Dispose();
             Disconnected?.Invoke(ex);
         }
         finally { _events.Writer.TryComplete(); }
@@ -152,12 +174,24 @@ public sealed class RemoteRepositoryClient : IAsyncDisposable
     private void CompleteResult(string id, JsonElement result, TaskCompletionSource<JsonElement> completion)
     {
         if (!_orderedReplies.ContainsKey(id)) { completion.TrySetResult(result); return; }
-        Interlocked.Increment(ref _queuedEvents);
-        _events.Writer.TryWrite(new Envelope(id, "ReplyBarrier", result));
+        EnqueueEvent(new Envelope(id, "ReplyBarrier", result));
+    }
+    private void EnqueueEvent(Envelope message)
+    {
+        if (Interlocked.Increment(ref _queuedEvents) > 4096)
+        {
+            Interlocked.Decrement(ref _queuedEvents);
+            throw new IOException("Event consumer is too slow; reconnect and resynchronize");
+        }
+        if (!_events.Writer.TryWrite(message))
+        {
+            Interlocked.Decrement(ref _queuedEvents);
+            throw new IOException("Event delivery queue closed; reconnect and resynchronize");
+        }
     }
     private async Task ReadEvents()
     {
-        await foreach (var message in _events.Reader.ReadAllAsync())
+        await foreach (var message in _events.Reader.ReadAllAsync(_lifetime.Token))
         {
             Interlocked.Decrement(ref _queuedEvents);
             try
@@ -177,26 +211,65 @@ public sealed class RemoteRepositoryClient : IAsyncDisposable
                 var request = message.Data.Deserialize(RemoteJson.Default.InteractionRequest)!;
                 lock (_interactionGate) { if (_pendingInteractions.TryAdd(request.Id, request)) _interactionRequested?.Invoke(request); }
                 break;
-            case "OperationCompleted": OperationCompleted?.Invoke(message.Data.Deserialize(RemoteJson.Default.OperationInfo)!); break;
+            case "OperationCompleted":
+                var completed = message.Data.Deserialize(RemoteJson.Default.OperationInfo)!;
+                Operations.Observe(InstanceId, completed);
+                OperationCompleted?.Invoke(completed); break;
             case "OperationProgress": OperationProgress?.Invoke(message.Data.Deserialize(RemoteJson.Default.OperationProgress)!); break;
             case "OperationOutput": OperationOutput?.Invoke(message.Data.Deserialize(RemoteJson.Default.OperationOutput)!); break;
         }
     }
     public Task<RepositoryInfo> OpenRepositoryAsync(string path, CancellationToken cancellation = default) => CallAsync("OpenRepository", new OpenRequest(path), RemoteJson.Default.OpenRequest, RemoteJson.Default.RepositoryInfo, cancellation);
+    public Task<string> CloseRepositoryAsync(string leaseId, CancellationToken cancellation = default) => CallAsync("CloseRepository", new IdRequest(leaseId), RemoteJson.Default.IdRequest, RemoteJson.Default.String, cancellation);
     public Task<StatusSnapshot> GetStatusAsync(string repositoryId, bool noOptionalLocks = false, CancellationToken cancellation = default) => CallAsync("GetStatus", new QueryRequest(repositoryId, NoOptionalLocks: noOptionalLocks), RemoteJson.Default.QueryRequest, RemoteJson.Default.StatusSnapshot, cancellation);
     public Task<RefsSnapshot> GetRefsAsync(string repositoryId, CancellationToken cancellation = default) => CallAsync("GetRefs", new QueryRequest(repositoryId), RemoteJson.Default.QueryRequest, RemoteJson.Default.RefsSnapshot, cancellation);
     public Task<HistoryPage> GetHistoryAsync(QueryRequest request, CancellationToken cancellation = default) => CallAsync("GetHistory", request, RemoteJson.Default.QueryRequest, RemoteJson.Default.HistoryPage, cancellation);
     public Task<CommitInfo> GetCommitAsync(string repositoryId, string revision, CancellationToken cancellation = default) => CallAsync("GetCommit", new QueryRequest(repositoryId, revision), RemoteJson.Default.QueryRequest, RemoteJson.Default.CommitInfo, cancellation);
     public Task<BlameData> GetBlameAsync(string repositoryId, string revision, string file, bool ignoreWhitespace = false, CancellationToken cancellation = default) => CallAsync("GetBlame", new QueryRequest(repositoryId, revision, file, 0, 100, ignoreWhitespace), RemoteJson.Default.QueryRequest, RemoteJson.Default.BlameData, cancellation);
     public Task<DiffInfo> GetDiffAsync(QueryRequest request, CancellationToken cancellation = default) => CallAsync("GetDiff", request, RemoteJson.Default.QueryRequest, RemoteJson.Default.DiffInfo, cancellation);
-    public Task<FileResult> FileAsync(FileRequest request, CancellationToken cancellation = default)
+    public async Task<FileResult> FileAsync(FileRequest request, CancellationToken cancellation = default)
     {
-        if (request.Action is not ("stat" or "exists" or "read" or "list" or "hash")) request = request with { OperationId = request.OperationId ?? Guid.NewGuid().ToString("N") };
-        return CallAsync("File", request, RemoteJson.Default.FileRequest, RemoteJson.Default.FileResult, cancellation);
+        if (request.Action is "stat" or "exists" or "read" or "list" or "hash")
+            return await CallAsync("File", request, RemoteJson.Default.FileRequest, RemoteJson.Default.FileResult, cancellation).ConfigureAwait(false);
+        request = request with { OperationId = request.OperationId ?? Guid.NewGuid().ToString("N") };
+        var operation = await Operations.RunAsync(this, request.OperationId, "File", Protocol.Json(request, RemoteJson.Default.FileRequest),
+            async () => new OperationInfo(request.OperationId, "succeeded", FileResult:
+                await CallAsync("File", request, RemoteJson.Default.FileRequest, RemoteJson.Default.FileResult, cancellation).ConfigureAwait(false)), cancellation).ConfigureAwait(false);
+        return operation.FileResult ?? throw new IOException(operation.Error ?? "File operation outcome unknown; refresh before retrying");
     }
-    public Task<FileResult> ListDirectoryAsync(string path, int offset = 0, int count = 200, CancellationToken cancellation = default) => CallAsync("ListDirectory", new DirectoryRequest(path, offset, count), RemoteJson.Default.DirectoryRequest, RemoteJson.Default.FileResult, cancellation);
+    public Task<FileResult> ListDirectoryAsync(string path, int offset = 0, int count = 200, CancellationToken cancellation = default, string? cursor = null) => CallAsync("ListDirectory", new DirectoryRequest(path, offset, count, cursor), RemoteJson.Default.DirectoryRequest, RemoteJson.Default.FileResult, cancellation);
+    public Task<string> ReleaseDirectoryAsync(string cursor, CancellationToken cancellation = default) => CallAsync("ReleaseDirectory", new IdRequest(cursor), RemoteJson.Default.IdRequest, RemoteJson.Default.String, cancellation);
+    public async IAsyncEnumerable<FileEntry[]> DirectoryPagesAsync(string path, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellation = default)
+    {
+        string? cursor = null;
+        var offset = 0;
+        try
+        {
+            do
+            {
+                var page = await ListDirectoryAsync(path, offset, cancellation: cancellation, cursor: cursor).ConfigureAwait(false);
+                cursor = page.DirectoryCursor; offset = page.NextOffset;
+                cancellation.ThrowIfCancellationRequested();
+                yield return page.Entries ?? [];
+            } while (cursor != null);
+        }
+        finally
+        {
+            if (cursor != null)
+            {
+                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                try { await ReleaseDirectoryAsync(cursor, cleanup.Token).ConfigureAwait(false); }
+                catch (Exception error) when (error is IOException or SocketException or ObjectDisposedException or OperationCanceledException or TimeoutException) { }
+            }
+        }
+    }
     public Task<EnvironmentInfo> GetEnvironmentAsync(CancellationToken cancellation = default) => CallAsync("GetEnvironment", "", RemoteJson.Default.String, RemoteJson.Default.EnvironmentInfo, cancellation);
-    public Task<OperationInfo> GetOperationAsync(string id, CancellationToken cancellation = default) => CallAsync("GetOperation", new IdRequest(id), RemoteJson.Default.IdRequest, RemoteJson.Default.OperationInfo, cancellation);
+    public async Task<OperationInfo> GetOperationAsync(string id, CancellationToken cancellation = default)
+    {
+        var info = await CallAsync("GetOperation", new IdRequest(id), RemoteJson.Default.IdRequest, RemoteJson.Default.OperationInfo, cancellation).ConfigureAwait(false);
+        Operations.Observe(InstanceId, info);
+        return info;
+    }
     public Task<string> ConfigureAutoFetchAsync(string repositoryId, int intervalMinutes, bool prune = true, CancellationToken cancellation = default) => CallAsync("ConfigureAutoFetch", new AutoFetchRequest(repositoryId, intervalMinutes, prune), RemoteJson.Default.AutoFetchRequest, RemoteJson.Default.String, cancellation);
     public Task<string> ShutdownAsync(CancellationToken cancellation = default) => CallAsync("Shutdown", "", RemoteJson.Default.String, RemoteJson.Default.String, cancellation);
     public async Task<string> SubmitInteractionAsync(InteractionReply reply, CancellationToken cancellation = default)
@@ -204,25 +277,19 @@ public sealed class RemoteRepositoryClient : IAsyncDisposable
         var response = await CallAsync("SubmitInteraction", reply, RemoteJson.Default.InteractionReply, RemoteJson.Default.String, cancellation).ConfigureAwait(false);
         _pendingInteractions.TryRemove(reply.Id, out _); return response;
     }
-    public async Task<GitResult> ExecuteGitAsync(GitRequest request, CancellationToken cancellation = default)
+    public async Task<GitResult> ExecuteGitAsync(GitRequest request, CancellationToken cancellation = default, Action<OperationProgress>? progress = null)
     {
         if (request.ReadOnly) return await CallAsync("ExecuteGit", request, RemoteJson.Default.GitRequest, RemoteJson.Default.GitResult, cancellation).ConfigureAwait(false);
         request = request with { OperationId = request.OperationId ?? Guid.NewGuid().ToString("N") };
-        PendingOperations[request.OperationId] = request;
-        OperationInfo operation;
-        var current = this;
-        try { operation = await CallAsync("ExecuteGit", request, RemoteJson.Default.GitRequest, RemoteJson.Default.OperationInfo, cancellation).ConfigureAwait(false); }
-        catch (Exception ex) when (IsDisconnected && RecoveryClient != null && !cancellation.IsCancellationRequested && ex is IOException or OperationCanceledException or SocketException or ObjectDisposedException)
-        { current = await RecoveryClient(cancellation).ConfigureAwait(false); operation = await current.GetOperationAsync(request.OperationId, cancellation).ConfigureAwait(false); }
-        while (operation.State is "accepted" or "running" or "waitingInteraction")
-        {
-            await Task.Delay(150, cancellation).ConfigureAwait(false);
-            try { operation = await current.GetOperationAsync(operation.Id, cancellation).ConfigureAwait(false); }
-            catch (Exception ex) when (current.IsDisconnected && RecoveryClient != null && !cancellation.IsCancellationRequested && ex is IOException or OperationCanceledException or SocketException or ObjectDisposedException)
-            { current = await RecoveryClient(cancellation).ConfigureAwait(false); operation = await current.GetOperationAsync(request.OperationId, cancellation).ConfigureAwait(false); }
-        }
-        if (operation.State != "unknown") PendingOperations.TryRemove(request.OperationId, out _);
+        var operation = await Operations.RunAsync(this, request.OperationId, "ExecuteGit", Protocol.Json(request, RemoteJson.Default.GitRequest),
+            () => CallAsync("ExecuteGit", request, RemoteJson.Default.GitRequest, RemoteJson.Default.OperationInfo, cancellation), cancellation, progress).ConfigureAwait(false);
         return operation.Result ?? throw new IOException(operation.Error ?? "Operation outcome unknown; refresh repository before retrying");
+    }
+    public async Task<GitResult> ExecuteCustomAsync(CustomCommandRequest request, CancellationToken cancellation = default, Action<OperationProgress>? progress = null)
+    {
+        var operation = await Operations.RunAsync(this, request.OperationId, "ExecuteCustomCommand", Protocol.Json(request, RemoteJson.Default.CustomCommandRequest),
+            () => CallAsync("ExecuteCustomCommand", request, RemoteJson.Default.CustomCommandRequest, RemoteJson.Default.OperationInfo, cancellation), cancellation, progress).ConfigureAwait(false);
+        return operation.Result ?? throw new IOException(operation.Error ?? "Custom command outcome unknown; refresh before retrying");
     }
     public async Task<byte[]> ReadFileAsync(string repositoryId, string path, CancellationToken cancellation = default)
     {
@@ -240,9 +307,14 @@ public sealed class RemoteRepositoryClient : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (System.Threading.Interlocked.Exchange(ref _disposed, 1) == 1) return;
+        // Publish channel loss before canceling pending long waits. Their
+        // continuations must be able to recover a persistent write immediately.
+        IsDisconnected = true;
         _heartbeat?.Dispose(); _lifetime.Cancel(); _client?.Dispose();
         if (_reader != null) { try { await _reader.ConfigureAwait(false); } catch { } }
-        if (_eventReader != null) { try { await _eventReader.ConfigureAwait(false); } catch { } }
+        // Consumer callbacks run outside the protocol reader. A stuck callback must
+        // not keep a channel or upgrade alive; cancellation stops further delivery.
+        if (_eventReader != null) { try { await _eventReader.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false); } catch { } }
         _lifetime.Dispose(); _write.Dispose();
     }
 }
