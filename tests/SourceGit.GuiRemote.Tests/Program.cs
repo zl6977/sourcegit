@@ -5,6 +5,24 @@ using SourceGit.Contracts;
 using SourceGit.Remote;
 using SourceGit.RemoteClient;
 
+if (args.Contains("--remote-directory-checks"))
+{
+    RemoteDirectoryChecks.Run(Option("--server"), Option("--record"), Option("--directory-path"));
+    return;
+}
+
+if (args.Contains("--history-restore-checks"))
+{
+    await HistoryRestoreChecks.RunAsync(Path.GetFullPath(Option("--server")!));
+    return;
+}
+
+if (args.Contains("--working-copy-menu-checks"))
+{
+    WorkingCopyMenuChecks.Run(Path.GetFullPath(Option("--server")!));
+    return;
+}
+
 if (args.Contains("--avatar-checks"))
 {
     AvatarChecks.Run();

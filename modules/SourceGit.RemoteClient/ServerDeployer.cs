@@ -12,6 +12,55 @@ internal sealed class ServerDeployer(Func<string, byte[]?, CancellationToken, Ta
     private readonly string _base = baseDirectory == null ? "\"$HOME/.sourcegit-server\"" : "'" + baseDirectory.Replace("'", "'\"'\"'") + "'";
     private string? _version;
 
+    // Discover once on connection/startup, never periodically. A local archive
+    // is only needed to install a build that is not already on this host.
+    internal async Task<bool> UseInstalledAsync(string? expectedHash, CancellationToken cancellation)
+    {
+        if (!string.IsNullOrWhiteSpace(expectedHash) &&
+            (expectedHash.Length != 64 || expectedHash.Any(c => !Uri.IsHexDigit(c))))
+            throw new IOException("Server package digest is invalid");
+        var pinnedHash = expectedHash?.ToLowerInvariant() ?? "";
+        var output = await runRemote($$"""
+            set -eu
+            base={{_base}}
+            select_version() {
+                candidate="$1"; hash="${candidate##*/}"
+                case "$candidate" in "$base/versions/{{Protocol.Build}}/"*) ;; *) return 1 ;; esac
+                [ "${#hash}" = 64 ] || return 1
+                case "$hash" in *[!0-9a-f]*) return 1 ;; esac
+                [ "$candidate" = "$base/versions/{{Protocol.Build}}/$hash" ] || return 1
+                [ -z '{{pinnedHash}}' ] || [ "$hash" = '{{pinnedHash}}' ] || return 1
+                [ -x "$candidate/sourcegit-server" ] &&
+                [ "$(cat "$candidate/sourcegit-bootstrap.version" 2>/dev/null | tr -d '\r\n')" = '1' ] &&
+                [ "$(cat "$candidate/.package-sha256" 2>/dev/null)" = "$hash" ] || return 1
+                printf 'SOURCEGIT_INSTALLED_VERSION {{Protocol.Build}}/%s\n' "$hash"
+            }
+            # Prefer the running instance's package to avoid an unsolicited
+            # digest-only upgrade when more than one immutable package exists.
+            record="$base/instance-{{Protocol.Build}}.json"
+            if [ -f "$record" ]; then
+                pid=$(sed -n 's/.*"processId"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$record")
+                case "$pid" in ''|*[!0-9]*) ;; *)
+                    executable=$(readlink "/proc/$pid/exe" 2>/dev/null || true)
+                    if [ -n "$executable" ] && select_version "${executable%/*}"; then exit 0; fi ;;
+                esac
+            fi
+            for candidate in "$base/versions/{{Protocol.Build}}/"*; do
+                if select_version "$candidate"; then exit 0; fi
+            done
+            printf 'SOURCEGIT_NOT_INSTALLED\n'
+            """, null, cancellation).ConfigureAwait(false);
+        var prefix = "SOURCEGIT_INSTALLED_VERSION " + Protocol.Build + "/";
+        var selected = output.Split('\n', StringSplitOptions.TrimEntries).LastOrDefault(line => line.StartsWith(prefix, StringComparison.Ordinal));
+        if (selected == null) return false;
+        var hash = selected[prefix.Length..];
+        if (hash.Length != 64 || hash.Any(c => !Uri.IsHexDigit(c)) ||
+            !string.IsNullOrEmpty(pinnedHash) && !hash.Equals(pinnedHash, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Invalid installed Server package identity");
+        _version = Protocol.Build + "/" + hash;
+        return true;
+    }
+
     public async Task InstallAsync(string package, string? expectedHash, CancellationToken cancellation)
     {
         if (!File.Exists(package)) throw new FileNotFoundException("Matching self-contained Server package is required", package);

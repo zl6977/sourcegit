@@ -34,6 +34,9 @@ static class DeploymentChecks
             var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
             var deployer = new ServerDeployer(RunRemote, root);
             await deployer.InstallAsync(package, hash, cancellation);
+            var installed = new ServerDeployer(RunRemote, root);
+            Check(await installed.UseInstalledAsync(null, cancellation), "Matching installed package was not discovered without a local archive");
+            Check(!await new ServerDeployer(RunRemote, root).UseInstalledAsync(new string('0', 64), cancellation), "Installed discovery ignored a pinned digest");
             var first = await deployer.StartAsync(cancellation);
             Check(!first.UpgradeRequired, "Fresh instance needs an upgrade");
             current = new RemoteRepositoryClient();
@@ -70,9 +73,23 @@ static class DeploymentChecks
             current = new RemoteRepositoryClient();
             await current.ConnectAsync("127.0.0.1", next.Record.Port, next.Record.Token, cancellation);
             Console.WriteLine("PASS WSL graceful upgrade uses one bootstrap call and authenticates the notified replacement instance");
+            installed = new ServerDeployer(RunRemote, root);
+            Check(await installed.UseInstalledAsync(null, cancellation), "Running installed package was not discovered");
+            var reused = await installed.StartAsync(cancellation);
+            Check(!reused.UpgradeRequired && reused.Record.InstanceId == next.Record.InstanceId, "Missing local archive selected another installed digest and forced an upgrade");
+            Console.WriteLine("PASS WSL installed discovery without a local archive preserves the running package and enforces pinned digests");
             await current.ShutdownAsync(cancellation);
             await current.DisposeAsync(); current = null;
             await upgrade.WaitForExitAsync(next, cancellation);
+            var restart = new ServerDeployer(RunRemote, root);
+            Check(await restart.UseInstalledAsync(null, cancellation), "Stopped installed package was not discovered");
+            var restarted = await restart.StartAsync(cancellation);
+            current = new RemoteRepositoryClient();
+            await current.ConnectAsync("127.0.0.1", restarted.Record.Port, restarted.Record.Token, cancellation);
+            await current.ShutdownAsync(cancellation);
+            await current.DisposeAsync(); current = null;
+            await restart.WaitForExitAsync(restarted, cancellation);
+            Console.WriteLine("PASS WSL stopped server starts automatically from the matching installed package without uploading a local archive");
             // This generated root is the only remote directory this test removes.
             await RunRemote($"test ! -f '{root}/instance-{Protocol.Build}.json' && rm -rf -- '{root}'", null, cancellation);
         }

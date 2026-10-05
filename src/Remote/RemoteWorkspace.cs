@@ -127,6 +127,25 @@ namespace SourceGit.Remote
             return capabilities.Contains("git-flow-next") ? Models.GitFlowVersion.Next :
                 capabilities.Contains("git-flow") ? Models.GitFlowVersion.Legacy : Models.GitFlowVersion.None;
         }
+        public async Task<(RepositoryInfo Repository, string Directory)> OpenLocationAsync(string path, CancellationToken cancellation = default)
+        {
+            try
+            {
+                var repository = await OpenAsync(path, cancellation).ConfigureAwait(false);
+                return (repository, repository.WorktreePath);
+            }
+            catch (System.IO.IOException error) when (error.Message.Contains("fatal: not a git repository", StringComparison.Ordinal))
+            {
+                var directory = await Client.FileAsync(new FileRequest("", "stat", HostPath(path)), cancellation).ConfigureAwait(false);
+                if (!directory.Exists || !directory.Directory) throw;
+                var canonical = directory.Entries[0].Path;
+                var metadata = await Client.FileAsync(new FileRequest("", "stat", canonical.TrimEnd('/', '\\') + "/.git"), cancellation).ConfigureAwait(false);
+                // Invalid repository metadata must remain an error, never an invitation to overwrite it.
+                if (metadata.Exists) throw;
+                return (null, canonical);
+            }
+        }
+
         public async Task<RepositoryInfo> OpenAsync(string path, CancellationToken cancellation = default)
         {
             var remote = HostPath(path);

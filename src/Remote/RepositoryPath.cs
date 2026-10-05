@@ -49,7 +49,23 @@ namespace SourceGit.Remote
             return Normalize(value);
         }
         public static string GetFullPath(string path) => Normalize(path);
-        public static bool Exists(string path) => IsRemote(path) ? RemoteWorkspace.Stat(path).Exists : System.IO.Path.Exists(path);
+        public static bool Exists(string path) => IsRemote(path) ? TryGetRemoteStatus(path, out var status) && status.Exists : System.IO.Path.Exists(path);
+        internal static bool TryGetRemoteStatus(string path, out RemoteFileValue status)
+        {
+            status = null;
+            try
+            {
+                if (!RemoteWorkspace.IsConnected(path)) return false;
+                status = RemoteWorkspace.Stat(path);
+                return true;
+            }
+            catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or ObjectDisposedException or OperationCanceledException)
+            {
+                // Match local Exists semantics: inaccessible/missing resources
+                // and connection loss disable UI actions rather than throwing.
+                return false;
+            }
+        }
         public static bool IsPathFullyQualified(string path) => IsRemote(path) || System.IO.Path.IsPathFullyQualified(path);
         // \\wsl.localhost shares report WSL-file ownership as foreign SIDs to the Windows git client, so git's
         // "dubious ownership" safety check rejects those repositories outright (fatal, blank tab in the GUI).

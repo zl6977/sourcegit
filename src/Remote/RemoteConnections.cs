@@ -129,7 +129,7 @@ namespace SourceGit.Remote
                     await oldManager.DisposeAsync().ConfigureAwait(false);
                     Managers.TryRemove(options.Id, out _);
                 }
-                if (Managers.ContainsKey(options.Id) && Workspaces.TryGetValue(options.Id, out var connected) && connected.Connected) return connected;
+                if (Managers.ContainsKey(options.Id) && Workspaces.TryGetValue(options.Id, out var connected) && connected.Connected && !connected.Client.IsDisconnected) return connected;
                 if (!Managers.TryGetValue(options.Id, out var manager))
                 {
                     manager = new ConnectionManager(options);
@@ -167,7 +167,7 @@ namespace SourceGit.Remote
         public static async Task<RemoteWorkspace> RestoreAsync(string resource, CancellationToken cancellation = default)
         {
             var id = RepositoryPath.ConnectionId(resource);
-            if (Workspaces.TryGetValue(id, out var workspace) && workspace.Connected) return workspace;
+            if (Workspaces.TryGetValue(id, out var workspace) && workspace.Connected && !workspace.Client.IsDisconnected) return workspace;
             var options = Load().FirstOrDefault(x => x.Id == id) ?? throw new IOException("Remote connection configuration is missing");
             return await ConnectAsync(options, cancellation: cancellation).ConfigureAwait(false);
         }

@@ -1,5 +1,27 @@
 # Remote architecture validation
 
+## Uninitialized remote directories (2026-10-05)
+
+Current matched delivery: **`artifacts/remote-directory-final/`**, protocol **3 / remote-2009d4619bad31c6220d**, self-contained non-AOT Windows x64 client/Linux x64 server. Archive SHA-256 **fda31f07668b0182661a9587150e2dcdec15d213d70d90ff134096eeb19bf32b**. Actual Contracts constants from client, Linux server and both Windows runners plus the bundled archive digest match (`artifacts/remote-directory-pair-audit.json`). Earlier deliveries below are historical.
+
+- Ordinary-directory integration: local **7 PASS**, real WSL Linux x64 **7 PASS**, exit0 (`remote-directory-local.log/.exit`, `remote-directory-wsl.log/.exit`). Real RPC and Avalonia headless ViewModel/control checks cover named workspace tabs/history reuse, opening/refresh without `.git`, explicit initialization in the same tab, external initialization, missing paths/invalid metadata, closed/stale commands, close during pending refresh, bare repositories and preservation of other Git errors. WSL uses a generated `/tmp/sourcegit-directory-*` root; its isolated server exits after authenticated Shutdown (`remote-directory-wsl-server.exit`, 0). No manual desktop interaction claim.
+- Existing matched Remote **43/43**, GUI **32**, Launcher retry **3 PASS**, exit0 (`remote-directory-remote.log/.exit`, `remote-directory-gui.log/.exit`, `remote-directory-retry.log/.exit`). Builds and publish succeeded; GUI has two existing CA1820 warnings.
+- Intermediate test failure retained in `remote-directory-local-intermediate.log/.exit`: opening a repository's `.git` directory reports a work-tree error in the existing server, so the test now checks that this error is preserved rather than expecting it to open. Plain-directory fixtures were moved outside the checkout to avoid Git discovering the checkout's parent repository.
+
+No SSH or arm64 testing; no user connection/default installation changes, no commit. No new product polling or background fetch/watch for ordinary directory pages.
+
+## History restore / deleted-file menu regression (2026-10-05)
+
+New pair **`artifacts/ui-fixes-final/`**, protocol **3 / remote-a87616f965a32cdca940**, Windows self-contained non-AOT x64 client/Linux x64 server. Archive SHA-256 **5dd5987f5b98c846dd973ccbeed093dd17116b4c774f8bd1264213d59872ffa4**; actual Contracts constants, manifest and bundled archive digest checked in `artifacts/ui-fixes-pair-audit.json`. Builds succeeded, Remote zero warnings/errors, GUI two existing CA1820 warnings.
+
+- Actual Avalonia menu construction: **3 PASS**, exit 0 (`ui-fixes-menu-matched.log/.exit`). A real Git commit followed by staged deletion exercises both staged/unstaged menus with Open/Reveal disabled and Git actions retained. A real TCP proxy injects the same `Path is outside repository` error seen in crash logs; all Exists variants remain safe while explicit Stat still throws. Closing the client verifies disconnected menu construction. This is headless control verification, not a manual desktop right-click claim.
+- Actual saved-configuration history Restore: **2 PASS**, exit 0 (`ui-fixes-history-matched.log/.exit`). Without manual Connect, Restore launches the configured isolated local server, opens the repository, reuses the active route, then reconnects to the same independent server after DisconnectAll. Separate WSL deployment validates the remote installation path.
+- Matching Remote **43/43**, GUI **32**, exit 0 (`ui-fixes-remote.log/.exit`, `ui-fixes-gui.log/.exit`). WSL immutable deployment **5 PASS**, exit 0 (`ui-fixes-wsl.log/.exit`): previous three gates plus installed-package discovery without a local archive, pinned-digest rejection/running-package preference and automatic startup after shutdown. Tests use generated roots and do not change the user's installation.
+
+Initial compile failure (QueryLocalChanges is async), invocation of the old runner after that failed build (build mismatch), and first SSH fixture run's broken pipe remain in artifacts. The SSH helper previously passed CRLF scripts after Windows checkout; normalizing exactly as production RunRemote fixes the helper. Performance was not remeasured; no arm64/AOT runtime claim. Original review delivery below is historical.
+
+The user subsequently requested no more SSH tests. No SSH test was started or repeated after that instruction; acceptance now uses local/WSL checks only. The already-finished isolated fixture runner's log is retained, and only its local WSL daemon/credentials were cleaned (`ui-fixes-ssh-cleanup.log/.exit`, exit 0). Neither the user's remote host nor SSH configuration was changed. Further SSH testing is excluded from this round.
+
 ## 2026-10-05 review corrections
 
 Verified and fixed F2/F3/F4/F5/F6/F7/F11/F13; added ABI evidence for F1/F12. F1's proposed PID offset 12 is incorrect for the supported 64-bit layout: actual WSL x64 C `offsetof` gives PID 16 / UID 20 / status 24 / size 128 (`artifacts/review-20261005-siginfo.log`, exit 0). Current matched Linux native checks pass **15 as ordinary user and 15 as root** (`review-20261005-linux-normal-final3.log`, `review-20261005-linux-root-final3.log`), with adopted-zombie reaping and actual waitid/pidfd failures. No arm64 runtime claim.

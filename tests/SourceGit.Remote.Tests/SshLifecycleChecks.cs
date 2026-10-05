@@ -102,6 +102,16 @@ internal static class SshLifecycleChecks
             Check((await RunSsh("test ! -f \"$HOME/.sourcegit-server/instance-" + Protocol.Build + ".json\" && printf EXITED", null, token)).Trim() == "EXITED",
                 "SSH shutdown returned before native exit/record cleanup");
             Console.WriteLine("PASS Final real SSH shutdown acknowledges only accepted closure and native pidfd exit confirms the fixture server/record are gone");
+            await using var automatic = new ConnectionManager(options with { Id = Guid.NewGuid().ToString("N"), PackagePath = package + ".missing", PackageSha256 = null });
+            cleanup = await automatic.ConnectAsync(token);
+            var automaticInstance = cleanup.InstanceId;
+            Check((await cleanup.GetEnvironmentAsync(token)).Home == home, "Automatic installed restart changed fixture HOME");
+            await automatic.DisposeAsync();
+            await using var attach = new ConnectionManager(options with { Id = Guid.NewGuid().ToString("N"), PackagePath = null, PackageSha256 = null });
+            cleanup = await attach.ConnectAsync(token);
+            Check(cleanup.InstanceId == automaticInstance, "Automatic connection with no local package restarted the live matching server");
+            await attach.ShutdownForUpgradeAsync(cleanup); cleanup = null;
+            Console.WriteLine("PASS Production ConnectionManager starts and reattaches the installed SSH server with missing/null package paths and no manual connect");
         }
         finally
         {
@@ -115,6 +125,7 @@ internal static class SshLifecycleChecks
         async Task<int> Starts() => int.Parse((await RunSsh("wc -l < \"$HOME/start-calls\"", null, token)).Trim());
         async Task<string> RunSsh(string script, byte[]? input, CancellationToken cancellation)
         {
+            script = script.Replace("\r\n", "\n"); // Match production RunRemote even after a Windows checkout.
             var start = new ProcessStartInfo("ssh") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
             foreach (var argument in new[] { "-F", config, "-T", "sourcegit-fixture", "sh -c '" + script.Replace("'", "'\"'\"'") + "'" }) start.ArgumentList.Add(argument);
             using var process = Process.Start(start)!;

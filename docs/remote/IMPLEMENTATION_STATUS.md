@@ -1,5 +1,19 @@
 # Remote implementation evidence
 
+## Opening uninitialized remote directories (2026-10-05)
+
+Existing ordinary WSL/remote directories now open in a named tab with explicit Initialize Repository and Refresh actions. Opening does not create `.git`, start Git watchers/fetch, or add polling. Explicit initialization runs on the host and transitions the same tab; Refresh detects external initialization. Workspace persistence, duplicate opens and close/refresh races are covered. Missing paths, invalid `.git` and other Git errors remain errors.
+
+Current pair **`artifacts/remote-directory-final/`**, protocol **3 / remote-2009d4619bad31c6220d**, Windows x64 self-contained non-AOT/Linux x64. Local directory checks **7**, real WSL directory checks **7**, Remote **43/43**, GUI **32**, Launcher retry **3**, all exit0. See TEST_RESULTS and review section seven. No SSH or arm64 tests, user configuration changes, default deployment or commit. The deliveries below are historical.
+
+## History connection and deleted-file context menu fixes (2026-10-05)
+
+History Restore now checks the actual client state; missing local archives reuse/start a matching installed host package through bootstrap, with running-version preference and digest enforcement. An unpinned stale archive path can use the bundled package. Remote File/Directory/Path Exists handle inaccessible paths and disconnect races without throwing into context-menu construction; explicit Stat/read/write and server path restrictions remain intact.
+
+Latest pair **`artifacts/ui-fixes-final/`**, protocol **3 / remote-a87616f965a32cdca940**, Windows non-AOT x64/Linux x64. Actual menu checks **3**, history Restore **2**, Remote **43/43**, GUI **32**, WSL deployment **5**, exit 0. Detailed current evidence is at the top of TEST_RESULTS and in review section six. Older review delivery/performance records remain historical. arm64 testing remains excluded; no user installation/configuration was changed and no commit made.
+
+User scope update: no further SSH testing. Only local/WSL verification remains in scope; the already-created local isolated daemon and test keys were cleaned. Prior SSH logs are historical evidence, not authorization for another run.
+
 ## 2026-10-05 review follow-up
 
 F2/F3/F4/F5/F6/F7/F11/F13 corrected and regressed; F1's claimed root ABI defect disproved by C offsets and current Linux native checks **15 ordinary-user + 15 root**. F12 now cites the documented Windows Job member-list ABI. The detailed dispositions and remaining F8/F9/F10/F14/F15 design work are in [the new review](REVIEW_2026-10-05.md#五核验与整改记录2026-10-05). No new steady-state polling was introduced.

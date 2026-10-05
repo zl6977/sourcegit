@@ -23,6 +23,9 @@
           <DataTemplate DataType="vm:Repository">
             <v:RepositoryToolbar/>
           </DataTemplate>
+          <DataTemplate DataType="vm:RemoteDirectory">
+            <TextBlock Text="{Binding DisplayPath}" Margin="12,0" VerticalAlignment="Center"/>
+          </DataTemplate>
         </ContentControl.DataTemplates>
       </ContentControl>
     </Border>
@@ -37,6 +40,20 @@
                        BorderThickness="1"
                        BorderBrush="{DynamicResource Brush.Border0}"
                        Background="{DynamicResource Brush.Window}"/>
+          </DataTemplate>
+
+          <DataTemplate DataType="vm:RemoteDirectory">
+            <Border Margin="4,0,4,4" CornerRadius="8" Background="{DynamicResource Brush.Window}">
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16" MaxWidth="640" Margin="24">
+                <TextBlock Text="{Binding DisplayPath}" TextWrapping="Wrap" HorizontalAlignment="Center"/>
+                <TextBlock Text="{DynamicResource Text.Init.CommandTip}" TextWrapping="Wrap" HorizontalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
+                  <Button Classes="flat primary" Content="{DynamicResource Text.Init}" Command="{Binding InitializeCommand}" Padding="16,8"/>
+                  <Button Classes="flat" Content="{DynamicResource Text.PageTabBar.Tab.Refresh}" Command="{Binding RefreshCommand}" Padding="16,8"/>
+                </StackPanel>
+                <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Height="2"/>
+              </StackPanel>
+            </Border>
           </DataTemplate>
 
           <DataTemplate DataType="vm:Repository">

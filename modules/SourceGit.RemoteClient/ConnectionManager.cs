@@ -95,8 +95,17 @@ public sealed class ConnectionManager : IAsyncDisposable
                 Log("Environment", "Linux " + lines[1] + "; Git detected");
                 SetState("Installing");
                 deployer = new ServerDeployer(RunRemote);
-                var package = _options.PackagePath ?? Path.Combine(AppContext.BaseDirectory, "server", "sourcegit-server-" + _runtime + ".tar.gz");
-                await deployer.InstallAsync(package, _options.PackageSha256, linked.Token).ConfigureAwait(false);
+                var packaged = Path.Combine(AppContext.BaseDirectory, "server", "sourcegit-server-" + _runtime + ".tar.gz");
+                var package = _options.PackagePath ?? packaged;
+                // A saved development archive may have been moved/removed. A
+                // bundled matching package remains usable unless a digest is pinned.
+                if (!File.Exists(package) && string.IsNullOrEmpty(_options.PackageSha256) && File.Exists(packaged)) package = packaged;
+                if (File.Exists(package))
+                    await deployer.InstallAsync(package, _options.PackageSha256, linked.Token).ConfigureAwait(false);
+                else if (await deployer.UseInstalledAsync(_options.PackageSha256, linked.Token).ConfigureAwait(false))
+                    Log("Installation", "Reusing the matching Server installation on the host");
+                else
+                    throw new FileNotFoundException("Matching self-contained Server package is required because this build is not installed on the host", package);
                 SetState("Starting");
                 var deployment = await deployer.StartAsync(linked.Token).ConfigureAwait(false);
                 discoveredDeployment = deployment;

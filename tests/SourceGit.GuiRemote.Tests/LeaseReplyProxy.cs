@@ -11,6 +11,8 @@ internal sealed class LeaseReplyProxy : IAsyncDisposable
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ConcurrentDictionary<string, byte> _closes = new();
+    private readonly ConcurrentDictionary<string, byte> _stats = new();
+    internal string? StatError { get; set; }
     private readonly Task _pump;
     private TcpClient? _gui, _server;
     private string? _handshakeId;
@@ -41,6 +43,8 @@ internal sealed class LeaseReplyProxy : IAsyncDisposable
                 while (await Protocol.ReadAsync(_gui.GetStream(), _lifetime.Token) is { } request)
                 {
                     if (request.Method == "Handshake") Volatile.Write(ref _handshakeId, request.Id);
+                    if (request.Method == "File" && request.Data.GetProperty("action").GetString() == "stat" && StatError != null)
+                        _stats[request.Id] = 0;
                     if (request.Method == "CloseRepository")
                     {
                         _closes[request.Id] = 0;
@@ -53,6 +57,8 @@ internal sealed class LeaseReplyProxy : IAsyncDisposable
             {
                 while (await Protocol.ReadAsync(_server.GetStream(), _lifetime.Token) is { } response)
                 {
+                    if (!response.Event && _stats.TryRemove(response.Id, out _))
+                        response = response with { Data = Protocol.Null, Error = StatError };
                     if (!response.Event && response.Id == Volatile.Read(ref _handshakeId) && instanceOverride != null && response.Error == null)
                         response = response with { Data = Protocol.Json(response.Data.Deserialize(RemoteJson.Default.HandshakeResult)! with { InstanceId = instanceOverride }, RemoteJson.Default.HandshakeResult) };
                     if (!response.Event && _closes.TryRemove(response.Id, out _) && Volatile.Read(ref _failReplies) > 0 && Interlocked.Decrement(ref _failReplies) >= 0)

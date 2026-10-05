@@ -102,8 +102,8 @@ namespace SourceGit.Views
                     var options = GetOptions();
                     RemoteConnections.Save(options);
                     var workspace = await RemoteConnections.ConnectAsync(options, diagnostic => Dispatcher.UIThread.Post(() => _log.Text += diagnostic.Stage + ": " + diagnostic.Message + "\n"), linked.Token);
-                    var repository = await workspace.OpenAsync(_path.Text.Trim(), linked.Token);
-                    var resource = workspace.Resource(repository.WorktreePath);
+                    var location = await workspace.OpenLocationAsync(_path.Text.Trim(), linked.Token);
+                    var resource = workspace.Resource(location.Directory);
                     var node = ViewModels.Preferences.Instance.FindOrAddNodeByRepositoryPath(resource, null, false);
                     ViewModels.Preferences.Instance.Save(); ViewModels.Welcome.Instance.Refresh();
                     App.GetLauncher().OpenRepositoryInTab(node, null);

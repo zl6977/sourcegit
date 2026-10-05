@@ -80,6 +80,12 @@ namespace SourceGit.ViewModels
 
         public bool TryOpenRepositoryFromPath(string repo)
         {
+            if (SourceGit.Remote.RepositoryPath.IsRemote(repo))
+            {
+                OpenRepositoryInTab(repo, null);
+                return true;
+            }
+
             if (!string.IsNullOrEmpty(repo) && !SourceGit.Remote.RepositoryPath.IsRemote(repo))
                 // Conservative normalization: user-supplied paths (dialog, drag-drop, activation) arrive in
                 // mixed slash forms; canonical local form is forward slashes. Remote URIs stay untouched.
@@ -187,6 +193,8 @@ namespace SourceGit.ViewModels
             {
                 if (p.Data is Repository r)
                     _activeWorkspace.Repositories.Add(r.FullPath);
+                else if (p.Data is RemoteDirectory directory)
+                    _activeWorkspace.Repositories.Add(directory.FullPath);
             }
 
             _ignoreIndexChange = false;
@@ -218,14 +226,17 @@ namespace SourceGit.ViewModels
             if (Pages.Count == 1)
             {
                 var last = Pages[0];
-                if (last.Data is Repository repo)
+                if (last.Data is Repository || last.Data is RemoteDirectory)
                 {
                     _activeWorkspace.Repositories.Clear();
                     _activeWorkspace.ActiveIdx = 0;
 
-                    if (last.Node.IsUnmanaged)
-                        last.Node.SaveMinimalInfo(repo.GitDir);
-                    repo.Close();
+                    if (last.Data is Repository repo)
+                    {
+                        if (last.Node.IsUnmanaged)
+                            last.Node.SaveMinimalInfo(repo.GitDir);
+                        repo.Close();
+                    }
 
                     Welcome.Instance.ClearSearchFilter();
                     last.Node = new RepositoryNode() { Id = Guid.NewGuid().ToString() };
@@ -312,7 +323,7 @@ namespace SourceGit.ViewModels
         {
             foreach (var one in Pages)
             {
-                if (one.Node.Id == node.Id)
+                if (one.Node.Id == node.Id && one != page)
                 {
                     ActivePage = one;
                     return;
@@ -358,8 +369,9 @@ namespace SourceGit.ViewModels
             AttachRepository(node, page, repo);
         }
 
-        private async System.Threading.Tasks.Task OpenRemoteRepositoryAsync(RepositoryNode node, LauncherPage page)
+        internal async System.Threading.Tasks.Task OpenRemoteRepositoryAsync(RepositoryNode node, LauncherPage page)
         {
+            var previousData = page?.Data;
             lock (_remoteOpeningGate)
             {
                 if (!_remoteOpening.Add(node.Id)) return;
@@ -395,12 +407,20 @@ namespace SourceGit.ViewModels
                     }
                 }
                 if (workspace == null) throw error ?? new System.IO.IOException("Remote connection failed");
-                var info = await workspace.OpenAsync(node.Id, cancellation.Token);
-                var repo = await System.Threading.Tasks.Task.Run(() => new Repository(info.Bare, workspace.Resource(info.WorktreePath), workspace.Resource(info.GitDirectory)));
+                var location = await workspace.OpenLocationAsync(node.Id, cancellation.Token);
+                if (page != null && (!Pages.Contains(page) || !ReferenceEquals(page.Data, previousData))) return;
                 foreach (var existing in Pages)
                 {
-                    if (existing.Node.Id == node.Id) { ActivePage = existing; return; }
+                    if (existing != page && existing.Node.Id == node.Id) { ActivePage = existing; return; }
                 }
+                if (location.Repository == null)
+                {
+                    AttachPage(node, page, new RemoteDirectory(this, node, workspace.Resource(location.Directory)));
+                    return;
+                }
+                var info = location.Repository;
+                var repo = await System.Threading.Tasks.Task.Run(() => new Repository(info.Bare, workspace.Resource(info.WorktreePath), workspace.Resource(info.GitDirectory)));
+                if (page != null && (!Pages.Contains(page) || !ReferenceEquals(page.Data, previousData))) return;
                 repo.Open();
                 AttachRepository(node, page, repo);
             }
@@ -413,26 +433,29 @@ namespace SourceGit.ViewModels
         }
 
         private void AttachRepository(RepositoryNode node, LauncherPage page, Repository repo)
+            => AttachPage(node, page, repo);
+
+        private void AttachPage(RepositoryNode node, LauncherPage page, object data)
         {
 
             if (page == null)
             {
                 if (_activePage == null || _activePage.Node.IsRepository)
                 {
-                    page = new LauncherPage(node, repo);
+                    page = new LauncherPage(node, null) { Data = data };
                     Pages.Add(page);
                 }
                 else
                 {
                     page = _activePage;
                     page.Node = node;
-                    page.Data = repo;
+                    page.Data = data;
                 }
             }
             else
             {
                 page.Node = node;
-                page.Data = repo;
+                page.Data = data;
             }
 
             _activeWorkspace.Repositories.Clear();
@@ -440,6 +463,8 @@ namespace SourceGit.ViewModels
             {
                 if (p.Data is Repository r)
                     _activeWorkspace.Repositories.Add(r.FullPath);
+                else if (p.Data is RemoteDirectory directory)
+                    _activeWorkspace.Repositories.Add(directory.FullPath);
             }
 
             if (_activePage == page)
@@ -605,6 +630,10 @@ namespace SourceGit.ViewModels
 
                 repo.Close();
             }
+            else if (removeFromWorkspace && page.Data is RemoteDirectory directory)
+            {
+                _activeWorkspace.Repositories.Remove(directory.FullPath);
+            }
 
             page.Popup?.Cleanup();
             page.Popup = null;
@@ -618,6 +647,8 @@ namespace SourceGit.ViewModels
 
             if (_activePage is { Data: Repository repo })
                 _activeWorkspace.ActiveIdx = _activeWorkspace.Repositories.IndexOf(repo.FullPath);
+            else if (_activePage is { Data: RemoteDirectory directory })
+                _activeWorkspace.ActiveIdx = _activeWorkspace.Repositories.IndexOf(directory.FullPath);
 
             var builder = new StringBuilder(512);
             builder.Append(string.IsNullOrEmpty(_activePage.Node.Name) ? "Repositories" : _activePage.Node.Name);

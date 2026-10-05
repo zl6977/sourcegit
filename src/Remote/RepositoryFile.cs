@@ -19,9 +19,7 @@ namespace SourceGit.Remote
         public static bool Exists(string path)
         {
             if (!RepositoryPath.IsRemote(path)) return File.Exists(path);
-            if (!RemoteWorkspace.IsConnected(path)) return false;
-            var stat = RemoteWorkspace.Stat(path);
-            return stat.Exists && !stat.Directory;
+            return RepositoryPath.TryGetRemoteStatus(path, out var stat) && stat.Exists && !stat.Directory;
         }
         public static string ReadAllText(string path)
         {
@@ -98,9 +96,7 @@ namespace SourceGit.Remote
             if (!RepositoryPath.IsRemote(path)) return Directory.Exists(path);
             // A disconnected (or never-connected) workspace must read as absent, never throw: UI paths
             // (context menus, node gates) call this synchronously and an unhandled throw crashes the app.
-            if (!RemoteWorkspace.IsConnected(path)) return false;
-            var stat = RemoteWorkspace.Stat(path);
-            return stat.Exists && stat.Directory;
+            return RepositoryPath.TryGetRemoteStatus(path, out var stat) && stat.Exists && stat.Directory;
         }
         public static RepositoryDirectoryInfo CreateDirectory(string path)
         {
