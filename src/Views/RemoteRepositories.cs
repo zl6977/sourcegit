@@ -83,7 +83,7 @@ namespace SourceGit.Views
                 browse.IsEnabled = false;
                 try
                 {
-                    var workspace = await RemoteConnections.ConnectAsync(GetOptions(), diagnostic => Dispatcher.UIThread.Post(() => _log.Text += diagnostic.Stage + ": " + diagnostic.Message + "\n"), _lifetime.Token);
+                    var workspace = await RemoteConnections.ConnectAsync(GetOptions(), diagnostic => Dispatcher.UIThread.Post(() => _log.Text += diagnostic.Stage + ": " + diagnostic.Message + "\n"), _lifetime.Token, manualRetry: true);
                     var path = await new RemoteDirectoryBrowser(workspace, _path.Text).ShowDialog<string>(this);
                     if (!string.IsNullOrEmpty(path)) _path.Text = path;
                 }
@@ -101,7 +101,7 @@ namespace SourceGit.Views
                 {
                     var options = GetOptions();
                     RemoteConnections.Save(options);
-                    var workspace = await RemoteConnections.ConnectAsync(options, diagnostic => Dispatcher.UIThread.Post(() => _log.Text += diagnostic.Stage + ": " + diagnostic.Message + "\n"), linked.Token);
+                    var workspace = await RemoteConnections.ConnectAsync(options, diagnostic => Dispatcher.UIThread.Post(() => _log.Text += diagnostic.Stage + ": " + diagnostic.Message + "\n"), linked.Token, manualRetry: true);
                     var location = await workspace.OpenLocationAsync(_path.Text.Trim(), linked.Token);
                     var resource = workspace.Resource(location.Directory);
                     var node = ViewModels.Preferences.Instance.FindOrAddNodeByRepositoryPath(resource, null, false);

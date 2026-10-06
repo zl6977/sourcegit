@@ -29,24 +29,25 @@ internal static class LauncherRetryChecks
             launcher.RemoteOpenClock = clock;
             var attempts = 0;
             CancellationToken budget = default;
-            launcher.RestoreRemoteWorkspace = (_, token) =>
+            launcher.RestoreRemoteWorkspace = async (_, token) =>
             {
                 attempts++; budget = token;
                 clock.Advance(TimeSpan.FromSeconds(89));
-                throw new IOException("injected late transport failure");
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                throw new IOException("unreachable");
             };
             var node = new RepositoryNode { Id = "sourcegit-remote://retry-fixture/repository", Name = "fixture" };
             var opening = Open(launcher, node);
-            Check(attempts == 1 && !opening.IsCompleted && clock.EnabledTimers == 2, "Late failure did not enter a bounded retry wait");
+            Check(attempts == 1 && !opening.IsCompleted && clock.EnabledTimers == 1, "Open did not wait within its single connection budget");
             var duplicate = Open(launcher, node);
             Check(duplicate.IsCompletedSuccessfully && attempts == 1, "Same-path concurrent open bypassed admission");
             clock.Advance(TimeSpan.FromSeconds(1));
             PumpUntil(() => opening.IsCompleted);
             opening.GetAwaiter().GetResult();
             Check(budget.IsCancellationRequested && attempts == 1 && clock.EnabledTimers == 0,
-                "90-second budget did not cancel the two-second failure wait or allowed another restore");
+                "90-second budget did not cancel the connection wait or allowed another restore");
             Check(notifications.Any(notification => notification.IsError), "Budget failure was not reported to the UI");
-            Console.WriteLine("PASS Actual Launcher open budget cancels a late failure backoff without another restore; duplicate open stays suppressed");
+            Console.WriteLine("PASS Actual Launcher open budget cancels one shared connection wait; duplicate open stays suppressed");
 
             attempts = 0; notifications.Clear();
             launcher.RestoreRemoteWorkspace = (_, _) => { attempts++; throw new InvalidOperationException("injected non-transient failure"); };
@@ -59,15 +60,11 @@ internal static class LauncherRetryChecks
             attempts = 0; notifications.Clear();
             launcher.RestoreRemoteWorkspace = (_, _) => { attempts++; throw new IOException("injected repeat transport failure"); };
             var retries = Open(launcher, node);
-            Check(attempts == 1 && !retries.IsCompleted, "Real transport failure did not await backoff");
-            clock.Advance(TimeSpan.FromMilliseconds(1999)); Dispatcher.UIThread.RunJobs();
-            Check(attempts == 1, "Retry occurred before the two-second failure deadline");
-            clock.Advance(TimeSpan.FromMilliseconds(1)); PumpUntil(() => attempts == 2);
-            clock.Advance(TimeSpan.FromSeconds(2)); PumpUntil(() => retries.IsCompleted);
+            PumpUntil(() => retries.IsCompleted);
             retries.GetAwaiter().GetResult();
-            Check(attempts == 3 && clock.EnabledTimers == 0 && notifications.Any(notification => notification.Message == "injected repeat transport failure"),
-                "Transport failure retried beyond three attempts or left pending timers");
-            Console.WriteLine("PASS Actual Launcher transport failures retry only after deadlines, stop at three attempts and release all timers");
+            Check(attempts == 1 && clock.EnabledTimers == 0 && notifications.Any(notification => notification.Message == "injected repeat transport failure"),
+                "Launcher added connection retries or lost the original transport failure");
+            Console.WriteLine("PASS Actual Launcher reports a transport failure once without adding another retry loop");
         }
         finally
         {

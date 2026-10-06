@@ -119,7 +119,7 @@ namespace SourceGit.Remote
                 return _displayCache;
             }
         }
-        public static async Task<RemoteWorkspace> ConnectAsync(ConnectionOptions options, Action<ConnectionDiagnostic> diagnostic = null, CancellationToken cancellation = default)
+        public static async Task<RemoteWorkspace> ConnectAsync(ConnectionOptions options, Action<ConnectionDiagnostic> diagnostic = null, CancellationToken cancellation = default, bool manualRetry = false)
         {
             await Gate.WaitAsync(cancellation).ConfigureAwait(false);
             try
@@ -143,7 +143,7 @@ namespace SourceGit.Remote
                 if (diagnostic != null) manager.Diagnostic += diagnostic;
                 try
                 {
-                    var client = await manager.ConnectAsync(cancellation).ConfigureAwait(false);
+                    var client = await manager.ConnectAsync(cancellation, manualRetry).ConfigureAwait(false);
                     if (Workspaces.TryGetValue(options.Id, out var existing))
                     {
                         if (existing.Client != client) await existing.RebindAsync(client).ConfigureAwait(false);

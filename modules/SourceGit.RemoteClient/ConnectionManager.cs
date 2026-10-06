@@ -43,6 +43,12 @@ public sealed class ConnectionManager : IAsyncDisposable
     private bool _reconnecting;
     private readonly TimeSpan _recoveryTimeout;
     private string _runtime = "linux-x64";
+    private Task<RemoteRepositoryClient>? _sshConnecting;
+    private CancellationTokenSource? _sshConnectCancellation;
+    private int _sshWaiters;
+    private readonly SshConnectionPolicy? _sshPolicy;
+    private Task<string>? _tunnelError;
+    internal Func<ProcessStartInfo, Process>? StartSshProcess { get; set; }
     public RemoteRepositoryClient? Client { get; private set; }
     public string State { get; private set; } = "Disconnected";
     public event Action<ConnectionDiagnostic>? Diagnostic;
@@ -55,12 +61,56 @@ public sealed class ConnectionManager : IAsyncDisposable
     public ConnectionManager(ConnectionOptions options) : this(options, TimeSpan.FromMinutes(5)) { }
     internal ConnectionManager(ConnectionOptions options, TimeSpan recoveryTimeout)
     {
+        if (!options.Kind.Equals("Local", StringComparison.OrdinalIgnoreCase) && !options.Kind.Equals("Wsl", StringComparison.OrdinalIgnoreCase) && !options.Kind.Equals("Ssh", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Unsupported connection kind: " + options.Kind, nameof(options));
         if (recoveryTimeout <= TimeSpan.Zero || recoveryTimeout.TotalMilliseconds > uint.MaxValue - 1) throw new ArgumentOutOfRangeException(nameof(recoveryTimeout));
         _options = options; _lifetimeToken = _lifetime.Token; _recoveryTimeout = recoveryTimeout;
+        if (options.Kind.Equals("Ssh", StringComparison.OrdinalIgnoreCase)) _sshPolicy = SshConnectionPolicy.ForHost(options.Target);
     }
     private void SetState(string state) { if (Volatile.Read(ref _disposed) != 0) return; State = state; StateChanged?.Invoke(state); Log(state, state); }
     private void Log(string stage, string message) => Diagnostic?.Invoke(new ConnectionDiagnostic(DateTime.UtcNow, stage, message));
-    public async Task<RemoteRepositoryClient> ConnectAsync(CancellationToken cancellation = default)
+    public Task<RemoteRepositoryClient> ConnectAsync(CancellationToken cancellation = default, bool manualRetry = false)
+    {
+        if (_sshPolicy == null) return ConnectCoreAsync(cancellation);
+        lock (_lifecycleGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed != 0, this);
+            cancellation.ThrowIfCancellationRequested();
+            if (!manualRetry && Client is { IsDisconnected: false } live) return Task.FromResult(live);
+            if (_reconnecting) return WaitForRecoveredClient(cancellation);
+            if (_options.InteractiveSsh && !manualRetry)
+                return Task.FromException<RemoteRepositoryClient>(new SshConnectionException("Interactive SSH login requires an explicit Connect action."));
+            if (_sshConnecting == null || _sshConnecting.IsCompleted)
+            {
+                var budget = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeToken);
+                budget.CancelAfter(TimeSpan.FromSeconds(90));
+                _sshConnectCancellation = budget;
+                _sshWaiters = 0;
+                _sshConnecting = Task.Run(async () =>
+                {
+                    using (budget) return await ConnectCoreAsync(budget.Token, manualRetry).ConfigureAwait(false);
+                });
+                _ = _sshConnecting.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+            }
+            _sshWaiters++;
+            return WaitForSshConnectAsync(_sshConnecting, cancellation);
+        }
+    }
+
+    private async Task<RemoteRepositoryClient> WaitForSshConnectAsync(Task<RemoteRepositoryClient> connecting, CancellationToken cancellation)
+    {
+        try { return await connecting.WaitAsync(cancellation).ConfigureAwait(false); }
+        finally
+        {
+            lock (_lifecycleGate)
+            {
+                if (connecting == _sshConnecting && --_sshWaiters == 0 && !connecting.IsCompleted)
+                    try { _sshConnectCancellation?.Cancel(); } catch (ObjectDisposedException) { }
+            }
+        }
+    }
+
+    private async Task<RemoteRepositoryClient> ConnectCoreAsync(CancellationToken cancellation, bool manualRetry = false)
     {
         CancellationTokenSource connectionCancellation;
         lock (_lifecycleGate)
@@ -71,9 +121,11 @@ public sealed class ConnectionManager : IAsyncDisposable
         using var linked = connectionCancellation;
         await _connectGate.WaitAsync(linked.Token).ConfigureAwait(false);
         var previousInstance = Client?.InstanceId;
+        IDisposable? sshAdmission = null;
         try
         {
             linked.Token.ThrowIfCancellationRequested();
+            if (_sshPolicy != null) sshAdmission = await _sshPolicy.EnterAsync(manualRetry, linked.Token).ConfigureAwait(false);
             lock (_lifecycleGate)
                 if (_recovered.Task.IsCompleted && Client is not { IsDisconnected: false }) _recovered = NewRecovery();
             SetState("Connecting");
@@ -166,12 +218,13 @@ public sealed class ConnectionManager : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            if (sshAdmission != null && ex is not OperationCanceledException) _sshPolicy?.Failed(ex);
             SetState(Client is { IsDisconnected: false } ? "Connected" : "Failed");
             lock (_lifecycleGate)
                 if (!_reconnecting && _disposed == 0 && State == "Failed") _recovered.TrySetException(ex);
             Log("Error", ex.Message); throw;
         }
-        finally { _connectGate.Release(); }
+        finally { sshAdmission?.Dispose(); _connectGate.Release(); }
     }
     private async Task<RemoteRepositoryClient> OpenChannelAsync(ServerRecord record, CancellationToken cancellation)
     {
@@ -192,7 +245,8 @@ public sealed class ConnectionManager : IAsyncDisposable
                 try { if (!_tunnel.HasExited) _tunnel.Kill(true); } catch (InvalidOperationException) { }
                 _tunnel.Dispose();
             }
-            _tunnel = Process.Start(start) ?? throw new IOException("Cannot start SSH tunnel");
+            _tunnel = StartSshProcess?.Invoke(start) ?? Process.Start(start) ?? throw new IOException("Cannot start SSH tunnel");
+            _tunnelError = _tunnel.StandardError.ReadToEndAsync();
             _ = DrainTunnel(_tunnel);
         }
         SetState("Synchronizing");
@@ -202,6 +256,8 @@ public sealed class ConnectionManager : IAsyncDisposable
             Exception? failure = null;
             for (var attempt = 0; attempt < 50; attempt++)
             {
+                if (_sshPolicy != null && _tunnel is { HasExited: true })
+                    throw SshConnectionException.FromExit(_tunnel.ExitCode, await _tunnelError!.ConfigureAwait(false));
                 try { await client.ConnectAsync("127.0.0.1", port, record.Token, cancellation).ConfigureAwait(false); failure = null; break; }
                 catch (SocketException ex)
                 { failure = ex; Log("Connecting", "connect attempt " + (attempt + 1) + "/50 failed: " + ex.Message); await client.DisposeAsync().ConfigureAwait(false); client = new RemoteRepositoryClient(_owner, _recovery, operations: _operations); await Task.Delay(100, cancellation).ConfigureAwait(false); }
@@ -273,13 +329,15 @@ public sealed class ConnectionManager : IAsyncDisposable
                 try
                 {
                     SetState("Reconnecting"); Log("Disconnect", error.Message);
+                    if (_sshPolicy != null && _options.InteractiveSsh)
+                        throw new SshConnectionException("Interactive SSH login requires an explicit Connect action; operation outcome remains unknown.");
                     while (true)
                     {
                         deadline.Token.ThrowIfCancellationRequested();
                         try
                         {
                             if (Client != null) Client.Disconnected -= OnDisconnected;
-                            await ConnectAsync(deadline.Token).ConfigureAwait(false);
+                            await ConnectCoreAsync(deadline.Token).ConfigureAwait(false);
                             if (BeforeRecoveryRetired != null) await BeforeRecoveryRetired().ConfigureAwait(false);
                             return;
                         }
@@ -292,7 +350,9 @@ public sealed class ConnectionManager : IAsyncDisposable
                             return;
                         }
                         catch (Exception) when (deadline.IsCancellationRequested) { deadline.Token.ThrowIfCancellationRequested(); throw; }
-                        catch (Exception ex) { Log("Reconnect", ex.Message); await Task.Delay(2000, deadline.Token).ConfigureAwait(false); }
+                        catch (Exception ex) when (_sshPolicy != null && ex is not SshConnectionException { Retryable: true })
+                        { throw new IOException("Automatic SSH recovery stopped; manual connection required. " + ex.Message + "; operation outcome remains unknown", ex); }
+                        catch (Exception ex) { Log("Reconnect", ex.Message); if (_sshPolicy == null) await Task.Delay(2000, deadline.Token).ConfigureAwait(false); }
                     }
                 }
                 catch (OperationCanceledException) when (!_lifetimeToken.IsCancellationRequested)
@@ -344,7 +404,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         // Convert even synchronous reader/property failures into tasks so both
         // pipes always reach WhenAll and every exception is observed.
         async Task<string> ReadPipe(bool standardError) =>
-            await (standardError ? tunnel.StandardError : tunnel.StandardOutput).ReadToEndAsync().ConfigureAwait(false);
+            await (standardError ? _tunnelError ?? tunnel.StandardError.ReadToEndAsync() : tunnel.StandardOutput.ReadToEndAsync()).ConfigureAwait(false);
     }
     private async Task<ServerRecord> StartLocal(CancellationToken cancellation)
     {
@@ -379,12 +439,12 @@ public sealed class ConnectionManager : IAsyncDisposable
             if (!string.IsNullOrEmpty(_options.User)) { start.ArgumentList.Add("-l"); start.ArgumentList.Add(_options.User); }
             start.ArgumentList.Add("--"); start.ArgumentList.Add(_options.Target); start.ArgumentList.Add("sh -c " + Quote(script));
         }
-        using var process = Process.Start(start) ?? throw new IOException("Cannot start remote launcher");
+        using var process = (_sshPolicy == null ? null : StartSshProcess?.Invoke(start)) ?? Process.Start(start) ?? throw new IOException("Cannot start remote launcher");
         var output = process.StandardOutput.ReadToEndAsync(cancellation);
         var error = process.StandardError.ReadToEndAsync(cancellation);
+        using var registration = cancellation.Register(() => { try { process.Kill(true); } catch (InvalidOperationException) { } });
         if (input != null) await process.StandardInput.BaseStream.WriteAsync(input, cancellation).ConfigureAwait(false);
         process.StandardInput.Close();
-        using var registration = cancellation.Register(() => { try { process.Kill(true); } catch (InvalidOperationException) { } });
         await process.WaitForExitAsync(cancellation).ConfigureAwait(false);
         var result = await output.ConfigureAwait(false); var diagnostics = await error.ConfigureAwait(false);
         if (process.ExitCode != 0)
@@ -392,6 +452,7 @@ public sealed class ConnectionManager : IAsyncDisposable
             var detail = diagnostics.Trim();
             if (_options.Kind.Equals("Ssh", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(_options.SshPassword) && !_options.InteractiveSsh && (detail.Contains("Permission denied") || detail.Contains("Host key verification failed")))
                 detail += " (key/agent authentication failed or the host key is not trusted yet: set a password for this connection, enable terminal login, or trust the host by running 'ssh " + _options.Target + "' once in a terminal)";
+            if (_sshPolicy != null) throw SshConnectionException.FromExit(process.ExitCode, detail);
             throw new IOException("Remote launcher failed: " + detail);
         }
         if (!string.IsNullOrWhiteSpace(diagnostics)) Log("Launcher", diagnostics.Trim());

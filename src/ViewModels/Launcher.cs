@@ -381,32 +381,13 @@ namespace SourceGit.ViewModels
             try
             {
                 using var cancellation = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(90), RemoteOpenClock);
-                SourceGit.Remote.RemoteWorkspace workspace = null;
-                Exception error = null;
-                for (var attempt = 0; attempt < 3 && workspace == null; attempt++)
+                string name = null;
+                foreach (var one in SourceGit.Remote.RemoteConnections.Load())
                 {
-                    cancellation.Token.ThrowIfCancellationRequested();
-                    try
-                    {
-                        if (attempt == 0)
-                        {
-                            string name = null;
-                            foreach (var one in SourceGit.Remote.RemoteConnections.Load())
-                            {
-                                if (one.Id == SourceGit.Remote.RepositoryPath.ConnectionId(node.Id)) { name = one.Name; break; }
-                            }
-                            if (name != null) connecting = Models.Notification.Send(node.Id, "Connecting to " + name + "…", false);
-                        }
-                        workspace = await (RestoreRemoteWorkspace ?? SourceGit.Remote.RemoteConnections.RestoreAsync)(node.Id, cancellation.Token);
-                    }
-                    catch (Exception ex) when (attempt < 2 && ex is System.IO.IOException or System.Net.Sockets.SocketException or System.IO.EndOfStreamException)
-                    {
-                        error = ex;
-                        System.Diagnostics.Trace.WriteLine($"REMOTE-OPEN {RemoteOpenClock.GetUtcNow():O} retry reason={ex.GetType().Name} attempt={attempt + 1}/3 nextIn=2s");
-                        await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(2), RemoteOpenClock, cancellation.Token);
-                    }
+                    if (one.Id == SourceGit.Remote.RepositoryPath.ConnectionId(node.Id)) { name = one.Name; break; }
                 }
-                if (workspace == null) throw error ?? new System.IO.IOException("Remote connection failed");
+                if (name != null) connecting = Models.Notification.Send(node.Id, "Connecting to " + name + "…", false);
+                var workspace = await (RestoreRemoteWorkspace ?? SourceGit.Remote.RemoteConnections.RestoreAsync)(node.Id, cancellation.Token);
                 var location = await workspace.OpenLocationAsync(node.Id, cancellation.Token);
                 if (page != null && (!Pages.Contains(page) || !ReferenceEquals(page.Data, previousData))) return;
                 foreach (var existing in Pages)

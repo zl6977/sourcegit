@@ -10,6 +10,20 @@ using SourceGit.RemoteClient;
 // Dependency-free integration runner. Every repository is freshly created under --root.
 // --server starts a local server DLL (root defaults to a local artifacts directory); --record uses an already running WSL/SSH server, where the root defaults to a directory under the server's home directory, since the client and server filesystems differ.
 var results = new List<(string Name, string Status, string Detail)>();
+if (args.Contains("--fake-ssh-safety-child"))
+{
+    if (args.Contains("--hold")) await Task.Delay(Timeout.Infinite);
+    if (!args.Contains("--no-input")) await Console.OpenStandardInput().CopyToAsync(Stream.Null);
+    Console.Write(Encoding.UTF8.GetString(Convert.FromBase64String(Option("--output")!)));
+    Console.Error.Write(Encoding.UTF8.GetString(Convert.FromBase64String(Option("--error")!)));
+    Environment.Exit(int.Parse(Option("--exit")!));
+    return;
+}
+if (args.Contains("--ssh-safety-checks"))
+{
+    await SshSafetyChecks.RunAsync();
+    return;
+}
 if (args.Contains("--review-followup-checks"))
 {
     await ReviewFollowupChecks.RunAsync();

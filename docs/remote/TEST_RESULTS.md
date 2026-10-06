@@ -1,5 +1,15 @@
 # Remote architecture validation
 
+## SSH retry safety (2026-10-06)
+
+Production SSH was not exercised. `--ssh-safety-checks` substitutes local `dotnet` child processes for **every** SSH launch; `.invalid` fixture targets are never passed to a real `ssh` executable. Nine checks pass: failure classification; rolling quota and jittered spacing including manual retry; canceled admission; eight shared manager callers/another profile after auth failure; independent waiter cancellation/last-waiter child termination; tunnel host-key diagnosis; actual recovery-worker failure publication; manual-only interactive login; recovery deadline during host backoff. Log `artifacts/ssh-safety-policy.log`.
+
+Launcher single-wait/no-second-retry checks3, existing shared recovery6, ordinary directory7 pass (`ssh-safety-launcher.log`, `ssh-safety-recovery.log`, `ssh-safety-directory.log`). Remote and GUI builds succeed; GUI retains two existing CA1820 warnings. Use `--no-restore -m:1 -p:UseSharedCompilation=false` within the current sandbox and `-p:UsedAvaloniaProducts=` to skip build telemetry that cannot write to AppData; no source/global telemetry configuration was changed.
+
+Full regression limits: Remote37 pass/6 fail (`ssh-safety-remote.log`), GUI15 pass then abort at remote branch existence (`ssh-safety-gui.log`). Git for Windows `sh.exe` reports CreateFileMapping/Win32 error5 in this sandbox; clone/submodule/editor failures and interaction timeouts prevent a full pass claim. Existing production SSH and arm64 exclusions remain. Intermediate fake-fixture clock/digest/count expectation failures were corrected; no server policy was relaxed.
+
+New matched package: `artifacts/ssh-safety-final/`, protocol3 / `remote-3feabe2bc34136f21d26`, self-contained non-AOT Windows x64/Linux x64. Linux archive SHA-256 **e9f1be2ad3a2ddb812182feb58aeeb2e4f40b91f9149dbb7110f6aca1b31bd54**. Actual client/Linux server/both runner Contracts constants and bundled archive digest agree (`ssh-safety-pair-audit.json/.log`); all25 targeted checks above pass again on the final matching build. Earlier deliveries below are historical and do not include this retry safety implementation. No automatic deployment, user configuration change or Git commit.
+
 ## Uninitialized remote directories (2026-10-05)
 
 Current matched delivery: **`artifacts/remote-directory-final/`**, protocol **3 / remote-2009d4619bad31c6220d**, self-contained non-AOT Windows x64 client/Linux x64 server. Archive SHA-256 **fda31f07668b0182661a9587150e2dcdec15d213d70d90ff134096eeb19bf32b**. Actual Contracts constants from client, Linux server and both Windows runners plus the bundled archive digest match (`artifacts/remote-directory-pair-audit.json`). Earlier deliveries below are historical.

@@ -1,5 +1,11 @@
 # Remote implementation evidence
 
+## SSH automatic connection safety (2026-10-06)
+
+Authentication, host-key and unknown SSH failures stop automatic attempts, including tunnel failures. Only clearly diagnosed transient network failures can retry. Concurrent connects share one task; callers join active recovery and Launcher adds no retry loop. Per configured Target and GUI process: at most three complete connections in a rolling ten-minute window, with 30/60-second spacing plus 0–5-second jitter. Success does not reset this quota. Manual actions can clear terminal failure but cannot bypass rate limits. Interactive login requires a manual action. Aliases/IPs and separate GUI runs do not share the in-memory quota; this is not a guarantee against every server policy.
+
+Fake SSH/local checks: safety9, Launcher3, recovery6, ordinary directories7 pass. No real SSH process or remote connection. Full regressions are **not green** under the current sandbox: Remote37 pass/6 fail, GUI aborts at its sixteenth check; Git for Windows `sh.exe` fails CreateFileMapping with Win32 error5. Build succeeds with two existing GUI CA1820 warnings. See review section eight and TEST_RESULTS. New matching non-AOT Windows x64/Linux x64 delivery: `artifacts/ssh-safety-final/`, protocol3 / `remote-3feabe2bc34136f21d26`. Older packages below lack this safety change. No user deployment/configuration changes or commit.
+
 ## Opening uninitialized remote directories (2026-10-05)
 
 Existing ordinary WSL/remote directories now open in a named tab with explicit Initialize Repository and Refresh actions. Opening does not create `.git`, start Git watchers/fetch, or add polling. Explicit initialization runs on the host and transitions the same tab; Refresh detects external initialization. Workspace persistence, duplicate opens and close/refresh races are covered. Missing paths, invalid `.git` and other Git errors remain errors.
