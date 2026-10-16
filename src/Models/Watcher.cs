@@ -423,6 +423,12 @@ namespace SourceGit.Models
             {
                 MarkDirty(Dirty.Branch, TimeSpan.FromSeconds(.5));
             }
+            else if (name.Equals("packed-refs", StringComparison.Ordinal))
+            {
+                var desired = TimeSpan.FromSeconds(.5);
+                MarkDirty(Dirty.Branch, desired);
+                MarkDirty(Dirty.Tags, desired);
+            }
             else if (name.StartsWith("reftable/", StringComparison.Ordinal))
             {
                 var desired = TimeSpan.FromSeconds(.5);

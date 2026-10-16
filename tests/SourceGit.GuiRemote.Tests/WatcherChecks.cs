@@ -131,6 +131,14 @@ internal static class WatcherChecks
         actual.ConditionsChanged += () => ready.TrySetResult();
         if (sources.All(source => source.EnableRaisingEvents)) ready.TrySetResult();
         await ready.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var refsRefreshed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        repo.OnTags = () => refsRefreshed.TrySetResult();
+        await File.WriteAllTextAsync(Path.Combine(git, "packed-refs"), "# pack-refs with: peeled fully-peeled sorted\n");
+        await refsRefreshed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Check(repo.Branches > 0 && repo.Tags > 0, "Packed refs change did not refresh both branches and tags");
+        repo.OnTags = null;
+        var workingCopiesBeforeClose = repo.WorkingCopies;
+        Console.WriteLine("PASS Actual packed-refs notification refreshes branches and tags");
         var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         repo.OnWorkingCopy = () =>
         {
@@ -143,7 +151,7 @@ internal static class WatcherChecks
         {
             for (var i = 0; i < 500; i++) actual.NotifyRepositoryChanged();
         })));
-        Check(repo.WorkingCopies == 1 && sources.All(source => !source.EnableRaisingEvents),
+        Check(repo.WorkingCopies == workingCopiesBeforeClose + 1 && sources.All(source => !source.EnableRaisingEvents),
             "Actual notification reentrant close admitted more refreshes or retained sources");
         Console.WriteLine("PASS Actual GUI file notification supports reentrant close; concurrent late notifications stay stopped");
     }
@@ -193,10 +201,11 @@ internal static class WatcherChecks
         internal int Branches, WorkingCopies, Tags, Commits;
         internal Action? OnBranch;
         internal Action? OnWorkingCopy;
+        internal Action? OnTags;
         public bool MayHaveSubmodules() => true;
         public void RefreshBranches() { Branches++; var callback = OnBranch; OnBranch = null; callback?.Invoke(); }
         public void RefreshWorktrees() { }
-        public void RefreshTags() => Tags++;
+        public void RefreshTags() { Tags++; OnTags?.Invoke(); }
         public void RefreshCommits() => Commits++;
         public void RefreshSubmodules() { }
         public void RefreshWorkingCopyChanges() { WorkingCopies++; var callback = OnWorkingCopy; OnWorkingCopy = null; callback?.Invoke(); }
