@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Text;
 
 using Avalonia.Collections;
 using Avalonia.Threading;
@@ -11,12 +10,6 @@ namespace SourceGit.ViewModels
 {
     public class Launcher : ObservableObject
     {
-        public string Title
-        {
-            get => _title;
-            private set => SetProperty(ref _title, value);
-        }
-
         public AvaloniaList<LauncherPage> Pages
         {
             get;
@@ -631,14 +624,6 @@ namespace SourceGit.ViewModels
             else if (_activePage is { Data: RemoteDirectory directory })
                 _activeWorkspace.ActiveIdx = _activeWorkspace.Repositories.IndexOf(directory.FullPath);
 
-            var builder = new StringBuilder(512);
-            builder.Append(string.IsNullOrEmpty(_activePage.Node.Name) ? "Repositories" : _activePage.Node.Name);
-
-            var workspaces = Preferences.Instance.Workspaces;
-            if (workspaces.Count == 0 || workspaces.Count > 1 || workspaces[0] != _activeWorkspace)
-                builder.Append(" - ").Append(_activeWorkspace.Name);
-
-            Title = builder.ToString();
             CommandPalette = null;
         }
 
@@ -649,7 +634,6 @@ namespace SourceGit.ViewModels
         private readonly object _remoteOpeningGate = new();
         internal TimeProvider RemoteOpenClock { get; set; } = TimeProvider.System;
         internal Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task<SourceGit.Remote.RemoteWorkspace>> RestoreRemoteWorkspace { get; set; }
-        private string _title = string.Empty;
         private ICommandPalette _commandPalette;
         private Models.Version _newVersion = null;
     }

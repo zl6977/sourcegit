@@ -1,5 +1,24 @@
 # Remote architecture validation
 
+## v2026.23 merge validation (2026-10-26)
+
+The resolved working tree was checked with:
+
+```powershell
+dotnet build SourceGit.slnx --nologo -v minimal
+dotnet run --no-build --project tests/SourceGit.GuiRemote.Tests
+dotnet run --no-build --project tests/SourceGit.Remote.Tests -- --server modules/SourceGit.Server/bin/Debug/net10.0/sourcegit-server.dll
+dotnet run --no-build --project tests/SourceGit.GuiRemote.Tests -- --launcher-retry-checks
+dotnet build SourceGit.slnx -c Release --nologo -v minimal
+git diff --check
+```
+
+- Debug and Release builds succeeded: zero errors, two existing CA1820 warnings in GUI test `Program.cs`.
+- Default remote integration runner: **43 passed / 0 failed**. Default GUI-remote runner and all **3** Launcher retry checks completed successfully. These used local Windows fixture servers; they do not establish live WSL/SSH deployment behavior.
+- The commands above do not include `--slow` or the other optional test modes. No native AOT publish, new matched client/server package, macOS run, or interactive desktop smoke was performed.
+- A Release build encountered output locks from a running SourceGit instance; an isolated build under `artifacts/merge-verification` passed. Later, standard `dotnet clean` completed for Debug, Release, and that verification output, followed by a successful normal Release rebuild. Tests were run before this cleanup/rebuild. Bulk fixture/log deletion was blocked by automatic approval review, so broader artifact cleanup was not completed.
+- Evidence for this run is the session command output; no dedicated v2026.23 log files were saved. Earlier logs and published packages below are historical evidence.
+
 ## SSH retry safety (2026-10-06)
 
 Production SSH was not exercised. `--ssh-safety-checks` substitutes local `dotnet` child processes for **every** SSH launch; `.invalid` fixture targets are never passed to a real `ssh` executable. Nine checks pass: failure classification; rolling quota and jittered spacing including manual retry; canceled admission; eight shared manager callers/another profile after auth failure; independent waiter cancellation/last-waiter child termination; tunnel host-key diagnosis; actual recovery-worker failure publication; manual-only interactive login; recovery deadline during host backoff. Log `artifacts/ssh-safety-policy.log`.

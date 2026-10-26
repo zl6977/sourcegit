@@ -1,5 +1,13 @@
 # Remote implementation evidence
 
+## v2026.23 merge integration (2026-10-26)
+
+- Reviewed merge parents `cca0e098` (this branch) and `c0f40a2e` (upstream v2026.23). Against their merge base, all 45 upstream-only files match upstream and all 233 branch-only files match this branch; the 13 overlapping files were reviewed for both upstream behavior and remote integration.
+- Resolved terminal overlap by retaining the remote-path early return and upstream working-directory preparation, `$FOLDER_NAME` expansion, and Windows launch error reporting. Removed the obsolete Launcher title field while retaining remote-open state and hooks. Accepted upstream removal of the conflicting Save As shortcut; remote-aware context-menu saving remains available.
+- Upstream responsive UI, translations, stage/unstage-all shortcuts, title bindings, folder-filter preservation, and Bitbucket URL handling remain present. No new protocol fields or server-side Git operations were introduced by these resolutions.
+- Debug and Release solution builds passed with two existing CA1820 test warnings. Default local remote integration: **43 passed / 0 failed**; default GUI-remote integration and Launcher retry checks passed. See [validation scope](TEST_RESULTS.md#v202623-merge-validation-2026-10-26).
+- This validates the resolved working tree, not a newly published client/server pair. Native AOT publishing, live WSL/SSH checks, macOS behavior, and interactive desktop smoke were not verified in this session. Historical delivery and deployment evidence below does not certify v2026.23.
+
 ## v2026.22 merge integration (2026-10-21)
 
 - Follow-up launch-path repair: the user launches `src/bin/Release/net10.0/SourceGit.exe`, whose Contracts identity is protocol 3 / development `remote-1`, rather than the separately published client below. Published the current Linux x64 server with that exact identity and placed its archive, SHA-256 sidecar and manifest under that executable's `server/` directory. Digest verified; isolated WSL deployment/handshake checks **5 passed** against this exact archive (`artifacts/release-runtime-{publish,wsl}.log`). Normal solution builds do not create this bundle; deleting the output directory requires repackaging it. The content-derived release pair below remains a separate delivery.

@@ -34,14 +34,18 @@
 
 ### 2.2 每次发版的标准流程
 
-```bash
+```powershell
 git fetch origin --tags
 # 找到最新 release tag
 git merge v2026.NN          # 在自己的工作分支上合并
-# ……解冲突（按第 4 节判定）……
-# 按第 5 节验证
+# 按第 4 节整合两侧行为；删除标记或“保留双方”不代表语义冲突已解决
+# 按第 5 节验证，再暂存逐个审查过的文件
+git diff --check
+git add <resolved-file-paths>
 git commit                  # merge commit，保留双方历史，不要 rebase 改写
 ```
+
+若 merge 已提交，后续修正仍须验证并暂存。未共享的最新 merge 可用 `git commit --amend --no-edit` 纳入修正并保留两个父提交；已共享的提交通常追加修复 commit。未暂存的修改不会被普通 amend 自动纳入。
 
 - 合并方向永远是 **主线 → 本分支**；不要把本分支历史推回主线可见位置。
 - 用 merge 不用 rebase：本地已有多个大提交叠加在基线上，rebase 会把冲突重复 N 次。
@@ -113,12 +117,12 @@ git commit                  # merge commit，保留双方历史，不要 rebase 
 ## 5. 合并后验证清单（固定动作）
 
 1. **接缝完整性扫描**：Tier B 文件解冲突后，逐个搜索垫片与守卫是否被主线改动"洗掉"：
-   - `grep -n "RepositoryFile\.\|RepositoryPath\.\|RepositoryDirectory" src/App.axaml.cs src/Native/OS.cs ...` 对照 3.3 节清单；
+   - `rg -n 'RepositoryFile\.|RepositoryPath\.|RepositoryDirectory' src/App.axaml.cs src/Native/OS.cs` 并扩展到本次改动文件，对照 3.3 节清单；
    - `Command.cs` 的 `CreateGitStartInfo` 远端分叉、`App.axaml.cs` 的 rebase-todo/COMMIT_EDITMSG/history/blame 垫片是否仍在。
-2. **构建**：`dotnet build SourceGit.slnx -c Release`；Release/AOT 下验证 Contracts 的源生成 JSON（主线若加 Newtonsoft/反射序列化会破 AOT 边界）。
-3. **测试**：`tests/SourceGit.Remote.Tests` 与 `tests/SourceGit.GuiRemote.Tests` 全跑（它们内含协议、启动、生命周期、接管、重试风暴等回归项，主线改行为后这两套件就是融合的回归网）。
+2. **构建**：`dotnet build SourceGit.slnx -c Release`。Release build 不等于 Native AOT publish；需要单独发布和运行验证，才能声明 AOT 兼容。主线若加 Newtonsoft/反射序列化，需复核 Contracts 的源生成 JSON 边界。
+3. **测试**：运行 `tests/SourceGit.Remote.Tests` 与 `tests/SourceGit.GuiRemote.Tests` 的默认入口，并按改动选择可选模式（如 `--launcher-retry-checks`）。记录实际命令和结果；默认入口成功不代表 `--slow` 或全部启动、生命周期等可选检查都已执行。
 4. **发布产物**：`build/scripts/publish-remote.ps1` 产出 linux-x64 Server 包；与客户端 BuildId 配对握手（版本不匹配必须被明确报告——这是协议规定，主线改版本号逻辑时注意）。
-5. **冒烟**：WSL 打开一个真实仓库 → 看历史/diff/stage/commit/push → 远端终端改文件验证 watcher 事件刷新；SSH 至少一次连接握手。
+5. **冒烟**：在用户授权范围内，WSL 打开真实仓库验证历史/diff/stage/commit/push 和 watcher 刷新；SSH 仅在当前范围明确包含时验证。未执行的环境、操作和平台必须标为未验证，不能用本地 fixture 测试替代声明。
 6. **文档同步**：`docs/remote/IMPLEMENTATION_STATUS.md` 追加本次合并的 release 号与融合要点；功能迁移清单上把本次主线新增的本地功能登记为"待远端化"。
 
 ---
